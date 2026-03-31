@@ -1,0 +1,51 @@
+package org.openstreetmap.josm.plugins.quickaddressfill;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import org.openstreetmap.josm.command.ChangePropertyCommand;
+import org.openstreetmap.josm.data.UndoRedoHandler;
+import org.openstreetmap.josm.data.osm.OsmPrimitive;
+
+final class BuildingTagApplier {
+
+    private BuildingTagApplier() {
+        // Utility class
+    }
+
+    static void applyAddress(OsmPrimitive building, String streetName, String postcode, String buildingType, String houseNumber) {
+        String normalizedStreet = normalize(streetName);
+        if (building == null || normalizedStreet.isEmpty()) {
+            return;
+        }
+
+        Map<String, String> tags = new LinkedHashMap<>();
+        tags.put("addr:street", normalizedStreet);
+
+        String normalizedPostcode = normalize(postcode);
+        if (!normalizedPostcode.isEmpty()) {
+            tags.put("addr:postcode", normalizedPostcode);
+        }
+
+        String normalizedBuildingType = normalize(buildingType);
+        if (!normalizedBuildingType.isEmpty()) {
+            tags.put("building", normalizedBuildingType);
+        }
+
+        String normalizedHouseNumber = normalize(houseNumber);
+        if (!normalizedHouseNumber.isEmpty()) {
+            tags.put("addr:housenumber", normalizedHouseNumber);
+        }
+
+        ChangePropertyCommand command = new ChangePropertyCommand(
+                Collections.singleton(building),
+                tags
+        );
+        UndoRedoHandler.getInstance().add(command);
+    }
+
+    private static String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+}

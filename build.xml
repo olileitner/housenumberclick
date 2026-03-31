@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="quickaddressfill" default="dist" basedir=".">
+    <property name="plugin.name" value="QuickAddressFill"/>
+    <property name="plugin.class" value="org.openstreetmap.josm.plugins.quickaddressfill.QuickAddressFillPlugin"/>
+    <property name="plugin.description" value="Quickly opens the QuickAddressFill status dialog."/>
+    <property name="plugin.version" value="0.1.0"/>
+    <property name="plugin.main.version" value="19481"/>
+
+    <property name="src.dir" value="src"/>
+    <property name="build.dir" value="build"/>
+    <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="dist.dir" value="dist"/>
+    <property name="lib.dir" value="lib"/>
+    <property name="josm.jar" value="${lib.dir}/josm-tested.jar"/>
+
+    <target name="clean">
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
+    </target>
+
+    <target name="init">
+        <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${dist.dir}"/>
+        <mkdir dir="${lib.dir}"/>
+    </target>
+
+    <target name="fetch-josm" depends="init" description="Download JOSM tested jar if missing">
+        <get src="https://josm.openstreetmap.de/download/josm-tested.jar"
+             dest="${josm.jar}"
+             usetimestamp="true"
+             skipexisting="true"/>
+    </target>
+
+    <target name="compile" depends="fetch-josm">
+        <javac srcdir="${src.dir}"
+               destdir="${classes.dir}"
+               includeantruntime="false"
+               release="17"
+               encoding="UTF-8">
+            <classpath>
+                <pathelement location="${josm.jar}"/>
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="dist" depends="compile" description="Build plugin JAR">
+        <jar destfile="${dist.dir}/${plugin.name}.jar" basedir="${classes.dir}">
+            <manifest>
+                <attribute name="Manifest-Version" value="1.0"/>
+                <attribute name="Plugin-Class" value="${plugin.class}"/>
+                <attribute name="Plugin-Description" value="${plugin.description}"/>
+                <attribute name="Plugin-Version" value="${plugin.version}"/>
+                <attribute name="Plugin-Mainversion" value="${plugin.main.version}"/>
+            </manifest>
+        </jar>
+    </target>
+</project>

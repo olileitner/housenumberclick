@@ -1,0 +1,649 @@
+package org.openstreetmap.josm.plugins.quickaddressfill;
+
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Polygon;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import javax.swing.JCheckBox;
+import javax.swing.JDialog;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+
+import org.openstreetmap.josm.actions.mapmode.MapMode;
+import org.openstreetmap.josm.data.coor.LatLon;
+import org.openstreetmap.josm.data.osm.DataSet;
+import org.openstreetmap.josm.data.osm.Node;
+import org.openstreetmap.josm.data.osm.OsmPrimitive;
+import org.openstreetmap.josm.data.osm.Relation;
+import org.openstreetmap.josm.data.osm.RelationMember;
+import org.openstreetmap.josm.data.osm.Way;
+import org.openstreetmap.josm.gui.MainApplication;
+import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.gui.Notification;
+import org.openstreetmap.josm.tools.I18n;
+
+final class QuickAddressFillStreetMapMode extends MapMode {
+
+    private static final Pattern NUMERIC_HOUSE_NUMBER_PATTERN = Pattern.compile("^(\\d+)$");
+    private static final Pattern NUMERIC_WITH_LETTER_SUFFIX_PATTERN = Pattern.compile("^(\\d+)([A-Za-z]+)$");
+    private static final Pattern LETTER_HOUSE_NUMBER_PATTERN = Pattern.compile("^([A-Za-z]+)$");
+    private static final Pattern HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN = Pattern.compile("^(\\d+)([A-Za-z]+)?$");
+
+    private final StreetModeController controller;
+    private final KeyAdapter escListener;
+    private String streetName;
+    private String postcode;
+    private String buildingType;
+    private String houseNumber;
+    private int houseNumberIncrementStep = 1;
+    private String warningSuppressedStreet;
+    private long lastHandledMouseWhen;
+
+    QuickAddressFillStreetMapMode(StreetModeController controller) {
+        super(
+                I18n.tr("Quick Address Fill Street Mode"),
+                "move/move",
+                I18n.tr("Click buildings to set addr:street"),
+                Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR)
+        );
+        this.controller = controller;
+        this.escListener = new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    controller.deactivate();
+                    e.consume();
+                } else if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+                    if (incrementHouseNumberAfterSuccessfulApply()) {
+                        updateStatusLine(I18n.tr("House number advanced."));
+                    } else {
+                        updateStatusLine(I18n.tr("House number could not be advanced."));
+                    }
+                    e.consume();
+                } else if (e.getKeyCode() == KeyEvent.VK_L) {
+                    if (toggleLetterSuffixOnHouseNumber()) {
+                        updateStatusLine(I18n.tr("House number letter toggle applied."));
+                    } else {
+                        updateStatusLine(I18n.tr("House number letter toggle is only available for numeric house numbers."));
+                    }
+                    e.consume();
+                }
+            }
+        };
+    }
+
+    void setAddressValues(String streetName, String postcode, String buildingType, String houseNumber, int houseNumberIncrementStep) {
+        String normalizedStreet = normalize(streetName);
+        if (!normalizedStreet.equals(this.streetName)) {
+            warningSuppressedStreet = null;
+        }
+        this.streetName = normalizedStreet;
+        this.postcode = normalize(postcode);
+        this.buildingType = normalize(buildingType);
+        this.houseNumber = normalize(houseNumber);
+        this.houseNumberIncrementStep = normalizeIncrementStep(houseNumberIncrementStep);
+        if (containsLetter(this.houseNumber) && this.houseNumberIncrementStep != 1) {
+            this.houseNumberIncrementStep = 1;
+        }
+        updateStatusLine(null);
+    }
+
+    @Override
+    public void enterMode() {
+        super.enterMode();
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.addKeyListener(escListener);
+            map.mapView.addMouseListener(this);
+            map.mapView.requestFocusInWindow();
+        }
+        updateStatusLine(I18n.tr("Street Mode active."));
+    }
+
+    @Override
+    public void exitMode() {
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.removeKeyListener(escListener);
+            map.mapView.removeMouseListener(this);
+        }
+        if (map != null && map.statusLine != null) {
+            map.statusLine.resetHelpText(this);
+        }
+        super.exitMode();
+    }
+
+    @Override
+    public String getModeHelpText() {
+        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, SPACE increments number, L toggles letter suffix.");
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+        if (SwingUtilities.isLeftMouseButton(e)) {
+            if (e.isControlDown()) {
+                handleSecondaryClick(e);
+            } else {
+                handlePrimaryClick(e);
+            }
+        }
+    }
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+        // Intentionally handled on mouseReleased only to avoid duplicate apply/increment per click.
+    }
+
+    private void handlePrimaryClick(MouseEvent e) {
+        if (streetName == null || streetName.isBlank()) {
+            updateStatusLine(I18n.tr("No street selected."));
+            return;
+        }
+        if (e.getWhen() == lastHandledMouseWhen) {
+            return;
+        }
+        lastHandledMouseWhen = e.getWhen();
+
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null) {
+            return;
+        }
+
+        OsmPrimitive building = resolveBuildingAtClick(map, e);
+        if (building == null) {
+            updateStatusLine(I18n.tr("No building detected"));
+            return;
+        }
+
+        String overwrittenStreet = getOverwrittenStreetName(building);
+        if (hasOverwriteConflict(building) && !isWarningSuppressedForStreet(overwrittenStreet)) {
+            if (!confirmOverwrite(building, overwrittenStreet)) {
+                updateStatusLine(I18n.tr("Overwrite cancelled."));
+                e.consume();
+                return;
+            }
+        }
+
+        String appliedStreet = normalize(streetName);
+        String appliedHouseNumber = normalize(houseNumber);
+        BuildingTagApplier.applyAddress(building, streetName, postcode, buildingType, houseNumber);
+        DataSet dataSet = MainApplication.getLayerManager().getEditDataSet();
+        if (dataSet != null) {
+            dataSet.setSelected(Collections.singleton(getSelectionTarget(building)));
+        }
+
+        incrementHouseNumberAfterSuccessfulApply();
+
+        String appliedMessage = I18n.tr("Applied: {0}, {1}", displayValue(appliedStreet), displayValue(appliedHouseNumber));
+        updateStatusLine(appliedMessage);
+        showNotification(appliedMessage);
+        e.consume();
+    }
+
+    private void handleSecondaryClick(MouseEvent e) {
+        if (e.getWhen() == lastHandledMouseWhen) {
+            return;
+        }
+        lastHandledMouseWhen = e.getWhen();
+
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null) {
+            return;
+        }
+
+        OsmPrimitive building = resolveBuildingAtClick(map, e);
+        if (building == null) {
+            String streetFromClick = resolveStreetNameAtClick(map, e);
+            if (streetFromClick != null) {
+                controller.updateAddressValues(streetFromClick, postcode, buildingType, "1");
+                updateStatusLine(I18n.tr("Street name loaded from map: {0}", displayValue(streetFromClick)));
+            } else {
+                updateStatusLine(I18n.tr("No building detected"));
+            }
+            return;
+        }
+
+        String readStreet = normalize(building.get("addr:street"));
+        String readPostcode = normalize(building.get("addr:postcode"));
+        String readBuildingType = normalize(building.get("building"));
+        String readHouseNumber = normalize(building.get("addr:housenumber"));
+
+        controller.updateAddressValues(readStreet, readPostcode, readBuildingType, readHouseNumber);
+
+        updateStatusLine(
+                I18n.tr(
+                        "Address data loaded: street={0}, postcode={1}, house number={2}, type={3}",
+                        displayValue(readStreet),
+                        displayValue(readPostcode),
+                        displayValue(readHouseNumber),
+                        displayValue(readBuildingType)
+                )
+        );
+        e.consume();
+    }
+
+    private String resolveStreetNameAtClick(MapFrame map, MouseEvent e) {
+        if (map == null || map.mapView == null) {
+            return null;
+        }
+        List<OsmPrimitive> nearby = map.mapView.getAllNearest(e.getPoint(), this::isNamedStreetCandidate);
+        if (nearby == null || nearby.isEmpty()) {
+            return null;
+        }
+        for (OsmPrimitive primitive : nearby) {
+            if (!(primitive instanceof Way)) {
+                continue;
+            }
+            String name = normalize(primitive.get("name"));
+            if (!name.isEmpty()) {
+                return name;
+            }
+        }
+        return null;
+    }
+
+    private OsmPrimitive resolveBuildingAtClick(MapFrame map, MouseEvent e) {
+        if (map == null || map.mapView == null) {
+            return null;
+        }
+        List<OsmPrimitive> nearby = map.mapView.getAllNearest(e.getPoint(), this::isBuildingOrBuildingOutlineCandidate);
+        OsmPrimitive building = chooseBuilding(nearby);
+        if (building != null) {
+            return building;
+        }
+
+        DataSet dataSet = MainApplication.getLayerManager().getEditDataSet();
+        if (dataSet == null) {
+            return null;
+        }
+
+        Relation relationBuilding = findRelationContainingClick(dataSet, map, e);
+        if (relationBuilding != null) {
+            return relationBuilding;
+        }
+
+        return findWayContainingClick(dataSet, map, e);
+    }
+
+    private Relation findRelationContainingClick(DataSet dataSet, MapFrame map, MouseEvent e) {
+        if (dataSet == null || map == null || map.mapView == null || map.mapView.getRealBounds() == null) {
+            return null;
+        }
+
+        for (Relation relation : dataSet.searchRelations(map.mapView.getRealBounds().toBBox())) {
+            if (!isBuildingCandidate(relation)) {
+                continue;
+            }
+            for (RelationMember member : relation.getMembers()) {
+                String role = member.getRole();
+                if (member.isWay() && (role == null || role.isEmpty() || "outer".equals(role)) && containsPoint(member.getWay(), map, e)) {
+                    return relation;
+                }
+            }
+        }
+        return null;
+    }
+
+    private Way findWayContainingClick(DataSet dataSet, MapFrame map, MouseEvent e) {
+        if (dataSet == null || map == null || map.mapView == null || map.mapView.getRealBounds() == null) {
+            return null;
+        }
+
+        Way best = null;
+        double bestArea = Double.MAX_VALUE;
+        for (Way way : dataSet.searchWays(map.mapView.getRealBounds().toBBox())) {
+            if (!isBuildingOrBuildingOutlineCandidate(way)) {
+                continue;
+            }
+            if (!containsPoint(way, map, e)) {
+                continue;
+            }
+
+            double area = way.getBBox().area();
+            if (area < bestArea) {
+                best = way;
+                bestArea = area;
+            }
+        }
+        return best;
+    }
+
+    private boolean containsPoint(Way way, MapFrame map, MouseEvent e) {
+        if (way == null || map == null || map.mapView == null || !way.isClosed() || way.getNodesCount() < 4) {
+            return false;
+        }
+
+        LatLon clickLatLon = map.mapView.getLatLon(e.getX(), e.getY());
+        if (clickLatLon == null || !way.getBBox().bounds(clickLatLon)) {
+            return false;
+        }
+
+        Polygon polygon = new Polygon();
+        for (Node node : way.getNodes()) {
+            if (node == null || node.getCoor() == null) {
+                return false;
+            }
+            java.awt.Point point = map.mapView.getPoint(node);
+            if (point == null) {
+                return false;
+            }
+            polygon.addPoint(point.x, point.y);
+        }
+        return polygon.contains(e.getPoint());
+    }
+
+    private boolean isBuildingCandidate(OsmPrimitive primitive) {
+        return primitive != null
+                && primitive.isUsable()
+                && primitive.hasTag("building")
+                && (primitive instanceof Way || primitive instanceof Relation);
+    }
+
+    private boolean isBuildingOrBuildingOutlineCandidate(OsmPrimitive primitive) {
+        if (isBuildingCandidate(primitive)) {
+            return true;
+        }
+        return primitive instanceof Way && isWayInBuildingRelation((Way) primitive);
+    }
+
+    private boolean isNamedStreetCandidate(OsmPrimitive primitive) {
+        return primitive instanceof Way
+                && primitive.isUsable()
+                && primitive.hasTag("highway")
+                && !normalize(primitive.get("name")).isEmpty();
+    }
+
+    private boolean isWayInBuildingRelation(Way way) {
+        if (way == null || !way.isUsable()) {
+            return false;
+        }
+        for (OsmPrimitive referrer : way.getReferrers()) {
+            if (referrer instanceof Relation && referrer.isUsable() && referrer.hasTag("building")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private Relation getBuildingRelationForWay(Way way) {
+        if (way == null || !way.isUsable()) {
+            return null;
+        }
+        for (OsmPrimitive referrer : way.getReferrers()) {
+            if (referrer instanceof Relation && referrer.isUsable() && referrer.hasTag("building")) {
+                return (Relation) referrer;
+            }
+        }
+        return null;
+    }
+
+    private OsmPrimitive chooseBuilding(List<OsmPrimitive> nearby) {
+        if (nearby == null || nearby.isEmpty()) {
+            return null;
+        }
+
+        // Prefer way buildings so selection feedback is immediately visible on map.
+        for (OsmPrimitive primitive : nearby) {
+            if (primitive instanceof Way && primitive.hasTag("building")) {
+                return primitive;
+            }
+        }
+
+        // If only an untagged outer way is hit, resolve to its building relation.
+        for (OsmPrimitive primitive : nearby) {
+            if (primitive instanceof Way) {
+                Relation relation = getBuildingRelationForWay((Way) primitive);
+                if (relation != null) {
+                    return relation;
+                }
+            }
+        }
+
+        for (OsmPrimitive primitive : nearby) {
+            if (primitive instanceof Relation && primitive.hasTag("building")) {
+                return primitive;
+            }
+        }
+        return null;
+    }
+
+    private OsmPrimitive getSelectionTarget(OsmPrimitive building) {
+        if (!(building instanceof Relation)) {
+            return building;
+        }
+
+        Relation relation = (Relation) building;
+        List<Way> outers = new ArrayList<>();
+        for (RelationMember member : relation.getMembers()) {
+            String role = member.getRole();
+            if (member.isWay() && (role == null || role.isEmpty() || "outer".equals(role))) {
+                outers.add(member.getWay());
+            }
+        }
+
+        if (!outers.isEmpty()) {
+            return outers.get(0);
+        }
+        return building;
+    }
+
+    private boolean hasOverwriteConflict(OsmPrimitive building) {
+        String existingStreet = normalize(building.get("addr:street"));
+        String existingPostcode = normalize(building.get("addr:postcode"));
+
+        boolean streetConflict = !existingStreet.isEmpty() && !existingStreet.equals(streetName);
+
+        // Postcode is considered only when a new postcode is provided in the dialog.
+        boolean postcodeConflict = !postcode.isEmpty()
+                && !existingPostcode.isEmpty()
+                && !existingPostcode.equals(postcode);
+
+        return streetConflict || postcodeConflict;
+    }
+
+    private boolean confirmOverwrite(OsmPrimitive building, String overwrittenStreet) {
+        String existingStreet = normalize(building.get("addr:street"));
+        String existingPostcode = normalize(building.get("addr:postcode"));
+        String existingHouseNumber = normalize(building.get("addr:housenumber"));
+
+        List<Object[]> rows = new ArrayList<>();
+        if (!existingStreet.isEmpty() && !existingStreet.equals(streetName)) {
+            rows.add(new Object[] {"addr:street", displayValue(existingStreet), displayValue(streetName)});
+        }
+        if (!postcode.isEmpty() && !existingPostcode.isEmpty() && !existingPostcode.equals(postcode)) {
+            rows.add(new Object[] {"addr:postcode", displayValue(existingPostcode), displayValue(postcode)});
+        }
+        if (!houseNumber.isEmpty() && !existingHouseNumber.isEmpty() && !existingHouseNumber.equals(houseNumber)) {
+            rows.add(new Object[] {"addr:housenumber", displayValue(existingHouseNumber), displayValue(houseNumber)});
+        }
+
+        if (rows.isEmpty()) {
+            return true;
+        }
+
+        String[] columns = new String[] {
+                I18n.tr("Field"),
+                I18n.tr("Existing"),
+                I18n.tr("New")
+        };
+
+        JTable comparisonTable = new JTable(rows.toArray(new Object[0][]), columns);
+        comparisonTable.setEnabled(false);
+        comparisonTable.setRowSelectionAllowed(false);
+        comparisonTable.setFillsViewportHeight(true);
+
+        JScrollPane tableScrollPane = new JScrollPane(comparisonTable);
+        tableScrollPane.setPreferredSize(new Dimension(480, 96));
+
+        JCheckBox suppressCheckbox = new JCheckBox(
+                I18n.tr("Do not warn again for {0}.", displayValue(overwrittenStreet))
+        );
+        Object[] content = new Object[] {
+                I18n.tr("<html><b>The following existing values will be overwritten:</b></html>"),
+                tableScrollPane,
+                I18n.tr("Do you want to apply the new values?"),
+                suppressCheckbox
+        };
+
+        JOptionPane optionPane = new JOptionPane(content, JOptionPane.WARNING_MESSAGE, JOptionPane.YES_NO_OPTION);
+        optionPane.setInitialValue(JOptionPane.YES_OPTION);
+        JDialog dialog = optionPane.createDialog(MainApplication.getMainFrame(), I18n.tr("Quick Address Fill - Overwrite Warning"));
+        dialog.setVisible(true);
+
+        Object selectedValue = optionPane.getValue();
+        int result = selectedValue instanceof Integer ? (Integer) selectedValue : JOptionPane.NO_OPTION;
+
+        if (result == JOptionPane.YES_OPTION && suppressCheckbox.isSelected()) {
+            warningSuppressedStreet = overwrittenStreet;
+        }
+        return result == JOptionPane.YES_OPTION;
+    }
+
+    private boolean isWarningSuppressedForStreet(String overwrittenStreet) {
+        return overwrittenStreet != null && overwrittenStreet.equals(warningSuppressedStreet);
+    }
+
+    private String getOverwrittenStreetName(OsmPrimitive building) {
+        String existingStreet = normalize(building.get("addr:street"));
+        if (!existingStreet.isEmpty()) {
+            return existingStreet;
+        }
+        return streetName;
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private String displayValue(String value) {
+        return value == null || value.isBlank() ? "(empty)" : value;
+    }
+
+    private String formatIncrementStep(int step) {
+        return step > 0 ? "+" + step : Integer.toString(step);
+    }
+
+    private void updateStatusLine(String actionMessage) {
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.statusLine == null) {
+            return;
+        }
+
+        String snapshot = I18n.tr(
+                "Street: {0} | House number: {1} | Step: {2}",
+                displayValue(streetName),
+                displayValue(houseNumber),
+                formatIncrementStep(houseNumberIncrementStep)
+        );
+        String text = actionMessage == null || actionMessage.isBlank()
+                ? snapshot
+                : I18n.tr("{0} | {1}", snapshot, actionMessage);
+        map.statusLine.setHelpText(this, text);
+    }
+
+    private void showNotification(String message) {
+        if (message == null || message.isBlank()) {
+            return;
+        }
+        new Notification(message)
+                .setDuration(Notification.TIME_SHORT)
+                .show();
+    }
+
+    private boolean incrementHouseNumberAfterSuccessfulApply() {
+        String next = incrementHouseNumber(houseNumber);
+        if (next == null) {
+            return false;
+        }
+        houseNumber = next;
+        controller.updateHouseNumber(next);
+        return true;
+    }
+
+    private boolean toggleLetterSuffixOnHouseNumber() {
+        String normalized = normalize(houseNumber);
+        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
+        if (!matcher.matches()) {
+            return false;
+        }
+
+        String prefix = matcher.group(1);
+        String suffix = matcher.group(2);
+        String next = (suffix == null || suffix.isEmpty()) ? prefix + "a" : prefix;
+        houseNumber = next;
+        controller.updateHouseNumber(next);
+        return true;
+    }
+
+    private String incrementHouseNumber(String current) {
+        String normalized = normalize(current);
+        Matcher numericWithLetters = NUMERIC_WITH_LETTER_SUFFIX_PATTERN.matcher(normalized);
+        if (numericWithLetters.matches()) {
+            String prefix = numericWithLetters.group(1);
+            String letters = numericWithLetters.group(2);
+            return prefix + incrementLetters(letters);
+        }
+
+        Matcher onlyLetters = LETTER_HOUSE_NUMBER_PATTERN.matcher(normalized);
+        if (onlyLetters.matches()) {
+            return incrementLetters(onlyLetters.group(1));
+        }
+
+        Matcher onlyNumber = NUMERIC_HOUSE_NUMBER_PATTERN.matcher(normalized);
+        if (!onlyNumber.matches()) {
+            return null;
+        }
+
+        try {
+            long number = Long.parseLong(onlyNumber.group(1));
+            long incremented = number + houseNumberIncrementStep;
+            if (incremented < 0) {
+                return null;
+            }
+            return Long.toString(incremented);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String incrementLetters(String letters) {
+        if (letters == null || letters.isEmpty()) {
+            return letters;
+        }
+
+        char[] chars = letters.toCharArray();
+        for (int i = chars.length - 1; i >= 0; i--) {
+            char current = chars[i];
+            boolean upperCase = Character.isUpperCase(current);
+            char min = upperCase ? 'A' : 'a';
+            char max = upperCase ? 'Z' : 'z';
+
+            if (current == max) {
+                chars[i] = min;
+            } else {
+                chars[i] = (char) (current + 1);
+                return new String(chars);
+            }
+        }
+
+        char leading = Character.isUpperCase(chars[0]) ? 'A' : 'a';
+        return leading + new String(chars);
+    }
+
+    private boolean containsLetter(String value) {
+        return value != null && value.matches(".*[A-Za-z].*");
+    }
+
+    private int normalizeIncrementStep(int step) {
+        return step == -2 || step == -1 || step == 1 || step == 2 ? step : 1;
+    }
+}
