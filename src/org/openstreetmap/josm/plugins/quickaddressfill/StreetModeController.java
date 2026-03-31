@@ -10,6 +10,7 @@ final class StreetModeController {
     private QuickAddressFillStreetMapMode streetMapMode;
     private HouseNumberUpdateListener houseNumberUpdateListener;
     private AddressValuesReadListener addressValuesReadListener;
+    private BuildingTypeConsumedListener buildingTypeConsumedListener;
 
     interface HouseNumberUpdateListener {
         void onHouseNumberUpdated(String houseNumber);
@@ -17,6 +18,10 @@ final class StreetModeController {
 
     interface AddressValuesReadListener {
         void onAddressValuesRead(String streetName, String postcode, String buildingType, String houseNumber);
+    }
+
+    interface BuildingTypeConsumedListener {
+        void onBuildingTypeConsumed();
     }
 
     boolean isActive() {
@@ -67,6 +72,16 @@ final class StreetModeController {
     void updateAddressValues(String streetName, String postcode, String buildingType, String houseNumber) {
         if (addressValuesReadListener != null) {
             addressValuesReadListener.onAddressValuesRead(streetName, postcode, buildingType, houseNumber);
+        }
+    }
+
+    void setBuildingTypeConsumedListener(BuildingTypeConsumedListener listener) {
+        this.buildingTypeConsumedListener = listener;
+    }
+
+    void notifyBuildingTypeConsumed() {
+        if (buildingTypeConsumedListener != null) {
+            buildingTypeConsumedListener.onBuildingTypeConsumed();
         }
     }
 

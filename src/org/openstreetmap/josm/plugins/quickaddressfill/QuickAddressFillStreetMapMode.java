@@ -2,10 +2,17 @@ package org.openstreetmap.josm.plugins.quickaddressfill;
 
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
+import java.awt.Point;
 import java.awt.Polygon;
+import java.awt.RenderingHints;
+import java.awt.Toolkit;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,7 +35,6 @@ import org.openstreetmap.josm.data.osm.RelationMember;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
-import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.tools.I18n;
 
 final class QuickAddressFillStreetMapMode extends MapMode {
@@ -47,6 +53,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
     private int houseNumberIncrementStep = 1;
     private String warningSuppressedStreet;
     private long lastHandledMouseWhen;
+    private boolean controlPressed;
 
     QuickAddressFillStreetMapMode(StreetModeController controller) {
         super(
@@ -59,23 +66,33 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         this.escListener = new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_CONTROL) {
+                    setControlPressed(true);
+                }
                 if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
                     controller.deactivate();
                     e.consume();
                 } else if (e.getKeyCode() == KeyEvent.VK_SPACE) {
                     if (incrementHouseNumberAfterSuccessfulApply()) {
-                        updateStatusLine(I18n.tr("House number advanced."));
+                        refreshModePresentation(I18n.tr("House number advanced."));
                     } else {
                         updateStatusLine(I18n.tr("House number could not be advanced."));
                     }
                     e.consume();
                 } else if (e.getKeyCode() == KeyEvent.VK_L) {
                     if (toggleLetterSuffixOnHouseNumber()) {
-                        updateStatusLine(I18n.tr("House number letter toggle applied."));
+                        refreshModePresentation(I18n.tr("House number letter toggle applied."));
                     } else {
                         updateStatusLine(I18n.tr("House number letter toggle is only available for numeric house numbers."));
                     }
                     e.consume();
+                }
+            }
+
+            @Override
+            public void keyReleased(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_CONTROL) {
+                    setControlPressed(false);
                 }
             }
         };
@@ -94,7 +111,9 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         if (containsLetter(this.houseNumber) && this.houseNumberIncrementStep != 1) {
             this.houseNumberIncrementStep = 1;
         }
-        updateStatusLine(null);
+        if (isModeActiveOnMap(MainApplication.getMap())) {
+            refreshModePresentation(null);
+        }
     }
 
     @Override
@@ -106,7 +125,8 @@ final class QuickAddressFillStreetMapMode extends MapMode {
             map.mapView.addMouseListener(this);
             map.mapView.requestFocusInWindow();
         }
-        updateStatusLine(I18n.tr("Street Mode active."));
+        controlPressed = false;
+        refreshModePresentation(null);
     }
 
     @Override
@@ -115,9 +135,11 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         if (map != null && map.mapView != null) {
             map.mapView.removeKeyListener(escListener);
             map.mapView.removeMouseListener(this);
+            map.mapView.setCursor(Cursor.getDefaultCursor());
         }
+        controlPressed = false;
         if (map != null && map.statusLine != null) {
-            map.statusLine.resetHelpText(this);
+            map.statusLine.setHelpText(this, I18n.tr("QAF PAUSED"));
         }
         super.exitMode();
     }
@@ -175,17 +197,22 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
         String appliedStreet = normalize(streetName);
         String appliedHouseNumber = normalize(houseNumber);
+        boolean buildingTypeWasUsed = !normalize(buildingType).isEmpty();
         BuildingTagApplier.applyAddress(building, streetName, postcode, buildingType, houseNumber);
         DataSet dataSet = MainApplication.getLayerManager().getEditDataSet();
         if (dataSet != null) {
             dataSet.setSelected(Collections.singleton(getSelectionTarget(building)));
         }
 
+        if (buildingTypeWasUsed) {
+            buildingType = "";
+            controller.notifyBuildingTypeConsumed();
+        }
+
         incrementHouseNumberAfterSuccessfulApply();
 
         String appliedMessage = I18n.tr("Applied: {0}, {1}", displayValue(appliedStreet), displayValue(appliedHouseNumber));
-        updateStatusLine(appliedMessage);
-        showNotification(appliedMessage);
+        refreshModePresentation(appliedMessage);
         e.consume();
     }
 
@@ -528,6 +555,11 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         return value == null || value.isBlank() ? "(empty)" : value;
     }
 
+    private void refreshModePresentation(String actionMessage) {
+        updateStatusLine(actionMessage);
+        updateHouseNumberCursor();
+    }
+
     private String formatIncrementStep(int step) {
         return step > 0 ? "+" + step : Integer.toString(step);
     }
@@ -538,25 +570,112 @@ final class QuickAddressFillStreetMapMode extends MapMode {
             return;
         }
 
-        String snapshot = I18n.tr(
-                "Street: {0} | House number: {1} | Step: {2}",
+        if (!isModeActiveOnMap(map)) {
+            map.statusLine.setHelpText(this, I18n.tr("QAF PAUSED"));
+            return;
+        }
+
+        String baseText = I18n.tr(
+                "QAF ACTIVE | Street: {0} | Postcode: {1} | Nr: {2} | Step: {3}",
                 displayValue(streetName),
+                displayValue(postcode),
                 displayValue(houseNumber),
                 formatIncrementStep(houseNumberIncrementStep)
         );
         String text = actionMessage == null || actionMessage.isBlank()
-                ? snapshot
-                : I18n.tr("{0} | {1}", snapshot, actionMessage);
+                ? baseText
+                : I18n.tr("{0} | {1}", baseText, actionMessage);
         map.statusLine.setHelpText(this, text);
     }
 
-    private void showNotification(String message) {
-        if (message == null || message.isBlank()) {
+    private boolean isModeActiveOnMap(MapFrame map) {
+        return map != null && map.mapMode == this;
+    }
+
+    private void updateHouseNumberCursor() {
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null || !isModeActiveOnMap(map)) {
             return;
         }
-        new Notification(message)
-                .setDuration(Notification.TIME_SHORT)
-                .show();
+        map.mapView.setCursor(controlPressed ? createMagnifierCursor() : createHouseNumberCursor());
+    }
+
+    private void setControlPressed(boolean pressed) {
+        if (controlPressed == pressed) {
+            return;
+        }
+        controlPressed = pressed;
+        updateHouseNumberCursor();
+    }
+
+    private Cursor createHouseNumberCursor() {
+        try {
+            String label = normalize(houseNumber);
+            if (label.isEmpty()) {
+                label = "?";
+            }
+
+            int width = 48;
+            int height = 48;
+            int centerX = width / 2;
+            int tipY = height - 2;
+
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = image.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+            FontMetrics metrics = g.getFontMetrics();
+            int textWidth = metrics.stringWidth(label);
+            int textX = Math.max(1, (width - textWidth) / 2);
+            int textY = 14;
+
+            g.setColor(new java.awt.Color(255, 255, 220, 235));
+            g.fillRoundRect(textX - 3, 2, textWidth + 6, 16, 6, 6);
+            g.setColor(java.awt.Color.BLACK);
+            g.drawRoundRect(textX - 3, 2, textWidth + 6, 16, 6, 6);
+            g.drawString(label, textX, textY);
+
+            java.awt.Color lightArrowColor = new java.awt.Color(245, 245, 245, 240);
+            g.setColor(lightArrowColor);
+            g.drawLine(centerX, 20, centerX, 36);
+            Polygon arrowHead = new Polygon();
+            arrowHead.addPoint(centerX, tipY);
+            arrowHead.addPoint(centerX - 5, 36);
+            arrowHead.addPoint(centerX + 5, 36);
+            g.fillPolygon(arrowHead);
+            g.dispose();
+
+            return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(centerX, tipY), "qaf-house-number-cursor");
+        } catch (RuntimeException ex) {
+            return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
+        }
+    }
+
+    private Cursor createMagnifierCursor() {
+        try {
+            int width = 32;
+            int height = 32;
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = image.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            g.setColor(new java.awt.Color(30, 30, 30, 230));
+            g.setStroke(new java.awt.BasicStroke(2f));
+            g.drawOval(4, 4, 16, 16);
+            g.setColor(new java.awt.Color(255, 255, 255, 110));
+            g.fillOval(8, 8, 7, 7);
+
+            g.setColor(new java.awt.Color(30, 30, 30, 230));
+            g.setStroke(new java.awt.BasicStroke(3f));
+            g.drawLine(17, 17, 27, 27);
+            g.dispose();
+
+            return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(10, 10), "qaf-magnifier-cursor");
+        } catch (RuntimeException ex) {
+            return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
+        }
     }
 
     private boolean incrementHouseNumberAfterSuccessfulApply() {

@@ -21,6 +21,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
+import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
@@ -41,6 +42,9 @@ final class StreetSelectionDialog {
     private JToggleButton minusOneIncrementButton;
     private JToggleButton plusOneIncrementButton;
     private JToggleButton plusTwoIncrementButton;
+    private final JLabel modeStateLabel;
+    private final JButton continueWorkingButton;
+    private final Timer modeStateRefreshTimer;
     private int houseNumberIncrementStep = 1;
     private String lastSelectedStreet;
     private String rememberedStreet;
@@ -113,11 +117,22 @@ final class StreetSelectionDialog {
         this.streetCombo.addActionListener(e -> onStreetSelectionChanged());
 
         this.buildingTypeCombo = createBuildingTypeCombo();
+        this.buildingTypeCombo.setToolTipText(I18n.tr("Building type applies to next successful click only"));
         this.streetModeController.setHouseNumberUpdateListener(this::updateHouseNumberFromMode);
         this.streetModeController.setAddressValuesReadListener(this::updateAddressValuesFromMode);
+        this.streetModeController.setBuildingTypeConsumedListener(this::consumeBuildingTypeFromMode);
 
         JButton closeButton = new JButton(I18n.tr("Close"));
         closeButton.addActionListener(e -> closeDialog());
+
+        this.modeStateLabel = new JLabel();
+        this.continueWorkingButton = new JButton(I18n.tr("Continue working"));
+        this.continueWorkingButton.addActionListener(e -> continueWorking());
+        this.modeStateRefreshTimer = new Timer(500, e -> refreshModeStateUi());
+
+        JPanel modeStatePanel = new JPanel(new BorderLayout(8, 0));
+        modeStatePanel.add(modeStateLabel, BorderLayout.WEST);
+        modeStatePanel.add(continueWorkingButton, BorderLayout.EAST);
 
         JPanel formPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
@@ -224,6 +239,7 @@ final class StreetSelectionDialog {
 
         JPanel content = new JPanel(new BorderLayout(8, 8));
         content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        content.add(modeStatePanel, BorderLayout.NORTH);
         content.add(formPanel, BorderLayout.CENTER);
         content.add(closeButton, BorderLayout.SOUTH);
 
@@ -282,10 +298,14 @@ final class StreetSelectionDialog {
         updatingInputs = false;
 
         notifyAddressChanged();
+        refreshModeStateUi();
 
         if (!dialog.isVisible()) {
             positionTopLeftInOwner(MainApplication.getMainFrame());
             dialog.setVisible(true);
+            if (!modeStateRefreshTimer.isRunning()) {
+                modeStateRefreshTimer.start();
+            }
         } else {
             dialog.toFront();
             dialog.requestFocus();
@@ -307,6 +327,7 @@ final class StreetSelectionDialog {
                     houseNumberField.getText(),
                     houseNumberIncrementStep
             );
+            refreshModeStateUi();
         }
     }
 
@@ -420,6 +441,14 @@ final class StreetSelectionDialog {
         notifyAddressChanged();
     }
 
+    private void consumeBuildingTypeFromMode() {
+        updatingInputs = true;
+        buildingTypeCombo.getEditor().setItem("");
+        updatingInputs = false;
+        rememberCurrentValues();
+        notifyAddressChanged();
+    }
+
     private void setStreetSelection(String streetName) {
         String normalizedStreet = streetName == null ? "" : streetName.trim();
         if (normalizedStreet.isEmpty()) {
@@ -452,8 +481,35 @@ final class StreetSelectionDialog {
 
     private void closeDialog() {
         rememberCurrentValues();
+        if (modeStateRefreshTimer.isRunning()) {
+            modeStateRefreshTimer.stop();
+        }
         dialog.setVisible(false);
         streetModeController.deactivate();
+    }
+
+    private void continueWorking() {
+        streetModeController.activate(
+                getSelectedStreet(),
+                postcodeField.getText(),
+                getSelectedBuildingType(),
+                houseNumberField.getText(),
+                houseNumberIncrementStep
+        );
+        refreshModeStateUi();
+    }
+
+    private void refreshModeStateUi() {
+        boolean active = streetModeController.isActive();
+        if (active) {
+            modeStateLabel.setText(I18n.tr("Active"));
+            modeStateLabel.setForeground(new java.awt.Color(0, 140, 0));
+            continueWorkingButton.setVisible(false);
+        } else {
+            modeStateLabel.setText(I18n.tr("Paused"));
+            modeStateLabel.setForeground(new java.awt.Color(150, 60, 60));
+            continueWorkingButton.setVisible(true);
+        }
     }
 
     private void applyIncrementStep(int incrementStep) {
