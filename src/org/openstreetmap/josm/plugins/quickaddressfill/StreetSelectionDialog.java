@@ -233,7 +233,7 @@ final class StreetSelectionDialog {
         gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(8, 0, 0, 0);
-        formPanel.add(new JLabel(I18n.tr("Hint: + / - change number, Shift + / Shift - change letter suffix, L toggles suffix.")), gbc);
+        formPanel.add(new JLabel(I18n.tr("Hint: + / - follow current house number mode, L toggles suffix mode.")), gbc);
 
         JPanel content = new JPanel(new BorderLayout(8, 8));
         content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));

@@ -78,12 +78,13 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                     controller.deactivate();
                     e.consume();
                 } else if (isPlusShortcut(e)) {
-                    if (e.isShiftDown() ? incrementHouseNumberLetterByOne() : incrementHouseNumberNumberByOne()) {
-                        refreshModePresentation(e.isShiftDown()
+                    boolean letterMode = hasLetterSuffix(houseNumber);
+                    if (letterMode ? incrementHouseNumberLetterByOne() : incrementHouseNumberNumberByOne()) {
+                        refreshModePresentation(letterMode
                                 ? I18n.tr("House number letter increased.")
                                 : I18n.tr("House number increased."));
                     } else {
-                        updateStatusLine(e.isShiftDown()
+                        updateStatusLine(letterMode
                                 ? I18n.tr("House number letter could not be increased.")
                                 : I18n.tr("House number could not be increased."));
                     }
@@ -96,12 +97,13 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                     }
                     e.consume();
                 } else if (isMinusShortcut(e)) {
-                    if (e.isShiftDown() ? decrementHouseNumberLetterByOne() : decrementHouseNumberNumberByOne()) {
-                        refreshModePresentation(e.isShiftDown()
+                    boolean letterMode = hasLetterSuffix(houseNumber);
+                    if (letterMode ? decrementHouseNumberLetterByOne() : decrementHouseNumberNumberByOne()) {
+                        refreshModePresentation(letterMode
                                 ? I18n.tr("House number letter decreased.")
                                 : I18n.tr("House number decreased."));
                     } else {
-                        updateStatusLine(e.isShiftDown()
+                        updateStatusLine(letterMode
                                 ? I18n.tr("House number letter could not be decreased.")
                                 : I18n.tr("House number could not be decreased."));
                     }
@@ -202,7 +204,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
     @Override
     public String getModeHelpText() {
-        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, + / - change number, Shift + / Shift - change letter suffix, L toggles letter suffix.");
+        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, + / - change number or suffix depending on current house number, L toggles letter suffix.");
     }
 
     private boolean isPlusShortcut(KeyEvent e) {
@@ -908,6 +910,11 @@ final class QuickAddressFillStreetMapMode extends MapMode {
             return null;
         }
         return prefix + decrementedSuffix;
+    }
+
+    private boolean hasLetterSuffix(String value) {
+        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalize(value));
+        return matcher.matches() && matcher.group(2) != null && !matcher.group(2).isEmpty();
     }
 
     private String decrementNumericString(String value) {
