@@ -72,7 +72,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                 if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
                     controller.deactivate();
                     e.consume();
-                } else if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+                } else if (isIncrementShortcut(e)) {
                     if (incrementHouseNumberAfterSuccessfulApply()) {
                         refreshModePresentation(I18n.tr("House number advanced."));
                     } else {
@@ -153,7 +153,15 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
     @Override
     public String getModeHelpText() {
-        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, SPACE increments number, - decrements number, L toggles letter suffix.");
+        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, + increments number, - decrements number, L toggles letter suffix.");
+    }
+
+    private boolean isIncrementShortcut(KeyEvent e) {
+        int keyCode = e.getKeyCode();
+        return keyCode == KeyEvent.VK_PLUS
+                || keyCode == KeyEvent.VK_ADD
+                || (keyCode == KeyEvent.VK_EQUALS && e.isShiftDown())
+                || e.getKeyChar() == '+';
     }
 
     @Override
