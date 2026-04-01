@@ -86,6 +86,13 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                         updateStatusLine(I18n.tr("House number letter toggle is only available for numeric house numbers."));
                     }
                     e.consume();
+                } else if (e.getKeyCode() == KeyEvent.VK_MINUS || e.getKeyCode() == KeyEvent.VK_SUBTRACT) {
+                    if (decrementHouseNumberByOne()) {
+                        refreshModePresentation(I18n.tr("House number decreased."));
+                    } else {
+                        updateStatusLine(I18n.tr("House number could not be decreased."));
+                    }
+                    e.consume();
                 }
             }
 
@@ -146,7 +153,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
     @Override
     public String getModeHelpText() {
-        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, SPACE increments number, L toggles letter suffix.");
+        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, SPACE increments number, - decrements number, L toggles letter suffix.");
     }
 
     @Override
@@ -241,18 +248,16 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
         String readStreet = normalize(building.get("addr:street"));
         String readPostcode = normalize(building.get("addr:postcode"));
-        String readBuildingType = normalize(building.get("building"));
         String readHouseNumber = normalize(building.get("addr:housenumber"));
 
-        controller.updateAddressValues(readStreet, readPostcode, readBuildingType, readHouseNumber);
+        controller.updateAddressValues(readStreet, readPostcode, buildingType, readHouseNumber);
 
         updateStatusLine(
                 I18n.tr(
-                        "Address data loaded: street={0}, postcode={1}, house number={2}, type={3}",
+                        "Address data loaded: street={0}, postcode={1}, house number={2}",
                         displayValue(readStreet),
                         displayValue(readPostcode),
-                        displayValue(readHouseNumber),
-                        displayValue(readBuildingType)
+                        displayValue(readHouseNumber)
                 )
         );
         e.consume();
@@ -688,6 +693,16 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         return true;
     }
 
+    private boolean decrementHouseNumberByOne() {
+        String next = decrementHouseNumber(houseNumber);
+        if (next == null) {
+            return false;
+        }
+        houseNumber = next;
+        controller.updateHouseNumber(next);
+        return true;
+    }
+
     private boolean toggleLetterSuffixOnHouseNumber() {
         String normalized = normalize(houseNumber);
         Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
@@ -729,6 +744,33 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                 return null;
             }
             return Long.toString(incremented);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String decrementHouseNumber(String current) {
+        String normalized = normalize(current);
+        Matcher numericWithLetters = NUMERIC_WITH_LETTER_SUFFIX_PATTERN.matcher(normalized);
+        if (numericWithLetters.matches()) {
+            String decrementedPrefix = decrementNumericString(numericWithLetters.group(1));
+            return decrementedPrefix == null ? null : decrementedPrefix + numericWithLetters.group(2);
+        }
+
+        Matcher onlyNumber = NUMERIC_HOUSE_NUMBER_PATTERN.matcher(normalized);
+        if (!onlyNumber.matches()) {
+            return null;
+        }
+        return decrementNumericString(onlyNumber.group(1));
+    }
+
+    private String decrementNumericString(String value) {
+        try {
+            long number = Long.parseLong(value);
+            if (number <= 0) {
+                return null;
+            }
+            return Long.toString(number - 1);
         } catch (NumberFormatException ex) {
             return null;
         }
