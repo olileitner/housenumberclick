@@ -77,11 +77,15 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                 if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
                     controller.deactivate();
                     e.consume();
-                } else if (isIncrementShortcut(e)) {
-                    if (incrementHouseNumberAfterSuccessfulApply()) {
-                        refreshModePresentation(I18n.tr("House number advanced."));
+                } else if (isPlusShortcut(e)) {
+                    if (e.isShiftDown() ? incrementHouseNumberLetterByOne() : incrementHouseNumberNumberByOne()) {
+                        refreshModePresentation(e.isShiftDown()
+                                ? I18n.tr("House number letter increased.")
+                                : I18n.tr("House number increased."));
                     } else {
-                        updateStatusLine(I18n.tr("House number could not be advanced."));
+                        updateStatusLine(e.isShiftDown()
+                                ? I18n.tr("House number letter could not be increased.")
+                                : I18n.tr("House number could not be increased."));
                     }
                     e.consume();
                 } else if (e.getKeyCode() == KeyEvent.VK_L) {
@@ -91,11 +95,15 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                         updateStatusLine(I18n.tr("House number letter toggle is only available for numeric house numbers."));
                     }
                     e.consume();
-                } else if (e.getKeyCode() == KeyEvent.VK_MINUS || e.getKeyCode() == KeyEvent.VK_SUBTRACT) {
-                    if (decrementHouseNumberByOne()) {
-                        refreshModePresentation(I18n.tr("House number decreased."));
+                } else if (isMinusShortcut(e)) {
+                    if (e.isShiftDown() ? decrementHouseNumberLetterByOne() : decrementHouseNumberNumberByOne()) {
+                        refreshModePresentation(e.isShiftDown()
+                                ? I18n.tr("House number letter decreased.")
+                                : I18n.tr("House number decreased."));
                     } else {
-                        updateStatusLine(I18n.tr("House number could not be decreased."));
+                        updateStatusLine(e.isShiftDown()
+                                ? I18n.tr("House number letter could not be decreased.")
+                                : I18n.tr("House number could not be decreased."));
                     }
                     e.consume();
                 }
@@ -194,15 +202,23 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
     @Override
     public String getModeHelpText() {
-        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, + increments number, - decrements number, L toggles letter suffix.");
+        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, + / - change number, Shift + / Shift - change letter suffix, L toggles letter suffix.");
     }
 
-    private boolean isIncrementShortcut(KeyEvent e) {
+    private boolean isPlusShortcut(KeyEvent e) {
         int keyCode = e.getKeyCode();
         return keyCode == KeyEvent.VK_PLUS
                 || keyCode == KeyEvent.VK_ADD
                 || (keyCode == KeyEvent.VK_EQUALS && e.isShiftDown())
                 || e.getKeyChar() == '+';
+    }
+
+    private boolean isMinusShortcut(KeyEvent e) {
+        int keyCode = e.getKeyCode();
+        return keyCode == KeyEvent.VK_MINUS
+                || keyCode == KeyEvent.VK_SUBTRACT
+                || e.getKeyChar() == '-'
+                || e.getKeyChar() == '_';
     }
 
     @Override
@@ -742,8 +758,38 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         return true;
     }
 
-    private boolean decrementHouseNumberByOne() {
-        String next = decrementHouseNumber(houseNumber);
+    private boolean incrementHouseNumberNumberByOne() {
+        String next = incrementHouseNumberNumberPart(houseNumber);
+        if (next == null) {
+            return false;
+        }
+        houseNumber = next;
+        controller.updateHouseNumber(next);
+        return true;
+    }
+
+    private boolean decrementHouseNumberNumberByOne() {
+        String next = decrementHouseNumberNumberPart(houseNumber);
+        if (next == null) {
+            return false;
+        }
+        houseNumber = next;
+        controller.updateHouseNumber(next);
+        return true;
+    }
+
+    private boolean incrementHouseNumberLetterByOne() {
+        String next = incrementHouseNumberLetterPart(houseNumber);
+        if (next == null) {
+            return false;
+        }
+        houseNumber = next;
+        controller.updateHouseNumber(next);
+        return true;
+    }
+
+    private boolean decrementHouseNumberLetterByOne() {
+        String next = decrementHouseNumberLetterPart(houseNumber);
         if (next == null) {
             return false;
         }
@@ -798,19 +844,70 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         }
     }
 
-    private String decrementHouseNumber(String current) {
+    private String incrementHouseNumberNumberPart(String current) {
         String normalized = normalize(current);
-        Matcher numericWithLetters = NUMERIC_WITH_LETTER_SUFFIX_PATTERN.matcher(normalized);
-        if (numericWithLetters.matches()) {
-            String decrementedPrefix = decrementNumericString(numericWithLetters.group(1));
-            return decrementedPrefix == null ? null : decrementedPrefix + numericWithLetters.group(2);
-        }
-
-        Matcher onlyNumber = NUMERIC_HOUSE_NUMBER_PATTERN.matcher(normalized);
-        if (!onlyNumber.matches()) {
+        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
+        if (!matcher.matches()) {
             return null;
         }
-        return decrementNumericString(onlyNumber.group(1));
+
+        String prefix = matcher.group(1);
+        String suffix = matcher.group(2);
+        try {
+            long number = Long.parseLong(prefix);
+            return Long.toString(number + 1) + (suffix == null ? "" : suffix);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
+    private String decrementHouseNumberNumberPart(String current) {
+        String normalized = normalize(current);
+        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        String prefix = matcher.group(1);
+        String suffix = matcher.group(2);
+        String decrementedPrefix = decrementNumericString(prefix);
+        if (decrementedPrefix == null) {
+            return null;
+        }
+        return decrementedPrefix + (suffix == null ? "" : suffix);
+    }
+
+    private String incrementHouseNumberLetterPart(String current) {
+        String normalized = normalize(current);
+        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        String prefix = matcher.group(1);
+        String suffix = matcher.group(2);
+        String incrementedSuffix = (suffix == null || suffix.isEmpty()) ? "a" : incrementLetters(suffix);
+        return prefix + incrementedSuffix;
+    }
+
+    private String decrementHouseNumberLetterPart(String current) {
+        String normalized = normalize(current);
+        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
+        if (!matcher.matches()) {
+            return null;
+        }
+
+        String prefix = matcher.group(1);
+        String suffix = matcher.group(2);
+        if (suffix == null || suffix.isEmpty()) {
+            return null;
+        }
+
+        String decrementedSuffix = decrementLetters(suffix);
+        if (decrementedSuffix == null) {
+            return null;
+        }
+        return prefix + decrementedSuffix;
     }
 
     private String decrementNumericString(String value) {
@@ -847,6 +944,44 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
         char leading = Character.isUpperCase(chars[0]) ? 'A' : 'a';
         return leading + new String(chars);
+    }
+
+    private String decrementLetters(String letters) {
+        if (letters == null || letters.isEmpty()) {
+            return null;
+        }
+
+        char[] chars = letters.toCharArray();
+        boolean allMinimum = true;
+        for (char current : chars) {
+            char min = Character.isUpperCase(current) ? 'A' : 'a';
+            if (current != min) {
+                allMinimum = false;
+                break;
+            }
+        }
+
+        if (allMinimum) {
+            if (chars.length == 1) {
+                return "";
+            }
+            char max = Character.isUpperCase(chars[0]) ? 'Z' : 'z';
+            return String.valueOf(max).repeat(chars.length - 1);
+        }
+
+        for (int i = chars.length - 1; i >= 0; i--) {
+            char current = chars[i];
+            char min = Character.isUpperCase(current) ? 'A' : 'a';
+            if (current == min) {
+                continue;
+            }
+            chars[i] = (char) (current - 1);
+            for (int j = i + 1; j < chars.length; j++) {
+                chars[j] = Character.isUpperCase(chars[j]) ? 'Z' : 'z';
+            }
+            return new String(chars);
+        }
+        return null;
     }
 
     private boolean containsLetter(String value) {
