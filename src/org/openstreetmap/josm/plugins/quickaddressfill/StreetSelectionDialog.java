@@ -119,7 +119,6 @@ final class StreetSelectionDialog {
         this.streetModeController.setHouseNumberUpdateListener(this::updateHouseNumberFromMode);
         this.streetModeController.setAddressValuesReadListener(this::updateAddressValuesFromMode);
         this.streetModeController.setBuildingTypeConsumedListener(this::consumeBuildingTypeFromMode);
-        this.streetModeController.setModeStateListener(this::refreshModeStateUi);
 
         JButton closeButton = new JButton(I18n.tr("Close"));
         closeButton.addActionListener(e -> closeDialog());
@@ -127,6 +126,7 @@ final class StreetSelectionDialog {
         this.modeStateLabel = new JLabel();
         this.continueWorkingButton = new JButton(I18n.tr("Continue working"));
         this.continueWorkingButton.addActionListener(e -> continueWorking());
+        this.streetModeController.setModeStateListener(this::refreshModeStateUi);
 
         JPanel modeStatePanel = new JPanel(new BorderLayout(8, 0));
         modeStatePanel.add(modeStateLabel, BorderLayout.WEST);
@@ -490,6 +490,9 @@ final class StreetSelectionDialog {
     }
 
     private void refreshModeStateUi(boolean active) {
+        if (modeStateLabel == null || continueWorkingButton == null) {
+            return;
+        }
         if (active) {
             modeStateLabel.setText(I18n.tr("Active"));
             modeStateLabel.setForeground(new java.awt.Color(0, 140, 0));
