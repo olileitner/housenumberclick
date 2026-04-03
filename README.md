@@ -2,6 +2,7 @@
 
 JOSM plugin for quickly applying address tags to buildings.
 
+## Demo
 A simple mouse click is all it takes.
 
 ![QuickAddressFill demo](docs/images/qaf-demo.gif)
