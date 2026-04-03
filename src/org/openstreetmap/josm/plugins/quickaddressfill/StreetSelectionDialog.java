@@ -590,8 +590,12 @@ final class StreetSelectionDialog {
         );
     }
 
-    private boolean isDataSetChanged(DataSet activeDataSet) {
+    static boolean isDataSetChanged(DataSet rememberedDataSet, DataSet activeDataSet) {
         return rememberedDataSet != activeDataSet;
+    }
+
+    private boolean isDataSetChanged(DataSet activeDataSet) {
+        return isDataSetChanged(rememberedDataSet, activeDataSet);
     }
 
     private void resetRememberedValuesForDataSetChange() {

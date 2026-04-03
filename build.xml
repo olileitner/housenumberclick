@@ -7,9 +7,11 @@
     <property name="plugin.main.version" value="19481"/>
 
     <property name="src.dir" value="src"/>
+    <property name="test.dir" value="test"/>
     <property name="images.dir" value="images"/>
     <property name="build.dir" value="build"/>
     <property name="classes.dir" value="${build.dir}/classes"/>
+    <property name="test.classes.dir" value="${build.dir}/test-classes"/>
     <property name="dist.dir" value="dist"/>
     <property name="lib.dir" value="lib"/>
     <property name="josm.jar" value="${lib.dir}/josm-tested.jar"/>
@@ -29,6 +31,7 @@
 
     <target name="init">
         <mkdir dir="${classes.dir}"/>
+        <mkdir dir="${test.classes.dir}"/>
         <mkdir dir="${dist.dir}"/>
         <mkdir dir="${lib.dir}"/>
         <mkdir dir="${i18n.po.dir}"/>
@@ -97,6 +100,34 @@
                 <pathelement location="${buildingsplitter.jar}"/>
             </classpath>
         </javac>
+    </target>
+
+    <target name="test-compile" depends="compile" description="Compile lightweight regression tests">
+        <javac srcdir="${test.dir}"
+               destdir="${test.classes.dir}"
+               includeantruntime="false"
+               release="17"
+               encoding="UTF-8">
+            <classpath>
+                <pathelement location="${josm.jar}"/>
+                <pathelement location="${classes.dir}"/>
+            </classpath>
+        </javac>
+    </target>
+
+    <target name="test" depends="test-compile" description="Run lightweight regression tests">
+        <java classname="org.openstreetmap.josm.plugins.quickaddressfill.QuickAddressFillRiskRegressionTests"
+              fork="true"
+              failonerror="true">
+            <jvmarg value="-Djava.awt.headless=true"/>
+            <classpath>
+                <pathelement location="${josm.jar}"/>
+                <pathelement location="${classes.dir}"/>
+                <pathelement location="${test.classes.dir}"/>
+                <pathelement location="${basedir}"/>
+                <pathelement location="${images.dir}"/>
+            </classpath>
+        </java>
     </target>
 
     <target name="dist" depends="compile,i18n-lang" description="Build plugin JAR">

@@ -60,6 +60,16 @@ ant compile
 ant dist
 ```
 
+## Tests
+
+Run lightweight regression tests for recent stability hardening:
+
+```bash
+ant test
+```
+
+Reproducible manual scenarios for UI- and integration-heavy paths are documented in `docs/stability-manual-tests.md`.
+
 ## Local Installation
 
 ```bash
