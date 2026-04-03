@@ -4,6 +4,8 @@ JOSM plugin for quickly applying address tags to buildings.
 
 A simple mouse click is all it takes.
 
+![QuickAddressFill demo](docs/images/qaf-demo.gif)
+
 ## Features
 
 - Opens a dialog with `Postcode`, `Street`, optional `Building type`, `House number`, and increment selection (`-2`, `-1`, `+1`, `+2`).
