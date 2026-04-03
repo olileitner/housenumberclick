@@ -16,6 +16,8 @@ public final class QuickAddressFillRiskRegressionTests {
     private static final String HANDOFF_TIMESTAMP_KEY = "quickaddressfill.buildingsplitter.handoff.timestamp";
     private static final String HANDOFF_SESSION_KEY = "quickaddressfill.buildingsplitter.handoff.session";
     private static final String FORCE_PREFERENCE_FALLBACK_KEY = "quickaddressfill.buildingsplitter.forcePreferenceFallback";
+    private static final String RELATION_SCAN_LIMIT_KEY = QuickAddressFillStreetMapMode.PREF_RELATION_SCAN_LIMIT;
+    private static final String WAY_SCAN_LIMIT_KEY = QuickAddressFillStreetMapMode.PREF_WAY_SCAN_LIMIT;
 
     private QuickAddressFillRiskRegressionTests() {
         // Utility class
@@ -28,6 +30,8 @@ public final class QuickAddressFillRiskRegressionTests {
         run("BuildingSplitter stale fallback is discarded", QuickAddressFillRiskRegressionTests::testStaleFallbackIsCleared);
         run("BuildingSplitter fresh fallback is kept", QuickAddressFillRiskRegressionTests::testFreshFallbackIsKept);
         run("Successful reflection handoff clears fallback", QuickAddressFillRiskRegressionTests::testReflectionHandoffClearsFallback);
+        run("Scan limit defaults are used when unset", QuickAddressFillRiskRegressionTests::testScanLimitDefaultsWhenUnset);
+        run("Invalid scan limit preferences fall back to defaults", QuickAddressFillRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
         run("Duplicate click detection blocks true duplicates", QuickAddressFillRiskRegressionTests::testDuplicateClicksAreDetected);
         run("Duplicate click detection keeps rapid distinct clicks", QuickAddressFillRiskRegressionTests::testRapidDistinctClicksAreKept);
         System.out.println("All QuickAddressFill risk regression tests passed.");
@@ -103,6 +107,38 @@ public final class QuickAddressFillRiskRegressionTests {
         assertFalse(Config.getPref().getBoolean(HANDOFF_PENDING_KEY, false), "fallback pending should be cleared on successful reflection handoff");
     }
 
+    private static void testScanLimitDefaultsWhenUnset() {
+        Config.getPref().put(RELATION_SCAN_LIMIT_KEY, null);
+        Config.getPref().put(WAY_SCAN_LIMIT_KEY, null);
+
+        assertEquals(
+                QuickAddressFillStreetMapMode.DEFAULT_RELATION_SCAN_CANDIDATES,
+                QuickAddressFillStreetMapMode.getConfiguredRelationScanLimit(),
+                "relation scan limit should use default when preference is missing"
+        );
+        assertEquals(
+                QuickAddressFillStreetMapMode.DEFAULT_WAY_SCAN_CANDIDATES,
+                QuickAddressFillStreetMapMode.getConfiguredWayScanLimit(),
+                "way scan limit should use default when preference is missing"
+        );
+    }
+
+    private static void testInvalidScanLimitPreferencesFallBack() {
+        Config.getPref().put(RELATION_SCAN_LIMIT_KEY, "not-a-number");
+        Config.getPref().put(WAY_SCAN_LIMIT_KEY, "-9");
+
+        assertEquals(
+                QuickAddressFillStreetMapMode.DEFAULT_RELATION_SCAN_CANDIDATES,
+                QuickAddressFillStreetMapMode.getConfiguredRelationScanLimit(),
+                "invalid relation limit should fall back to default"
+        );
+        assertEquals(
+                QuickAddressFillStreetMapMode.DEFAULT_WAY_SCAN_CANDIDATES,
+                QuickAddressFillStreetMapMode.getConfiguredWayScanLimit(),
+                "invalid way limit should fall back to default"
+        );
+    }
+
     private static void testDuplicateClicksAreDetected() throws Exception {
         QuickAddressFillStreetMapMode mode = new QuickAddressFillStreetMapMode(new StreetModeController());
 
@@ -128,6 +164,8 @@ public final class QuickAddressFillRiskRegressionTests {
     private static void clearHandoffPrefs() {
         BuildingSplitterBridge.clearPreferenceFallback();
         Config.getPref().put(FORCE_PREFERENCE_FALLBACK_KEY, null);
+        Config.getPref().put(RELATION_SCAN_LIMIT_KEY, null);
+        Config.getPref().put(WAY_SCAN_LIMIT_KEY, null);
     }
 
     private static void ensurePreferences() {

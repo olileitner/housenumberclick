@@ -16,8 +16,10 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.swing.JCheckBox;
@@ -37,6 +39,7 @@ import org.openstreetmap.josm.data.osm.RelationMember;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.spi.preferences.Config;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
@@ -47,9 +50,14 @@ final class QuickAddressFillStreetMapMode extends MapMode {
     private static final Pattern LETTER_HOUSE_NUMBER_PATTERN = Pattern.compile("^([A-Za-z]+)$");
     private static final Pattern HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN = Pattern.compile("^(\\d+)([A-Za-z]+)?$");
     private static final long DUPLICATE_CLICK_WINDOW_MILLIS = 120L;
-    private static final int MAX_RELATION_SCAN_CANDIDATES = 3000;
-    private static final int MAX_WAY_SCAN_CANDIDATES = 5000;
+    static final String PREF_RELATION_SCAN_LIMIT = "quickaddressfill.streetmode.relationScanLimit";
+    static final String PREF_WAY_SCAN_LIMIT = "quickaddressfill.streetmode.wayScanLimit";
+    static final int DEFAULT_RELATION_SCAN_CANDIDATES = 3000;
+    static final int DEFAULT_WAY_SCAN_CANDIDATES = 5000;
+    private static final int MIN_SCAN_CANDIDATES = 100;
+    private static final int MAX_SCAN_CANDIDATES = 100_000;
     private static final long SLOW_CLICK_LOG_THRESHOLD_MILLIS = 40L;
+    private static final Set<String> WARNED_INVALID_LIMIT_KEYS = new HashSet<>();
 
     private final StreetModeController controller;
     private final KeyAdapter escListener;
@@ -67,6 +75,18 @@ final class QuickAddressFillStreetMapMode extends MapMode {
     private int lastClickY = Integer.MIN_VALUE;
     private int lastClickModifiers;
     private int lastClickButton;
+
+    private static final class ClickResolutionStats {
+        private String outcome = "unknown";
+        private String buildingSource = "not-evaluated";
+        private int nearestCandidates;
+        private int relationCandidatesChecked;
+        private int wayCandidatesChecked;
+        private int relationScanLimit;
+        private int wayScanLimit;
+        private boolean relationLimitReached;
+        private boolean wayLimitReached;
+    }
 
     QuickAddressFillStreetMapMode(StreetModeController controller) {
         super(
@@ -245,11 +265,12 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         }
 
         long startedAtNanos = System.nanoTime();
+        ClickResolutionStats stats = new ClickResolutionStats();
         try {
             if (e.isControlDown()) {
-                handleSecondaryClick(e);
+                handleSecondaryClick(e, stats);
             } else {
-                handlePrimaryClick(e);
+                handlePrimaryClick(e, stats);
             }
         } catch (RuntimeException ex) {
             Logging.warn(
@@ -261,8 +282,9 @@ final class QuickAddressFillStreetMapMode extends MapMode {
             );
             Logging.debug(ex);
             updateStatusLine(I18n.tr("Address click failed. See log for details."));
+            stats.outcome = "runtime-error";
         } finally {
-            logSlowClickIfNeeded(startedAtNanos, e);
+            logClickDiagnostics(startedAtNanos, e, stats);
         }
     }
 
@@ -271,19 +293,22 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         // Intentionally handled on mouseReleased only to avoid duplicate apply/increment per click.
     }
 
-    private void handlePrimaryClick(MouseEvent e) {
+    private void handlePrimaryClick(MouseEvent e, ClickResolutionStats stats) {
         if (streetName == null || streetName.isBlank()) {
+            stats.outcome = "no-street-selected";
             updateStatusLine(I18n.tr("No street selected."));
             return;
         }
 
         MapFrame map = MainApplication.getMap();
         if (map == null || map.mapView == null) {
+            stats.outcome = "map-unavailable";
             return;
         }
 
-        OsmPrimitive building = resolveBuildingAtClick(map, e);
+        OsmPrimitive building = resolveBuildingAtClick(map, e, stats);
         if (building == null) {
+            stats.outcome = "no-building-hit";
             updateStatusLine(I18n.tr("No building detected"));
             return;
         }
@@ -291,6 +316,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         String overwrittenStreet = getOverwrittenStreetName(building);
         if (hasOverwriteConflict(building) && !isWarningSuppressedForStreet(overwrittenStreet)) {
             if (!confirmOverwrite(building, overwrittenStreet)) {
+                stats.outcome = "overwrite-cancelled";
                 updateStatusLine(I18n.tr("Overwrite cancelled."));
                 e.consume();
                 return;
@@ -315,22 +341,26 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
         String appliedMessage = I18n.tr("Applied: {0}, {1}", displayValue(appliedStreet), displayValue(appliedHouseNumber));
         refreshModePresentation(appliedMessage);
+        stats.outcome = "applied";
         e.consume();
     }
 
-    private void handleSecondaryClick(MouseEvent e) {
+    private void handleSecondaryClick(MouseEvent e, ClickResolutionStats stats) {
         MapFrame map = MainApplication.getMap();
         if (map == null || map.mapView == null) {
+            stats.outcome = "map-unavailable";
             return;
         }
 
-        OsmPrimitive building = resolveBuildingAtClick(map, e);
+        OsmPrimitive building = resolveBuildingAtClick(map, e, stats);
         if (building == null) {
             String streetFromClick = resolveStreetNameAtClick(map, e);
             if (streetFromClick != null) {
+                stats.outcome = "street-picked";
                 controller.updateAddressValues(streetFromClick, postcode, buildingType, "1");
                 updateStatusLine(I18n.tr("Street name loaded from map: {0}", displayValue(streetFromClick)));
             } else {
+                stats.outcome = "no-building-hit";
                 updateStatusLine(I18n.tr("No building detected"));
             }
             return;
@@ -350,6 +380,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                         displayValue(readHouseNumber)
                 )
         );
+        stats.outcome = "address-picked";
         e.consume();
     }
 
@@ -373,33 +404,46 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         return null;
     }
 
-    private OsmPrimitive resolveBuildingAtClick(MapFrame map, MouseEvent e) {
+    private OsmPrimitive resolveBuildingAtClick(MapFrame map, MouseEvent e, ClickResolutionStats stats) {
         if (map == null || map.mapView == null) {
+            stats.buildingSource = "map-unavailable";
             return null;
         }
         List<OsmPrimitive> nearby = map.mapView.getAllNearest(e.getPoint(), this::isBuildingOrBuildingOutlineCandidate);
+        stats.nearestCandidates = nearby == null ? 0 : nearby.size();
         OsmPrimitive building = chooseBuilding(nearby);
         if (building != null) {
+            stats.buildingSource = "nearest-hit";
             return building;
         }
 
         DataSet dataSet = MainApplication.getLayerManager().getEditDataSet();
         if (dataSet == null) {
+            stats.buildingSource = "no-dataset";
             return null;
         }
 
-        Relation relationBuilding = findRelationContainingClick(dataSet, map, e);
+        Relation relationBuilding = findRelationContainingClick(dataSet, map, e, stats);
         if (relationBuilding != null) {
+            stats.buildingSource = "relation-fallback";
             return relationBuilding;
         }
 
-        return findWayContainingClick(dataSet, map, e);
+        Way wayBuilding = findWayContainingClick(dataSet, map, e, stats);
+        if (wayBuilding != null) {
+            stats.buildingSource = "way-fallback";
+            return wayBuilding;
+        }
+        stats.buildingSource = "no-hit";
+        return null;
     }
 
-    private Relation findRelationContainingClick(DataSet dataSet, MapFrame map, MouseEvent e) {
+    private Relation findRelationContainingClick(DataSet dataSet, MapFrame map, MouseEvent e, ClickResolutionStats stats) {
         if (dataSet == null || map == null || map.mapView == null || map.mapView.getRealBounds() == null) {
             return null;
         }
+        int relationScanLimit = getConfiguredRelationScanLimit();
+        stats.relationScanLimit = relationScanLimit;
 
         LatLon clickLatLon = map.mapView.getLatLon(e.getX(), e.getY());
         if (clickLatLon == null) {
@@ -409,9 +453,9 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         int scanned = 0;
         for (Relation relation : dataSet.searchRelations(map.mapView.getRealBounds().toBBox())) {
             scanned++;
-            if (scanned > MAX_RELATION_SCAN_CANDIDATES) {
-                Logging.debug("QuickAddressFill QuickAddressFillStreetMapMode.findRelationContainingClick: aborted after {0} candidates.",
-                        MAX_RELATION_SCAN_CANDIDATES);
+            if (scanned > relationScanLimit) {
+                stats.relationLimitReached = true;
+                stats.relationCandidatesChecked = relationScanLimit;
                 return null;
             }
             if (!isBuildingCandidate(relation)) {
@@ -425,13 +469,16 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                 }
             }
         }
+        stats.relationCandidatesChecked = scanned;
         return null;
     }
 
-    private Way findWayContainingClick(DataSet dataSet, MapFrame map, MouseEvent e) {
+    private Way findWayContainingClick(DataSet dataSet, MapFrame map, MouseEvent e, ClickResolutionStats stats) {
         if (dataSet == null || map == null || map.mapView == null || map.mapView.getRealBounds() == null) {
             return null;
         }
+        int wayScanLimit = getConfiguredWayScanLimit();
+        stats.wayScanLimit = wayScanLimit;
 
         LatLon clickLatLon = map.mapView.getLatLon(e.getX(), e.getY());
         if (clickLatLon == null) {
@@ -443,9 +490,9 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         int scanned = 0;
         for (Way way : dataSet.searchWays(map.mapView.getRealBounds().toBBox())) {
             scanned++;
-            if (scanned > MAX_WAY_SCAN_CANDIDATES) {
-                Logging.debug("QuickAddressFill QuickAddressFillStreetMapMode.findWayContainingClick: aborted after {0} candidates.",
-                        MAX_WAY_SCAN_CANDIDATES);
+            if (scanned > wayScanLimit) {
+                stats.wayLimitReached = true;
+                stats.wayCandidatesChecked = wayScanLimit;
                 return best;
             }
             if (!isBuildingOrBuildingOutlineCandidate(way)) {
@@ -461,6 +508,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                 bestArea = area;
             }
         }
+        stats.wayCandidatesChecked = scanned;
         return best;
     }
 
@@ -817,17 +865,85 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         return duplicate;
     }
 
-    private void logSlowClickIfNeeded(long startedAtNanos, MouseEvent e) {
+    private void logClickDiagnostics(long startedAtNanos, MouseEvent e, ClickResolutionStats stats) {
         long elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000L;
-        if (elapsedMillis < SLOW_CLICK_LOG_THRESHOLD_MILLIS) {
+        if (Logging.isDebugEnabled()) {
+            Logging.debug(
+                    "QuickAddressFill click-path: outcome={0}, source={1}, nearestCandidates={2}, relationChecked={3}/{4}, wayChecked={5}/{6}, relationLimitReached={7}, wayLimitReached={8}, control={9}, button={10}, modifiers={11}, x={12}, y={13}, durationMs={14}",
+                    stats.outcome,
+                    stats.buildingSource,
+                    stats.nearestCandidates,
+                    stats.relationCandidatesChecked,
+                    stats.relationScanLimit,
+                    stats.wayCandidatesChecked,
+                    stats.wayScanLimit,
+                    stats.relationLimitReached,
+                    stats.wayLimitReached,
+                    e.isControlDown(),
+                    e.getButton(),
+                    e.getModifiersEx(),
+                    e.getX(),
+                    e.getY(),
+                    elapsedMillis
+            );
+        }
+
+        if (elapsedMillis >= SLOW_CLICK_LOG_THRESHOLD_MILLIS) {
+            Logging.debug(
+                    "QuickAddressFill QuickAddressFillStreetMapMode.mouseReleased: slow click handling ({0} ms), source={1}, outcome={2}, x={3}, y={4}",
+                    elapsedMillis,
+                    stats.buildingSource,
+                    stats.outcome,
+                    e.getX(),
+                    e.getY()
+            );
+        }
+    }
+
+    static int getConfiguredRelationScanLimit() {
+        return readConfiguredScanLimit(PREF_RELATION_SCAN_LIMIT, DEFAULT_RELATION_SCAN_CANDIDATES);
+    }
+
+    static int getConfiguredWayScanLimit() {
+        return readConfiguredScanLimit(PREF_WAY_SCAN_LIMIT, DEFAULT_WAY_SCAN_CANDIDATES);
+    }
+
+    private static int readConfiguredScanLimit(String key, int defaultValue) {
+        if (Config.getPref() == null) {
+            return defaultValue;
+        }
+
+        String rawValue = Config.getPref().get(key, "");
+        String normalized = rawValue == null ? "" : rawValue.trim();
+        if (normalized.isEmpty()) {
+            return defaultValue;
+        }
+
+        try {
+            int value = Integer.parseInt(normalized);
+            if (value < MIN_SCAN_CANDIDATES || value > MAX_SCAN_CANDIDATES) {
+                warnInvalidScanLimitOnce(key, normalized, defaultValue);
+                return defaultValue;
+            }
+            return value;
+        } catch (NumberFormatException ex) {
+            warnInvalidScanLimitOnce(key, normalized, defaultValue);
+            Logging.debug(ex);
+            return defaultValue;
+        }
+    }
+
+    private static void warnInvalidScanLimitOnce(String key, String value, int defaultValue) {
+        if (!WARNED_INVALID_LIMIT_KEYS.add(key)) {
             return;
         }
-        Logging.debug(
-                "QuickAddressFill QuickAddressFillStreetMapMode.mouseReleased: slow click handling ({0} ms), control={1}, x={2}, y={3}",
-                elapsedMillis,
-                e.isControlDown(),
-                e.getX(),
-                e.getY()
+        Logging.warn(
+                "QuickAddressFill QuickAddressFillStreetMapMode: invalid scan limit preference {0}={1}, falling back to default {2} (allowed range {3}-{4}).",
+                key,
+                value,
+                defaultValue,
+                MIN_SCAN_CANDIDATES,
+                MAX_SCAN_CANDIDATES
         );
     }
 

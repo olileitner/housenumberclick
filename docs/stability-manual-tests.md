@@ -84,17 +84,32 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 
 ### Preparation
 - Load a dense urban area with many buildings/relations.
+- Enable debug logs in JOSM.
+- Optional: set custom limits in advanced preferences:
+  - `quickaddressfill.streetmode.relationScanLimit`
+  - `quickaddressfill.streetmode.wayScanLimit`
+
+Suggested test values:
+- baseline/default: leave both keys unset
+- intentionally low: `100` / `100`
+- intentionally high: `10000` / `20000`
 
 ### Steps
 1. Click repeatedly in dense area where nearest-hit fallback scans are likely.
+2. Repeat with low and high limit values.
 
 ### Expected
 - Plugin remains responsive.
-- In extreme density, some clicks may miss fallback selection when candidate limits are reached.
+- With low limits, fallback misses become more frequent (false negatives).
+- With higher limits, misses should decrease, but click-path runtime can increase.
 
 ### Relevant Logs
-- Relation scan limit:
-  - `...findRelationContainingClick: aborted after 3000 candidates.`
-- Way scan limit:
-  - `...findWayContainingClick: aborted after 5000 candidates.`
+- Full click diagnostic (debug):
+  - `QuickAddressFill click-path: outcome=..., source=..., nearestCandidates=..., relationChecked=.../..., wayChecked=.../..., relationLimitReached=..., wayLimitReached=..., ... durationMs=...`
+- Slow click diagnostic (debug):
+  - `QuickAddressFill QuickAddressFillStreetMapMode.mouseReleased: slow click handling (... ms), source=..., outcome=..., x=..., y=...`
+
+How to identify limits that are too low:
+- `relationLimitReached=true` or `wayLimitReached=true` appears frequently.
+- `source=no-hit` appears despite likely building targets in dense regions.
 
