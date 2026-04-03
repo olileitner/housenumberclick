@@ -8,6 +8,7 @@ import org.openstreetmap.josm.actions.mapmode.MapMode;
 import org.openstreetmap.josm.gui.IconToggleButton;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.spi.preferences.Config;
 import org.openstreetmap.josm.tools.Logging;
 
 final class BuildingSplitterBridge {
@@ -15,6 +16,12 @@ final class BuildingSplitterBridge {
     private static final String TARGET_PLUGIN_NAME = "buildingsplitter";
     private static final String ADDRESS_CONTEXT_BRIDGE_CLASS =
         "org.openstreetmap.josm.plugins.buildingsplitter.AddressContextBridge";
+    private static final String HANDOFF_STREET_KEY = "quickaddressfill.buildingsplitter.handoff.street";
+    private static final String HANDOFF_POSTCODE_KEY = "quickaddressfill.buildingsplitter.handoff.postcode";
+    private static final String HANDOFF_PENDING_KEY = "quickaddressfill.buildingsplitter.handoff.pending";
+    private static final String FORCE_PREFERENCE_FALLBACK_KEY =
+        "quickaddressfill.buildingsplitter.forcePreferenceFallback";
+
     private BuildingSplitterBridge() {
         // Utility class
     }
@@ -26,7 +33,7 @@ final class BuildingSplitterBridge {
     static boolean activateBuildingSplitter(String street, String postcode) {
         try {
             if (!BuildingSplitterDetector.isBuildingSplitterAvailable()) {
-                Logging.debug("QuickAddressFill: BuildingSplitter activation skipped because plugin is not available.");
+                Logging.info("QuickAddressFill: BuildingSplitter activation skipped because plugin is not available.");
                 return false;
             }
 
@@ -34,6 +41,7 @@ final class BuildingSplitterBridge {
 
             MapFrame map = MainApplication.getMap();
             if (map == null || map.allMapModeButtons == null) {
+                Logging.info("QuickAddressFill: BuildingSplitter activation failed because map UI is unavailable.");
                 return false;
             }
 
@@ -52,13 +60,13 @@ final class BuildingSplitterBridge {
                 }
 
                 if (map.selectMapMode(mapMode)) {
-                    Logging.debug("QuickAddressFill: BuildingSplitter map mode detected and activated.");
+                    Logging.info("QuickAddressFill: BuildingSplitter map mode detected and activated.");
                     return true;
                 }
             }
-            Logging.debug("QuickAddressFill: BuildingSplitter activation failed after scanning map modes.");
+            Logging.info("QuickAddressFill: BuildingSplitter activation failed after scanning map modes.");
         } catch (RuntimeException ex) {
-            Logging.debug("QuickAddressFill: BuildingSplitter activation failed due to runtime error: {0}", ex.getMessage());
+            Logging.info("QuickAddressFill: BuildingSplitter activation failed due to runtime error: {0}", ex.getMessage());
             return false;
         }
 
@@ -68,18 +76,45 @@ final class BuildingSplitterBridge {
     private static void publishAddressContext(String street, String postcode) {
         String normalizedStreet = normalizeHandoffValue(street);
         String normalizedPostcode = normalizeHandoffValue(postcode);
+        Logging.info("QuickAddressFill: Address context handoff attempt started.");
+
+        if (Config.getPref().getBoolean(FORCE_PREFERENCE_FALLBACK_KEY, false)) {
+            Logging.info("QuickAddressFill: Reflection handoff disabled by QA preference; using fallback.");
+            writePreferenceFallback(normalizedStreet, normalizedPostcode);
+            return;
+        }
+
         try {
             Class<?> bridgeClass = Class.forName(ADDRESS_CONTEXT_BRIDGE_CLASS);
             bridgeClass
                 .getMethod("setAddressContext", String.class, String.class)
                 .invoke(null, normalizedStreet, normalizedPostcode);
-            Logging.debug("QuickAddressFill: Address context handed off to BuildingSplitter.");
+            Logging.info("QuickAddressFill: Address context reflection handoff succeeded.");
         } catch (ClassNotFoundException | NoClassDefFoundError ex) {
-            Logging.debug("QuickAddressFill: Address context handoff unavailable; continuing without context.");
+            Logging.info("QuickAddressFill: Address context reflection handoff unavailable.");
+            writePreferenceFallback(normalizedStreet, normalizedPostcode);
         } catch (ReflectiveOperationException | LinkageError ex) {
-            Logging.warn("QuickAddressFill: Address context handoff failed; continuing without context.");
+            Logging.warn("QuickAddressFill: Address context reflection handoff failed.");
             Logging.debug(ex);
+            writePreferenceFallback(normalizedStreet, normalizedPostcode);
         }
+    }
+
+    private static void writePreferenceFallback(String street, String postcode) {
+        String normalizedStreet = normalizeHandoffValue(street);
+        String normalizedPostcode = normalizeHandoffValue(postcode);
+        if (normalizedStreet.isEmpty() && normalizedPostcode.isEmpty()) {
+            Config.getPref().put(HANDOFF_STREET_KEY, null);
+            Config.getPref().put(HANDOFF_POSTCODE_KEY, null);
+            Config.getPref().put(HANDOFF_PENDING_KEY, null);
+            Logging.info("QuickAddressFill: Preference fallback not written because context is empty.");
+            return;
+        }
+
+        Config.getPref().put(HANDOFF_STREET_KEY, normalizedStreet);
+        Config.getPref().put(HANDOFF_POSTCODE_KEY, normalizedPostcode);
+        Config.getPref().putBoolean(HANDOFF_PENDING_KEY, true);
+        Logging.info("QuickAddressFill: Address context preference fallback written.");
     }
 
     private static boolean isBuildingSplitterMapMode(MapMode mapMode, String actionName) {
@@ -141,4 +176,3 @@ final class BuildingSplitterBridge {
         return value == null ? "" : value.trim();
     }
 }
-
