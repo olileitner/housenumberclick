@@ -48,6 +48,8 @@ final class QuickAddressFillStreetMapMode extends MapMode {
     private final StreetModeController controller;
     private final BuildingResolver buildingResolver;
     private final HouseNumberService houseNumberService;
+    private final AddressReadbackService addressReadbackService;
+    private final AddressConflictService addressConflictService;
     private final KeyAdapter escListener;
     private final KeyEventDispatcher ctrlKeyDispatcher;
     private String streetName;
@@ -79,6 +81,8 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         this.controller = controller;
         this.buildingResolver = new BuildingResolver();
         this.houseNumberService = new HouseNumberService();
+        this.addressReadbackService = new AddressReadbackService();
+        this.addressConflictService = new AddressConflictService();
         this.ctrlKeyDispatcher = this::handleGlobalKeyEvent;
         this.escListener = new KeyAdapter() {
             @Override
@@ -295,9 +299,11 @@ final class QuickAddressFillStreetMapMode extends MapMode {
             return;
         }
 
-        String overwrittenStreet = getOverwrittenStreetName(building);
-        if (hasOverwriteConflict(building) && !isWarningSuppressedForStreet(overwrittenStreet)) {
-            if (!confirmOverwrite(building, overwrittenStreet)) {
+        AddressConflictService.ConflictAnalysis conflictAnalysis =
+                addressConflictService.analyze(building, streetName, postcode, houseNumber);
+        String overwrittenStreet = conflictAnalysis.getOverwrittenStreet();
+        if (conflictAnalysis.hasConflict() && !isWarningSuppressedForStreet(overwrittenStreet)) {
+            if (!confirmOverwrite(conflictAnalysis, overwrittenStreet)) {
                 stats.outcome = "overwrite-cancelled";
                 updateStatusLine(I18n.tr("Overwrite cancelled."));
                 e.consume();
@@ -338,11 +344,20 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         stats.resolution = resolution;
         OsmPrimitive building = resolution.getBuilding();
         if (building == null) {
-            String streetFromClick = resolveStreetNameAtClick(map, e);
-            if (streetFromClick != null) {
+            AddressReadbackService.AddressReadbackResult readback = addressReadbackService.readFromStreetFallback(
+                    addressReadbackService.resolveStreetNameAtClick(map, e),
+                    postcode,
+                    buildingType
+            );
+            if (readback != null) {
                 stats.outcome = "street-picked";
-                controller.updateAddressValues(streetFromClick, postcode, buildingType, "1");
-                updateStatusLine(I18n.tr("Street name loaded from map: {0}", displayValue(streetFromClick)));
+                controller.updateAddressValues(
+                        readback.getStreet(),
+                        readback.getPostcode(),
+                        readback.getBuildingType(),
+                        readback.getHouseNumber()
+                );
+                updateStatusLine(I18n.tr("Street name loaded from map: {0}", displayValue(readback.getStreet())));
             } else {
                 stats.outcome = "no-building-hit";
                 updateStatusLine(I18n.tr("No building detected"));
@@ -350,50 +365,26 @@ final class QuickAddressFillStreetMapMode extends MapMode {
             return;
         }
 
-        String readStreet = normalize(building.get("addr:street"));
-        String readPostcode = normalize(building.get("addr:postcode"));
-        String readHouseNumber = normalize(building.get("addr:housenumber"));
-
-        controller.updateAddressValues(readStreet, readPostcode, buildingType, readHouseNumber);
+        AddressReadbackService.AddressReadbackResult readback = addressReadbackService.readFromBuilding(building, buildingType);
+        controller.updateAddressValues(
+                readback.getStreet(),
+                readback.getPostcode(),
+                readback.getBuildingType(),
+                readback.getHouseNumber()
+        );
 
         updateStatusLine(
                 I18n.tr(
                         "Address data loaded: street={0}, postcode={1}, house number={2}",
-                        displayValue(readStreet),
-                        displayValue(readPostcode),
-                        displayValue(readHouseNumber)
+                        displayValue(readback.getStreet()),
+                        displayValue(readback.getPostcode()),
+                        displayValue(readback.getHouseNumber())
                 )
         );
         stats.outcome = "address-picked";
         e.consume();
     }
 
-    private String resolveStreetNameAtClick(MapFrame map, MouseEvent e) {
-        if (map == null || map.mapView == null) {
-            return null;
-        }
-        List<OsmPrimitive> nearby = map.mapView.getAllNearest(e.getPoint(), this::isNamedStreetCandidate);
-        if (nearby == null || nearby.isEmpty()) {
-            return null;
-        }
-        for (OsmPrimitive primitive : nearby) {
-            if (!(primitive instanceof Way)) {
-                continue;
-            }
-            String name = normalize(primitive.get("name"));
-            if (!name.isEmpty()) {
-                return name;
-            }
-        }
-        return null;
-    }
-
-    private boolean isNamedStreetCandidate(OsmPrimitive primitive) {
-        return primitive instanceof Way
-                && primitive.isUsable()
-                && primitive.hasTag("highway")
-                && !normalize(primitive.get("name")).isEmpty();
-    }
 
     private OsmPrimitive getSelectionTarget(OsmPrimitive building) {
         if (!(building instanceof Relation)) {
@@ -415,34 +406,14 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         return building;
     }
 
-    private boolean hasOverwriteConflict(OsmPrimitive building) {
-        String existingStreet = normalize(building.get("addr:street"));
-        String existingPostcode = normalize(building.get("addr:postcode"));
-
-        boolean streetConflict = !existingStreet.isEmpty() && !existingStreet.equals(streetName);
-
-        // Postcode is considered only when a new postcode is provided in the dialog.
-        boolean postcodeConflict = !postcode.isEmpty()
-                && !existingPostcode.isEmpty()
-                && !existingPostcode.equals(postcode);
-
-        return streetConflict || postcodeConflict;
-    }
-
-    private boolean confirmOverwrite(OsmPrimitive building, String overwrittenStreet) {
-        String existingStreet = normalize(building.get("addr:street"));
-        String existingPostcode = normalize(building.get("addr:postcode"));
-        String existingHouseNumber = normalize(building.get("addr:housenumber"));
-
+    private boolean confirmOverwrite(AddressConflictService.ConflictAnalysis conflictAnalysis, String overwrittenStreet) {
         List<Object[]> rows = new ArrayList<>();
-        if (!existingStreet.isEmpty() && !existingStreet.equals(streetName)) {
-            rows.add(new Object[] {"addr:street", displayValue(existingStreet), displayValue(streetName)});
-        }
-        if (!postcode.isEmpty() && !existingPostcode.isEmpty() && !existingPostcode.equals(postcode)) {
-            rows.add(new Object[] {"addr:postcode", displayValue(existingPostcode), displayValue(postcode)});
-        }
-        if (!houseNumber.isEmpty() && !existingHouseNumber.isEmpty() && !existingHouseNumber.equals(houseNumber)) {
-            rows.add(new Object[] {"addr:housenumber", displayValue(existingHouseNumber), displayValue(houseNumber)});
+        for (AddressConflictService.ConflictField field : conflictAnalysis.getDifferingFields()) {
+            rows.add(new Object[] {
+                    field.getKey(),
+                    displayValue(field.getExistingValue()),
+                    displayValue(field.getProposedValue())
+            });
         }
 
         if (rows.isEmpty()) {
@@ -491,13 +462,6 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         return overwrittenStreet != null && overwrittenStreet.equals(warningSuppressedStreet);
     }
 
-    private String getOverwrittenStreetName(OsmPrimitive building) {
-        String existingStreet = normalize(building.get("addr:street"));
-        if (!existingStreet.isEmpty()) {
-            return existingStreet;
-        }
-        return streetName;
-    }
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();

@@ -3,9 +3,12 @@ package org.openstreetmap.josm.plugins.quickaddressfill;
 import java.awt.Component;
 import java.awt.event.MouseEvent;
 import java.lang.reflect.Method;
+import java.util.List;
 
 import org.openstreetmap.josm.data.Preferences;
 import org.openstreetmap.josm.data.osm.DataSet;
+import org.openstreetmap.josm.data.osm.Node;
+import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.spi.preferences.Config;
 
 public final class QuickAddressFillRiskRegressionTests {
@@ -29,6 +32,11 @@ public final class QuickAddressFillRiskRegressionTests {
         run("HouseNumberService normalizes and sanitizes step", QuickAddressFillRiskRegressionTests::testHouseNumberNormalizationAndStepSanitizing);
         run("HouseNumberService apply increment keeps existing behavior", QuickAddressFillRiskRegressionTests::testHouseNumberIncrementAfterApplyRules);
         run("HouseNumberService number and letter part updates", QuickAddressFillRiskRegressionTests::testHouseNumberPartUpdateRules);
+        run("AddressReadbackService reads address tags from building", QuickAddressFillRiskRegressionTests::testAddressReadbackFromBuilding);
+        run("AddressReadbackService street fallback keeps postcode/buildingType", QuickAddressFillRiskRegressionTests::testAddressReadbackStreetFallback);
+        run("AddressReadbackService candidate fallback order", QuickAddressFillRiskRegressionTests::testAddressReadbackCandidateOrderAndMissingTags);
+        run("AddressConflictService detects street and postcode conflicts", QuickAddressFillRiskRegressionTests::testAddressConflictDetection);
+        run("AddressConflictService handles missing tags and partial differences", QuickAddressFillRiskRegressionTests::testAddressConflictEdgeCases);
         run("DataSet transition detection is stable", QuickAddressFillRiskRegressionTests::testDataSetChangeDetection);
         run("BuildingSplitter stale fallback is discarded", QuickAddressFillRiskRegressionTests::testStaleFallbackIsCleared);
         run("BuildingSplitter fresh fallback is kept", QuickAddressFillRiskRegressionTests::testFreshFallbackIsKept);
@@ -67,6 +75,96 @@ public final class QuickAddressFillRiskRegressionTests {
         assertEquals("12", service.decrementLetterPartByOne("12a"), "letter-part decrement should drop suffix at boundary");
         assertEquals("12a", service.toggleLetterSuffix("12"), "toggle should add default suffix");
         assertEquals("12", service.toggleLetterSuffix("12a"), "toggle should remove existing suffix");
+    }
+
+    private static void testAddressReadbackFromBuilding() {
+        AddressReadbackService service = new AddressReadbackService();
+        Way building = new Way();
+        building.put("addr:street", " Example Street ");
+        building.put("addr:postcode", " 12345 ");
+        building.put("addr:housenumber", " 77b ");
+
+        AddressReadbackService.AddressReadbackResult result = service.readFromBuilding(building, "house");
+        assertEquals("Example Street", result.getStreet(), "street should be trimmed from building tag");
+        assertEquals("12345", result.getPostcode(), "postcode should be trimmed from building tag");
+        assertEquals("house", result.getBuildingType(), "building type should pass through unchanged");
+        assertEquals("77b", result.getHouseNumber(), "house number should be trimmed from building tag");
+        assertEquals("address-tags", result.getSource(), "source should mark address-tag readback");
+    }
+
+    private static void testAddressReadbackStreetFallback() {
+        AddressReadbackService service = new AddressReadbackService();
+        AddressReadbackService.AddressReadbackResult result = service.readFromStreetFallback(" Example Avenue ", " 99999 ", "residential");
+
+        assertEquals("Example Avenue", result.getStreet(), "street fallback should be trimmed");
+        assertEquals("99999", result.getPostcode(), "postcode should keep current value");
+        assertEquals("residential", result.getBuildingType(), "building type should keep current value");
+        assertEquals("1", result.getHouseNumber(), "street fallback should reset house number to 1");
+        assertEquals("street-fallback", result.getSource(), "source should mark street fallback");
+        assertEquals(null, service.readFromStreetFallback("   ", "99999", "residential"), "empty fallback street should produce no readback result");
+    }
+
+    private static void testAddressReadbackCandidateOrderAndMissingTags() {
+        AddressReadbackService service = new AddressReadbackService();
+
+        Way unnamedHighway = new Way();
+        unnamedHighway.put("highway", "residential");
+
+        Way namedHighway = new Way();
+        namedHighway.put("highway", "residential");
+        namedHighway.put("name", " First Valid Street ");
+
+        Way namedNonHighway = new Way();
+        namedNonHighway.put("name", "Ignored Name");
+
+        String street = service.resolveStreetNameFromCandidates(List.of(namedNonHighway, unnamedHighway, namedHighway));
+        assertEquals("First Valid Street", street, "resolver should choose first usable named highway candidate");
+
+        Way noNameHighway = new Way();
+        noNameHighway.put("highway", "service");
+        assertEquals(null, service.resolveStreetNameFromCandidates(List.of(noNameHighway, new Node())),
+                "resolver should return null when no candidate has a valid street name");
+    }
+
+    private static void testAddressConflictDetection() {
+        AddressConflictService service = new AddressConflictService();
+        Way building = new Way();
+        building.put("addr:street", "Old Street");
+        building.put("addr:postcode", "12345");
+        building.put("addr:housenumber", "12");
+
+        AddressConflictService.ConflictAnalysis analysis = service.analyze(building, "New Street", "54321", "34");
+        assertTrue(analysis.hasConflict(), "different street/postcode should trigger overwrite conflict");
+        assertEquals("Old Street", analysis.getOverwrittenStreet(), "existing street should be used as overwritten street");
+        assertEquals(3, analysis.getDifferingFields().size(), "street, postcode and housenumber diffs should be listed");
+        assertEquals("addr:street", analysis.getDifferingFields().get(0).getKey(), "street diff should appear first");
+        assertEquals("addr:postcode", analysis.getDifferingFields().get(1).getKey(), "postcode diff should appear second");
+        assertEquals("addr:housenumber", analysis.getDifferingFields().get(2).getKey(), "housenumber diff should appear third");
+    }
+
+    private static void testAddressConflictEdgeCases() {
+        AddressConflictService service = new AddressConflictService();
+
+        Way buildingWithoutStreet = new Way();
+        buildingWithoutStreet.put("addr:postcode", "12345");
+        AddressConflictService.ConflictAnalysis noStreetConflict = service.analyze(buildingWithoutStreet, "Any Street", "", "");
+        assertFalse(noStreetConflict.hasConflict(), "missing existing street should not trigger street conflict");
+        assertEquals("Any Street", noStreetConflict.getOverwrittenStreet(), "fallback overwritten street should use proposed street");
+
+        Way buildingWithOnlyHouseNumber = new Way();
+        buildingWithOnlyHouseNumber.put("addr:housenumber", "10");
+        AddressConflictService.ConflictAnalysis onlyHouseDiff = service.analyze(buildingWithOnlyHouseNumber, "", "", "11");
+        assertFalse(onlyHouseDiff.hasConflict(), "house number difference alone should not trigger conflict dialog");
+        assertEquals(1, onlyHouseDiff.getDifferingFields().size(), "house number difference should still be listed");
+        assertEquals("addr:housenumber", onlyHouseDiff.getDifferingFields().get(0).getKey(), "listed diff should be housenumber");
+
+        Way identical = new Way();
+        identical.put("addr:street", "Same");
+        identical.put("addr:postcode", "11111");
+        identical.put("addr:housenumber", "3");
+        AddressConflictService.ConflictAnalysis identicalAnalysis = service.analyze(identical, "Same", "11111", "3");
+        assertFalse(identicalAnalysis.hasConflict(), "identical values should not trigger conflict");
+        assertEquals(0, identicalAnalysis.getDifferingFields().size(), "identical values should produce no differing fields");
     }
 
     private static void testAddressSelectionNormalization() {
