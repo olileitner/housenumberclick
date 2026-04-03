@@ -18,8 +18,6 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JScrollPane;
@@ -40,10 +38,6 @@ import org.openstreetmap.josm.tools.Logging;
 
 final class QuickAddressFillStreetMapMode extends MapMode {
 
-    private static final Pattern NUMERIC_HOUSE_NUMBER_PATTERN = Pattern.compile("^(\\d+)$");
-    private static final Pattern NUMERIC_WITH_LETTER_SUFFIX_PATTERN = Pattern.compile("^(\\d+)([A-Za-z]+)$");
-    private static final Pattern LETTER_HOUSE_NUMBER_PATTERN = Pattern.compile("^([A-Za-z]+)$");
-    private static final Pattern HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN = Pattern.compile("^(\\d+)([A-Za-z]+)?$");
     private static final long DUPLICATE_CLICK_WINDOW_MILLIS = 120L;
     static final String PREF_RELATION_SCAN_LIMIT = BuildingResolver.PREF_RELATION_SCAN_LIMIT;
     static final String PREF_WAY_SCAN_LIMIT = BuildingResolver.PREF_WAY_SCAN_LIMIT;
@@ -53,6 +47,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
     private final StreetModeController controller;
     private final BuildingResolver buildingResolver;
+    private final HouseNumberService houseNumberService;
     private final KeyAdapter escListener;
     private final KeyEventDispatcher ctrlKeyDispatcher;
     private String streetName;
@@ -83,6 +78,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         );
         this.controller = controller;
         this.buildingResolver = new BuildingResolver();
+        this.houseNumberService = new HouseNumberService();
         this.ctrlKeyDispatcher = this::handleGlobalKeyEvent;
         this.escListener = new KeyAdapter() {
             @Override
@@ -94,7 +90,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                     controller.deactivate();
                     e.consume();
                 } else if (isPlusShortcut(e)) {
-                    boolean letterMode = hasLetterSuffix(houseNumber);
+                    boolean letterMode = houseNumberService.hasLetterSuffix(houseNumber);
                     if (letterMode ? incrementHouseNumberLetterByOne() : incrementHouseNumberNumberByOne()) {
                         refreshModePresentation(letterMode
                                 ? I18n.tr("House number letter increased.")
@@ -113,7 +109,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
                     }
                     e.consume();
                 } else if (isMinusShortcut(e)) {
-                    boolean letterMode = hasLetterSuffix(houseNumber);
+                    boolean letterMode = houseNumberService.hasLetterSuffix(houseNumber);
                     if (letterMode ? decrementHouseNumberLetterByOne() : decrementHouseNumberNumberByOne()) {
                         refreshModePresentation(letterMode
                                 ? I18n.tr("House number letter decreased.")
@@ -144,11 +140,8 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         this.streetName = normalizedStreet;
         this.postcode = normalize(postcode);
         this.buildingType = normalize(buildingType);
-        this.houseNumber = normalize(houseNumber);
-        this.houseNumberIncrementStep = normalizeIncrementStep(houseNumberIncrementStep);
-        if (containsLetter(this.houseNumber) && this.houseNumberIncrementStep != 1) {
-            this.houseNumberIncrementStep = 1;
-        }
+        this.houseNumber = houseNumberService.normalize(houseNumber);
+        this.houseNumberIncrementStep = houseNumberService.sanitizeIncrementStepForHouseNumber(this.houseNumber, houseNumberIncrementStep);
         if (isModeActiveOnMap(MainApplication.getMap())) {
             refreshModePresentation(null);
         }
@@ -701,251 +694,35 @@ final class QuickAddressFillStreetMapMode extends MapMode {
     }
 
     private boolean incrementHouseNumberAfterSuccessfulApply() {
-        String next = incrementHouseNumber(houseNumber);
-        if (next == null) {
-            return false;
-        }
-        houseNumber = next;
-        controller.updateHouseNumber(next);
-        return true;
+        return applyHouseNumberUpdate(houseNumberService.incrementAfterSuccessfulApply(houseNumber, houseNumberIncrementStep));
     }
 
     private boolean incrementHouseNumberNumberByOne() {
-        String next = incrementHouseNumberNumberPart(houseNumber);
-        if (next == null) {
-            return false;
-        }
-        houseNumber = next;
-        controller.updateHouseNumber(next);
-        return true;
+        return applyHouseNumberUpdate(houseNumberService.incrementNumberPartByOne(houseNumber));
     }
 
     private boolean decrementHouseNumberNumberByOne() {
-        String next = decrementHouseNumberNumberPart(houseNumber);
-        if (next == null) {
-            return false;
-        }
-        houseNumber = next;
-        controller.updateHouseNumber(next);
-        return true;
+        return applyHouseNumberUpdate(houseNumberService.decrementNumberPartByOne(houseNumber));
     }
 
     private boolean incrementHouseNumberLetterByOne() {
-        String next = incrementHouseNumberLetterPart(houseNumber);
-        if (next == null) {
-            return false;
-        }
-        houseNumber = next;
-        controller.updateHouseNumber(next);
-        return true;
+        return applyHouseNumberUpdate(houseNumberService.incrementLetterPartByOne(houseNumber));
     }
 
     private boolean decrementHouseNumberLetterByOne() {
-        String next = decrementHouseNumberLetterPart(houseNumber);
+        return applyHouseNumberUpdate(houseNumberService.decrementLetterPartByOne(houseNumber));
+    }
+
+    private boolean toggleLetterSuffixOnHouseNumber() {
+        return applyHouseNumberUpdate(houseNumberService.toggleLetterSuffix(houseNumber));
+    }
+
+    private boolean applyHouseNumberUpdate(String next) {
         if (next == null) {
             return false;
         }
         houseNumber = next;
         controller.updateHouseNumber(next);
         return true;
-    }
-
-    private boolean toggleLetterSuffixOnHouseNumber() {
-        String normalized = normalize(houseNumber);
-        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
-        if (!matcher.matches()) {
-            return false;
-        }
-
-        String prefix = matcher.group(1);
-        String suffix = matcher.group(2);
-        String next = (suffix == null || suffix.isEmpty()) ? prefix + "a" : prefix;
-        houseNumber = next;
-        controller.updateHouseNumber(next);
-        return true;
-    }
-
-    private String incrementHouseNumber(String current) {
-        String normalized = normalize(current);
-        Matcher numericWithLetters = NUMERIC_WITH_LETTER_SUFFIX_PATTERN.matcher(normalized);
-        if (numericWithLetters.matches()) {
-            String prefix = numericWithLetters.group(1);
-            String letters = numericWithLetters.group(2);
-            return prefix + incrementLetters(letters);
-        }
-
-        Matcher onlyLetters = LETTER_HOUSE_NUMBER_PATTERN.matcher(normalized);
-        if (onlyLetters.matches()) {
-            return incrementLetters(onlyLetters.group(1));
-        }
-
-        Matcher onlyNumber = NUMERIC_HOUSE_NUMBER_PATTERN.matcher(normalized);
-        if (!onlyNumber.matches()) {
-            return null;
-        }
-
-        try {
-            long number = Long.parseLong(onlyNumber.group(1));
-            long incremented = number + houseNumberIncrementStep;
-            if (incremented < 0) {
-                return null;
-            }
-            return Long.toString(incremented);
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
-
-    private String incrementHouseNumberNumberPart(String current) {
-        String normalized = normalize(current);
-        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
-        if (!matcher.matches()) {
-            return null;
-        }
-
-        String prefix = matcher.group(1);
-        String suffix = matcher.group(2);
-        try {
-            long number = Long.parseLong(prefix);
-            return Long.toString(number + 1) + (suffix == null ? "" : suffix);
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
-
-    private String decrementHouseNumberNumberPart(String current) {
-        String normalized = normalize(current);
-        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
-        if (!matcher.matches()) {
-            return null;
-        }
-
-        String prefix = matcher.group(1);
-        String suffix = matcher.group(2);
-        String decrementedPrefix = decrementNumericString(prefix);
-        if (decrementedPrefix == null) {
-            return null;
-        }
-        return decrementedPrefix + (suffix == null ? "" : suffix);
-    }
-
-    private String incrementHouseNumberLetterPart(String current) {
-        String normalized = normalize(current);
-        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
-        if (!matcher.matches()) {
-            return null;
-        }
-
-        String prefix = matcher.group(1);
-        String suffix = matcher.group(2);
-        String incrementedSuffix = (suffix == null || suffix.isEmpty()) ? "a" : incrementLetters(suffix);
-        return prefix + incrementedSuffix;
-    }
-
-    private String decrementHouseNumberLetterPart(String current) {
-        String normalized = normalize(current);
-        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalized);
-        if (!matcher.matches()) {
-            return null;
-        }
-
-        String prefix = matcher.group(1);
-        String suffix = matcher.group(2);
-        if (suffix == null || suffix.isEmpty()) {
-            return null;
-        }
-
-        String decrementedSuffix = decrementLetters(suffix);
-        if (decrementedSuffix == null) {
-            return null;
-        }
-        return prefix + decrementedSuffix;
-    }
-
-    private boolean hasLetterSuffix(String value) {
-        Matcher matcher = HOUSE_NUMBER_WITH_OPTIONAL_SUFFIX_PATTERN.matcher(normalize(value));
-        return matcher.matches() && matcher.group(2) != null && !matcher.group(2).isEmpty();
-    }
-
-    private String decrementNumericString(String value) {
-        try {
-            long number = Long.parseLong(value);
-            if (number <= 0) {
-                return null;
-            }
-            return Long.toString(number - 1);
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
-
-    private String incrementLetters(String letters) {
-        if (letters == null || letters.isEmpty()) {
-            return letters;
-        }
-
-        char[] chars = letters.toCharArray();
-        for (int i = chars.length - 1; i >= 0; i--) {
-            char current = chars[i];
-            boolean upperCase = Character.isUpperCase(current);
-            char min = upperCase ? 'A' : 'a';
-            char max = upperCase ? 'Z' : 'z';
-
-            if (current == max) {
-                chars[i] = min;
-            } else {
-                chars[i] = (char) (current + 1);
-                return new String(chars);
-            }
-        }
-
-        char leading = Character.isUpperCase(chars[0]) ? 'A' : 'a';
-        return leading + new String(chars);
-    }
-
-    private String decrementLetters(String letters) {
-        if (letters == null || letters.isEmpty()) {
-            return null;
-        }
-
-        char[] chars = letters.toCharArray();
-        boolean allMinimum = true;
-        for (char current : chars) {
-            char min = Character.isUpperCase(current) ? 'A' : 'a';
-            if (current != min) {
-                allMinimum = false;
-                break;
-            }
-        }
-
-        if (allMinimum) {
-            if (chars.length == 1) {
-                return "";
-            }
-            char max = Character.isUpperCase(chars[0]) ? 'Z' : 'z';
-            return String.valueOf(max).repeat(chars.length - 1);
-        }
-
-        for (int i = chars.length - 1; i >= 0; i--) {
-            char current = chars[i];
-            char min = Character.isUpperCase(current) ? 'A' : 'a';
-            if (current == min) {
-                continue;
-            }
-            chars[i] = (char) (current - 1);
-            for (int j = i + 1; j < chars.length; j++) {
-                chars[j] = Character.isUpperCase(chars[j]) ? 'Z' : 'z';
-            }
-            return new String(chars);
-        }
-        return null;
-    }
-
-    private boolean containsLetter(String value) {
-        return value != null && value.matches(".*[A-Za-z].*");
-    }
-
-    private int normalizeIncrementStep(int step) {
-        return step == -2 || step == -1 || step == 1 || step == 2 ? step : 1;
     }
 }

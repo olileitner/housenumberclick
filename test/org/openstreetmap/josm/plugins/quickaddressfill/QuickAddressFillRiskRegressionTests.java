@@ -26,6 +26,9 @@ public final class QuickAddressFillRiskRegressionTests {
     public static void main(String[] args) throws Exception {
         ensurePreferences();
         run("AddressSelection normalizes values and step", QuickAddressFillRiskRegressionTests::testAddressSelectionNormalization);
+        run("HouseNumberService normalizes and sanitizes step", QuickAddressFillRiskRegressionTests::testHouseNumberNormalizationAndStepSanitizing);
+        run("HouseNumberService apply increment keeps existing behavior", QuickAddressFillRiskRegressionTests::testHouseNumberIncrementAfterApplyRules);
+        run("HouseNumberService number and letter part updates", QuickAddressFillRiskRegressionTests::testHouseNumberPartUpdateRules);
         run("DataSet transition detection is stable", QuickAddressFillRiskRegressionTests::testDataSetChangeDetection);
         run("BuildingSplitter stale fallback is discarded", QuickAddressFillRiskRegressionTests::testStaleFallbackIsCleared);
         run("BuildingSplitter fresh fallback is kept", QuickAddressFillRiskRegressionTests::testFreshFallbackIsKept);
@@ -35,6 +38,35 @@ public final class QuickAddressFillRiskRegressionTests {
         run("Duplicate click detection blocks true duplicates", QuickAddressFillRiskRegressionTests::testDuplicateClicksAreDetected);
         run("Duplicate click detection keeps rapid distinct clicks", QuickAddressFillRiskRegressionTests::testRapidDistinctClicksAreKept);
         System.out.println("All QuickAddressFill risk regression tests passed.");
+    }
+
+    private static void testHouseNumberNormalizationAndStepSanitizing() {
+        HouseNumberService service = new HouseNumberService();
+
+        assertEquals("12a", service.normalize(" 12a "), "house number should be trimmed");
+        assertEquals(1, service.normalizeIncrementStep(999), "invalid increment step should normalize to +1");
+        assertEquals(1, service.sanitizeIncrementStepForHouseNumber("12a", 2), "letter house numbers must force +1");
+        assertEquals(-2, service.sanitizeIncrementStepForHouseNumber("12", -2), "numeric house numbers keep valid selected step");
+    }
+
+    private static void testHouseNumberIncrementAfterApplyRules() {
+        HouseNumberService service = new HouseNumberService();
+
+        assertEquals("14", service.incrementAfterSuccessfulApply("12", 2), "numeric house number should increment by selected step");
+        assertEquals("12b", service.incrementAfterSuccessfulApply("12a", 2), "numeric+letter should increment letter part only");
+        assertEquals("b", service.incrementAfterSuccessfulApply("a", 2), "letter-only house number should increment letter sequence");
+        assertEquals(null, service.incrementAfterSuccessfulApply("x/1", 1), "unsupported format should remain non-incrementable");
+    }
+
+    private static void testHouseNumberPartUpdateRules() {
+        HouseNumberService service = new HouseNumberService();
+
+        assertEquals("13a", service.incrementNumberPartByOne("12a"), "number-part increment should preserve suffix");
+        assertEquals("11a", service.decrementNumberPartByOne("12a"), "number-part decrement should preserve suffix");
+        assertEquals("12b", service.incrementLetterPartByOne("12a"), "letter-part increment should advance suffix");
+        assertEquals("12", service.decrementLetterPartByOne("12a"), "letter-part decrement should drop suffix at boundary");
+        assertEquals("12a", service.toggleLetterSuffix("12"), "toggle should add default suffix");
+        assertEquals("12", service.toggleLetterSuffix("12a"), "toggle should remove existing suffix");
     }
 
     private static void testAddressSelectionNormalization() {
