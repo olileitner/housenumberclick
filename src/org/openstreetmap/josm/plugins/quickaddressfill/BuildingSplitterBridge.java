@@ -8,22 +8,28 @@ import org.openstreetmap.josm.actions.mapmode.MapMode;
 import org.openstreetmap.josm.gui.IconToggleButton;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.plugins.buildingsplitter.AddressContextBridge;
 import org.openstreetmap.josm.tools.Logging;
 
 final class BuildingSplitterBridge {
 
     private static final String TARGET_PLUGIN_NAME = "buildingsplitter";
-
     private BuildingSplitterBridge() {
         // Utility class
     }
 
     static boolean activateBuildingSplitter() {
+        return activateBuildingSplitter("", "");
+    }
+
+    static boolean activateBuildingSplitter(String street, String postcode) {
         try {
             if (!BuildingSplitterDetector.isBuildingSplitterAvailable()) {
                 Logging.debug("QuickAddressFill: BuildingSplitter activation skipped because plugin is not available.");
                 return false;
             }
+
+            publishAddressContext(street, postcode);
 
             MapFrame map = MainApplication.getMap();
             if (map == null || map.allMapModeButtons == null) {
@@ -56,6 +62,13 @@ final class BuildingSplitterBridge {
         }
 
         return false;
+    }
+
+    private static void publishAddressContext(String street, String postcode) {
+        String normalizedStreet = normalizeHandoffValue(street);
+        String normalizedPostcode = normalizeHandoffValue(postcode);
+        AddressContextBridge.setAddressContext(normalizedStreet, normalizedPostcode);
+        Logging.debug("QuickAddressFill: Address context handed off to BuildingSplitter.");
     }
 
     private static boolean isBuildingSplitterMapMode(MapMode mapMode, String actionName) {
@@ -111,6 +124,10 @@ final class BuildingSplitterBridge {
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String normalizeHandoffValue(String value) {
+        return value == null ? "" : value.trim();
     }
 }
 

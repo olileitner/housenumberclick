@@ -542,7 +542,7 @@ final class StreetSelectionDialog {
     }
 
     private void onSplitBuildingRequested() {
-        if (BuildingSplitterBridge.activateBuildingSplitter()) {
+        if (streetModeController.activateBuildingSplitterWithCurrentAddress()) {
             refreshBuildingSplitterAvailability();
             return;
         }

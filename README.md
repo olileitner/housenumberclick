@@ -51,6 +51,10 @@ A simple mouse click is all it takes.
 
 ## Build
 
+Prerequisite for compile/dist:
+
+- `buildingsplitter.jar` available at `~/.josm/plugins/buildingsplitter.jar`, or provide a custom path via `-Dbuildingsplitter.jar=/path/to/buildingsplitter.jar`
+
 ```bash
 ant compile
 ant dist

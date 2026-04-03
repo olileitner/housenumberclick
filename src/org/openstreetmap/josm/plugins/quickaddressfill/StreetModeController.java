@@ -8,6 +8,8 @@ import org.openstreetmap.josm.tools.I18n;
 final class StreetModeController {
 
     private QuickAddressFillStreetMapMode streetMapMode;
+    private String currentStreet = "";
+    private String currentPostcode = "";
     private HouseNumberUpdateListener houseNumberUpdateListener;
     private AddressValuesReadListener addressValuesReadListener;
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
@@ -36,6 +38,8 @@ final class StreetModeController {
 
     void activate(String streetName, String postcode, String buildingType, String houseNumber, int houseNumberIncrementStep) {
         String normalizedStreet = streetName == null ? "" : streetName.trim();
+        currentStreet = normalizedStreet;
+        currentPostcode = postcode == null ? "" : postcode.trim();
         if (normalizedStreet.isEmpty()) {
             return;
         }
@@ -58,6 +62,10 @@ final class StreetModeController {
 
         streetMapMode.setAddressValues(normalizedStreet, postcode, buildingType, houseNumber, houseNumberIncrementStep);
         map.selectMapMode(streetMapMode);
+    }
+
+    boolean activateBuildingSplitterWithCurrentAddress() {
+        return BuildingSplitterBridge.activateBuildingSplitter(currentStreet, currentPostcode);
     }
 
     void setHouseNumberUpdateListener(HouseNumberUpdateListener listener) {
