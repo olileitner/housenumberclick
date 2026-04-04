@@ -563,7 +563,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
             g.fillPolygon(arrowHead);
             g.dispose();
 
-            return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(centerX, tipY), "qaf-house-number-cursor");
+            return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(centerX, tipY), "hnc-house-number-cursor");
         } catch (RuntimeException ex) {
             Logging.debug(ex);
             return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
@@ -589,7 +589,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
             g.drawLine(17, 17, 27, 27);
             g.dispose();
 
-            return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(10, 10), "qaf-magnifier-cursor");
+            return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(10, 10), "hnc-magnifier-cursor");
         } catch (RuntimeException ex) {
             Logging.debug(ex);
             return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);

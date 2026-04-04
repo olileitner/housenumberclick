@@ -50,7 +50,7 @@
             <arg value="--package-name=${plugin.name}"/>
             <arg value="--package-version=${plugin.version}"/>
             <arg value="--copyright-holder=HouseNumberClick contributors"/>
-            <arg value="--msgid-bugs-address=https://github.com/olileitner/quickaddressfill/issues"/>
+            <arg value="--msgid-bugs-address=https://github.com/olileitner/housenumberclick/issues"/>
             <arg value="--keyword=tr"/>
             <arg value="--keyword=I18n.tr"/>
             <arg value="--keyword=trn:1,2"/>
