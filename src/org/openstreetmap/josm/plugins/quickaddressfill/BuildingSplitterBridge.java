@@ -39,7 +39,7 @@ final class BuildingSplitterBridge {
         try {
             clearStalePreferenceFallback();
             if (!BuildingSplitterDetector.isBuildingSplitterAvailable()) {
-                Logging.info("QuickAddressFill: BuildingSplitter activation skipped because plugin is not available.");
+                Logging.info("HouseNumberClick: BuildingSplitter activation skipped because plugin is not available.");
                 return false;
             }
 
@@ -47,7 +47,7 @@ final class BuildingSplitterBridge {
 
             MapFrame map = MainApplication.getMap();
             if (map == null || map.allMapModeButtons == null) {
-                Logging.info("QuickAddressFill: BuildingSplitter activation failed because map UI is unavailable.");
+                Logging.info("HouseNumberClick: BuildingSplitter activation failed because map UI is unavailable.");
                 return false;
             }
 
@@ -66,13 +66,13 @@ final class BuildingSplitterBridge {
                 }
 
                 if (map.selectMapMode(mapMode)) {
-                    Logging.info("QuickAddressFill: BuildingSplitter map mode detected and activated.");
+                    Logging.info("HouseNumberClick: BuildingSplitter map mode detected and activated.");
                     return true;
                 }
             }
-            Logging.info("QuickAddressFill: BuildingSplitter activation failed after scanning map modes.");
+            Logging.info("HouseNumberClick: BuildingSplitter activation failed after scanning map modes.");
         } catch (RuntimeException ex) {
-            Logging.warn("QuickAddressFill BuildingSplitterBridge.activateBuildingSplitter: runtime failure, street={0}, postcode={1}",
+            Logging.warn("HouseNumberClick BuildingSplitterBridge.activateBuildingSplitter: runtime failure, street={0}, postcode={1}",
                     normalizeHandoffValue(street), normalizeHandoffValue(postcode));
             Logging.debug(ex);
             return false;
@@ -84,10 +84,10 @@ final class BuildingSplitterBridge {
     private static void publishAddressContext(String street, String postcode) {
         String normalizedStreet = normalizeHandoffValue(street);
         String normalizedPostcode = normalizeHandoffValue(postcode);
-        Logging.info("QuickAddressFill: Address context handoff attempt started.");
+        Logging.info("HouseNumberClick: Address context handoff attempt started.");
 
         if (Config.getPref().getBoolean(FORCE_PREFERENCE_FALLBACK_KEY, false)) {
-            Logging.info("QuickAddressFill: Reflection handoff disabled by QA preference; using fallback.");
+            Logging.info("HouseNumberClick: Reflection handoff disabled by QA preference; using fallback.");
             writePreferenceFallback(normalizedStreet, normalizedPostcode);
             return;
         }
@@ -98,12 +98,12 @@ final class BuildingSplitterBridge {
                 .getMethod("setAddressContext", String.class, String.class)
                 .invoke(null, normalizedStreet, normalizedPostcode);
             clearPreferenceFallback();
-            Logging.info("QuickAddressFill: Address context reflection handoff succeeded.");
+            Logging.info("HouseNumberClick: Address context reflection handoff succeeded.");
         } catch (ClassNotFoundException | NoClassDefFoundError ex) {
-            Logging.info("QuickAddressFill: Address context reflection handoff unavailable.");
+            Logging.info("HouseNumberClick: Address context reflection handoff unavailable.");
             writePreferenceFallback(normalizedStreet, normalizedPostcode);
         } catch (ReflectiveOperationException | LinkageError ex) {
-            Logging.warn("QuickAddressFill: Address context reflection handoff failed.");
+            Logging.warn("HouseNumberClick: Address context reflection handoff failed.");
             Logging.debug(ex);
             writePreferenceFallback(normalizedStreet, normalizedPostcode);
         }
@@ -114,7 +114,7 @@ final class BuildingSplitterBridge {
         String normalizedPostcode = normalizeHandoffValue(postcode);
         if (normalizedStreet.isEmpty() && normalizedPostcode.isEmpty()) {
             clearPreferenceFallback();
-            Logging.info("QuickAddressFill: Preference fallback not written because context is empty.");
+            Logging.info("HouseNumberClick: Preference fallback not written because context is empty.");
             return;
         }
 
@@ -123,7 +123,7 @@ final class BuildingSplitterBridge {
         Config.getPref().putBoolean(HANDOFF_PENDING_KEY, true);
         Config.getPref().put(HANDOFF_TIMESTAMP_KEY, Long.toString(System.currentTimeMillis()));
         Config.getPref().put(HANDOFF_SESSION_KEY, HANDOFF_SESSION_ID);
-        Logging.info("QuickAddressFill: Address context preference fallback written.");
+        Logging.info("HouseNumberClick: Address context preference fallback written.");
     }
 
     static void clearPreferenceFallback() {
@@ -149,7 +149,7 @@ final class BuildingSplitterBridge {
             return;
         }
 
-        Logging.info("QuickAddressFill: Clearing stale BuildingSplitter handoff fallback (differentSession={0}, expired={1}).",
+        Logging.info("HouseNumberClick: Clearing stale BuildingSplitter handoff fallback (differentSession={0}, expired={1}).",
                 differentSession, expired);
         clearPreferenceFallback();
     }
@@ -161,7 +161,7 @@ final class BuildingSplitterBridge {
         try {
             return Long.parseLong(rawTimestamp);
         } catch (NumberFormatException ex) {
-            Logging.warn("QuickAddressFill BuildingSplitterBridge.parseTimestamp: invalid handoff timestamp: {0}", rawTimestamp);
+            Logging.warn("HouseNumberClick BuildingSplitterBridge.parseTimestamp: invalid handoff timestamp: {0}", rawTimestamp);
             Logging.debug(ex);
             return -1L;
         }

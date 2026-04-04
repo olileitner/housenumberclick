@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="quickaddressfill" default="dist" basedir=".">
-    <property name="plugin.name" value="QuickAddressFill"/>
-    <property name="plugin.class" value="org.openstreetmap.josm.plugins.quickaddressfill.QuickAddressFillPlugin"/>
-    <property name="plugin.description" value="Quickly opens the QuickAddressFill status dialog."/>
+<project name="housenumberclick" default="dist" basedir=".">
+    <property name="plugin.name" value="HouseNumberClick"/>
+    <property name="plugin.class" value="org.openstreetmap.josm.plugins.quickaddressfill.HouseNumberClickPlugin"/>
+    <property name="plugin.description" value="Quickly opens the HouseNumberClick status dialog."/>
     <property name="plugin.version" value="1.0.3"/>
     <property name="plugin.main.version" value="19481"/>
 
@@ -49,7 +49,7 @@
             <arg value="--sort-output"/>
             <arg value="--package-name=${plugin.name}"/>
             <arg value="--package-version=${plugin.version}"/>
-            <arg value="--copyright-holder=QuickAddressFill contributors"/>
+            <arg value="--copyright-holder=HouseNumberClick contributors"/>
             <arg value="--msgid-bugs-address=https://github.com/olileitner/quickaddressfill/issues"/>
             <arg value="--keyword=tr"/>
             <arg value="--keyword=I18n.tr"/>
@@ -116,7 +116,7 @@
     </target>
 
     <target name="test" depends="test-compile" description="Run lightweight regression tests">
-        <java classname="org.openstreetmap.josm.plugins.quickaddressfill.QuickAddressFillRiskRegressionTests"
+        <java classname="org.openstreetmap.josm.plugins.quickaddressfill.HouseNumberClickRiskRegressionTests"
               fork="true"
               failonerror="true">
             <jvmarg value="-Djava.awt.headless=true"/>

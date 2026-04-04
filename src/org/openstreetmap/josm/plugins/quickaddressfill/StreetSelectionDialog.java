@@ -73,7 +73,7 @@ final class StreetSelectionDialog {
         this.streetModeController = streetModeController;
 
         Frame owner = MainApplication.getMainFrame();
-        this.dialog = new JDialog(owner, I18n.tr("Quick Address Fill"), false);
+        this.dialog = new JDialog(owner, I18n.tr("HouseNumberClick"), false);
         this.dialog.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
 
         this.postcodeField = new JTextField();
@@ -284,7 +284,7 @@ final class StreetSelectionDialog {
         JOptionPane.showMessageDialog(
                 MainApplication.getMainFrame(),
                 I18n.tr("No active dataset available."),
-                I18n.tr("Quick Address Fill"),
+                I18n.tr("HouseNumberClick"),
                 JOptionPane.WARNING_MESSAGE
         );
     }
@@ -294,7 +294,7 @@ final class StreetSelectionDialog {
             JOptionPane.showMessageDialog(
                     MainApplication.getMainFrame(),
                     I18n.tr("No street names found in the current view."),
-                    I18n.tr("Quick Address Fill"),
+                    I18n.tr("HouseNumberClick"),
                     JOptionPane.INFORMATION_MESSAGE
             );
             return;

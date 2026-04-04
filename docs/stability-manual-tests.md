@@ -1,4 +1,4 @@
-# QuickAddressFill Stability Manual Tests
+# HouseNumberClick Stability Manual Tests
 
 These scenarios focus on the recent hardening changes (state reset, fallback cleanup, click handling).
 
@@ -8,7 +8,7 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 - Preparation: load edit layer with building ways and visible named street.
 - Steps: open dialog, set street/postcode/house number, click building twice.
 - Expected: first click applies tags, second click uses incremented house number.
-- Relevant logs: `QuickAddressFill click-path: outcome=applied, source=...` (debug).
+- Relevant logs: `HouseNumberClick click-path: outcome=applied, source=...` (debug).
 
 ### B) Ctrl+Click Readback/Pickup
 - Preparation: one building with `addr:*` tags, one nearby named highway without building under cursor.
@@ -38,14 +38,14 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 - Preparation: dense city area; debug logs enabled; optionally lower scan limits.
 - Steps: repeated clicks in dense area with default and low limits.
 - Expected: default stays responsive with fewer misses; low limits increase `source=no-hit` and `*LimitReached=true`.
-- Relevant logs: `QuickAddressFill click-path: ... relationLimitReached=..., wayLimitReached=..., durationMs=...`.
+- Relevant logs: `HouseNumberClick click-path: ... relationLimitReached=..., wayLimitReached=..., durationMs=...`.
 
 ## 1) DataSet Switch Resets Remembered Dialog Context
 
 ### Preparation
-- Start JOSM with QuickAddressFill plugin enabled.
+- Start JOSM with HouseNumberClick plugin enabled.
 - Load DataSet A with streets/buildings.
-- Open Quick Address Fill dialog and enter distinctive values:
+- Open HouseNumberClick dialog and enter distinctive values:
   - Postcode: `99999`
   - Street: pick any street
   - Building type: `warehouse`
@@ -55,7 +55,7 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 ### Steps
 1. Close the dialog.
 2. Switch to another editable layer or open DataSet B.
-3. Open Quick Address Fill again.
+3. Open HouseNumberClick again.
 
 ### Expected
 - Remembered values from DataSet A are not reused in DataSet B.
@@ -73,14 +73,14 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
   - `quickaddressfill.buildingsplitter.handoff.timestamp=<very old timestamp>`
 
 ### Steps
-1. Start JOSM and open Quick Address Fill dialog.
+1. Start JOSM and open HouseNumberClick dialog.
 2. Trigger `Split building`.
 
 ### Expected
 - Stale handoff preference data is cleared before activation.
 
 ### Relevant Logs
-- `QuickAddressFill: Clearing stale BuildingSplitter handoff fallback (differentSession=..., expired=...)`
+- `HouseNumberClick: Clearing stale BuildingSplitter handoff fallback (differentSession=..., expired=...)`
 
 ## 3) BuildingSplitter Reflection Handoff Clears Fallback
 
@@ -88,14 +88,14 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 - Install a BuildingSplitter version that provides `AddressContextBridge.setAddressContext(String,String)`.
 
 ### Steps
-1. Open Quick Address Fill, set street/postcode.
+1. Open HouseNumberClick, set street/postcode.
 2. Trigger `Split building`.
 
 ### Expected
 - Reflection handoff succeeds and fallback keys are cleared.
 
 ### Relevant Logs
-- `QuickAddressFill: Address context reflection handoff succeeded.`
+- `HouseNumberClick: Address context reflection handoff succeeded.`
 
 ## 4) Click Deduplizierung
 
@@ -114,7 +114,7 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 
 ### Relevant Logs
 - Duplicate suppression:
-  - `QuickAddressFill StreetMapMode.mouseReleased: duplicate release suppressed at x,y`
+  - `HouseNumberClick StreetMapMode.mouseReleased: duplicate release suppressed at x,y`
 - Slow click diagnostics (only when threshold exceeded):
   - `...slow click handling (... ms)...`
 
@@ -143,9 +143,9 @@ Suggested test values:
 
 ### Relevant Logs
 - Full click diagnostic (debug):
-  - `QuickAddressFill click-path: outcome=..., source=..., nearestCandidates=..., relationChecked=.../..., wayChecked=.../..., relationLimitReached=..., wayLimitReached=..., ... durationMs=...`
+  - `HouseNumberClick click-path: outcome=..., source=..., nearestCandidates=..., relationChecked=.../..., wayChecked=.../..., relationLimitReached=..., wayLimitReached=..., ... durationMs=...`
 - Slow click diagnostic (debug):
-  - `QuickAddressFill StreetMapMode.mouseReleased: slow click handling (... ms), source=..., outcome=..., x=..., y=...`
+  - `HouseNumberClick StreetMapMode.mouseReleased: slow click handling (... ms), source=..., outcome=..., x=..., y=...`
 
 How to identify limits that are too low:
 - `relationLimitReached=true` or `wayLimitReached=true` appears frequently.

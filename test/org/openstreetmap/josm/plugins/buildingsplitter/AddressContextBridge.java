@@ -1,7 +1,7 @@
 package org.openstreetmap.josm.plugins.buildingsplitter;
 
 /**
- * Test stub used to simulate successful reflection handoff from QuickAddressFill.
+ * Test stub used to simulate successful reflection handoff from HouseNumberClick.
  */
 public final class AddressContextBridge {
 

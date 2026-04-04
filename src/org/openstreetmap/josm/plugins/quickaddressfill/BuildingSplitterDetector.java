@@ -18,7 +18,7 @@ final class BuildingSplitterDetector {
     static boolean isBuildingSplitterAvailable() {
         try {
             List<PluginInformation> plugins = PluginHandler.getPlugins();
-            Logging.debug("QuickAddressFill BuildingSplitterDetector.isBuildingSplitterAvailable: plugin count={0}",
+            Logging.debug("HouseNumberClick BuildingSplitterDetector.isBuildingSplitterAvailable: plugin count={0}",
                     plugins == null ? 0 : plugins.size());
             if (plugins != null && !plugins.isEmpty()) {
                 for (PluginInformation plugin : plugins) {
@@ -36,7 +36,7 @@ final class BuildingSplitterDetector {
             // Fallback: check canonical id directly.
             return PluginHandler.getPlugin(TARGET_PLUGIN_NAME) != null;
         } catch (RuntimeException ex) {
-            Logging.warn("QuickAddressFill BuildingSplitterDetector.isBuildingSplitterAvailable: runtime failure while probing plugins.");
+            Logging.warn("HouseNumberClick BuildingSplitterDetector.isBuildingSplitterAvailable: runtime failure while probing plugins.");
             Logging.debug(ex);
             return false;
         }

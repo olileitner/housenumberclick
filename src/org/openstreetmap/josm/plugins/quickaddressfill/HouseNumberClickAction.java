@@ -8,13 +8,13 @@ import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.tools.I18n;
 
-public class QuickAddressFillAction extends JosmAction {
+public class HouseNumberClickAction extends JosmAction {
 
     private final StreetModeController streetModeController;
     private final StreetSelectionDialog streetSelectionDialog;
 
-    public QuickAddressFillAction() {
-        super(I18n.tr("Quick Address Fill"), "quickaddressfill", I18n.tr("Open Quick Address Fill street dialog"), null, true);
+    public HouseNumberClickAction() {
+        super(I18n.tr("HouseNumberClick"), "quickaddressfill", I18n.tr("Open HouseNumberClick street dialog"), null, true);
         this.streetModeController = new StreetModeController();
         this.streetSelectionDialog = new StreetSelectionDialog(streetModeController);
     }

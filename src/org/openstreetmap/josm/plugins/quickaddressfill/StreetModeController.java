@@ -44,7 +44,7 @@ final class StreetModeController {
         }
     }
 
-    private QuickAddressFillStreetMapMode streetMapMode;
+    private HouseNumberClickStreetMapMode streetMapMode;
     private String currentStreet = "";
     private String currentPostcode = "";
     private HouseNumberUpdateListener houseNumberUpdateListener;
@@ -79,29 +79,29 @@ final class StreetModeController {
 
     void activate(AddressSelection selection) {
         if (selection == null) {
-            Logging.warn("QuickAddressFill StreetModeController.activate: called with null selection.");
+            Logging.warn("HouseNumberClick StreetModeController.activate: called with null selection.");
             return;
         }
 
         currentStreet = selection.getStreetName();
         currentPostcode = selection.getPostcode();
         if (currentStreet.isEmpty()) {
-            Logging.debug("QuickAddressFill StreetModeController.activate: skipped because street is empty.");
+            Logging.debug("HouseNumberClick StreetModeController.activate: skipped because street is empty.");
             return;
         }
 
         MapFrame map = MainApplication.getMap();
         if (map == null || map.mapView == null) {
-            Logging.info("QuickAddressFill StreetModeController.activate: map/mapView unavailable, street={0}, postcode={1}",
+            Logging.info("HouseNumberClick StreetModeController.activate: map/mapView unavailable, street={0}, postcode={1}",
                     currentStreet, currentPostcode);
             return;
         }
 
         if (streetMapMode == null) {
             try {
-                streetMapMode = new QuickAddressFillStreetMapMode(this);
+                streetMapMode = new HouseNumberClickStreetMapMode(this);
             } catch (RuntimeException ex) {
-                Logging.warn("QuickAddressFill StreetModeController.activate: failed to create map mode, street={0}, postcode={1}",
+                Logging.warn("HouseNumberClick StreetModeController.activate: failed to create map mode, street={0}, postcode={1}",
                         currentStreet, currentPostcode);
                 Logging.debug(ex);
                 new Notification(I18n.tr("Street Mode could not be started."))
@@ -130,7 +130,7 @@ final class StreetModeController {
         String normalizedPostcode = postcode == null ? "" : postcode.trim();
         boolean activated = BuildingSplitterBridge.activateBuildingSplitter(normalizedStreet, normalizedPostcode);
         if (!activated) {
-            Logging.info("QuickAddressFill StreetModeController.activateBuildingSplitterWithAddress: activation failed, street={0}, postcode={1}",
+            Logging.info("HouseNumberClick StreetModeController.activateBuildingSplitterWithAddress: activation failed, street={0}, postcode={1}",
                     normalizedStreet, normalizedPostcode);
         }
         return activated;

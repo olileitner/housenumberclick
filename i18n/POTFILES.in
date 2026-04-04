@@ -4,9 +4,9 @@ src/org/openstreetmap/josm/plugins/quickaddressfill/BuildingSplitterBridge.java
 src/org/openstreetmap/josm/plugins/quickaddressfill/BuildingSplitterDetector.java
 src/org/openstreetmap/josm/plugins/quickaddressfill/BuildingTagApplier.java
 src/org/openstreetmap/josm/plugins/quickaddressfill/PostcodeCollector.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/QuickAddressFillAction.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/QuickAddressFillPlugin.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/QuickAddressFillStreetMapMode.java
+src/org/openstreetmap/josm/plugins/quickaddressfill/HouseNumberClickAction.java
+src/org/openstreetmap/josm/plugins/quickaddressfill/HouseNumberClickPlugin.java
+src/org/openstreetmap/josm/plugins/quickaddressfill/HouseNumberClickStreetMapMode.java
 src/org/openstreetmap/josm/plugins/quickaddressfill/StreetModeController.java
 src/org/openstreetmap/josm/plugins/quickaddressfill/StreetNameCollector.java
 src/org/openstreetmap/josm/plugins/quickaddressfill/StreetSelectionDialog.java

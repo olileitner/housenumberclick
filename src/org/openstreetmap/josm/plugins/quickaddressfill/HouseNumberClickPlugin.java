@@ -6,14 +6,14 @@ import org.openstreetmap.josm.plugins.Plugin;
 import org.openstreetmap.josm.plugins.PluginInformation;
 import org.openstreetmap.josm.spi.preferences.Config;
 
-public class QuickAddressFillPlugin extends Plugin {
+public class HouseNumberClickPlugin extends Plugin {
 
     private static final String TOOLBAR_ID = "quickaddressfill";
     private static final String TOOLBAR_MIGRATION_PREF = "quickaddressfill.toolbar.button.added.v1";
 
-    public QuickAddressFillPlugin(PluginInformation info) {
+    public HouseNumberClickPlugin(PluginInformation info) {
         super(info);
-        QuickAddressFillAction action = new QuickAddressFillAction();
+        HouseNumberClickAction action = new HouseNumberClickAction();
         MainApplication.getMenu().dataMenu.add(action);
         ensureToolbarButtonAddedOnce();
     }

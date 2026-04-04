@@ -1,11 +1,11 @@
-# QuickAddressFill
+# HouseNumberClick
 
 JOSM plugin for quickly applying address tags to buildings.
 
 ## Demo
 A simple mouse click is all it takes.
 
-![QuickAddressFill demo](docs/images/qaf-demo.gif)
+![HouseNumberClick demo](docs/images/qaf-demo.gif)
 
 ## Features
 
@@ -25,18 +25,18 @@ A simple mouse click is all it takes.
 - `L` toggles a letter suffix on the house number (`12` <-> `12a`) for quick switching between numeric and lettered values.
 - `Ctrl` + left-click on a building reads `addr:street`, `addr:postcode`, and `addr:housenumber` into the dialog (building type is not imported by pickup).
 - `Ctrl` + left-click on a street (without a building hit) reads the nearby street `name` into the dialog street field and sets house number to `1`.
-- Status line displays active values and updates continuously (street, postcode, house number, increment), including `QAF PAUSED` when mode is inactive.
+- Status line displays active values and updates continuously (street, postcode, house number, increment), including `HouseNumberClick PAUSED` when mode is inactive.
 
 ## BuildingSplitter Integration
 
-- QuickAddressFill can optionally work with the [`BuildingSplitter` plugin](https://github.com/olileitner/buildingsplitter).
+- HouseNumberClick can optionally work with the [`BuildingSplitter` plugin](https://github.com/olileitner/buildingsplitter).
 - If available, the dialog shows a `Split building` button.
 - If not loaded, the dialog shows `Building Splitter: not found`.
-- After starting split mode, QuickAddressFill returns automatically to the address tool when splitting mode is left.
+- After starting split mode, HouseNumberClick returns automatically to the address tool when splitting mode is left.
 
 ## Usage
 
-1. Start `Quick Address Fill` in JOSM.
+1. Start `HouseNumberClick` in JOSM.
 2. Select a street; optionally enter postcode, building type, and a starting house number.
 3. Select increment (`-2`, `-1`, `+1`, `+2`).
 4. Optional: use `Ctrl` + left-click on a building to read its address data into the dialog, or `Ctrl` + left-click on a street to pick its name.
@@ -47,7 +47,7 @@ A simple mouse click is all it takes.
 9. Press `ESC` to pause/exit Street Mode (you can continue from the dialog).
 
 
-![QuickAddressFill dialog](docs/images/qaf-dialog.png)
+![HouseNumberClick dialog](docs/images/qaf-dialog.png)
 
 ## Build
 
@@ -88,7 +88,7 @@ BuildingSplitter handoff state is stored temporarily in:
 
 ```bash
 mkdir -p ~/.josm/plugins
-cp dist/QuickAddressFill.jar ~/.josm/plugins/
+cp dist/HouseNumberClick.jar ~/.josm/plugins/
 ```
 
 ## License
@@ -100,12 +100,12 @@ See `LICENSE` for the full license text.
 
 - Extraction source list: `i18n/POTFILES.in`
 - Translation catalogs folder: `i18n/po/`
-- POT template output: `i18n/po/templates/QuickAddressFill.pot`
+- POT template output: `i18n/po/templates/HouseNumberClick.pot`
 - Generated `.lang` files: `i18n/lang/`
 
 Create the first translation file (example):
 
-- copy `i18n/po/templates/QuickAddressFill.pot` to `i18n/po/de.po`
+- copy `i18n/po/templates/HouseNumberClick.pot` to `i18n/po/de.po`
 - translate entries in `i18n/po/de.po`
 
 Run extraction:
@@ -128,7 +128,7 @@ Build and package plugin (includes generated `.lang` files):
 
 `ant dist`
 
-`ant dist` packages files from `i18n/lang/` into `data/QuickAddressFill/lang/` inside the plugin JAR.
+`ant dist` packages files from `i18n/lang/` into `data/HouseNumberClick/lang/` inside the plugin JAR.
 
 Prerequisite for `.po -> .lang` conversion:
 

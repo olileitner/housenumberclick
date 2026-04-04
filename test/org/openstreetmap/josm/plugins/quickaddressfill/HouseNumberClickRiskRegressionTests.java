@@ -11,7 +11,7 @@ import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.spi.preferences.Config;
 
-public final class QuickAddressFillRiskRegressionTests {
+public final class HouseNumberClickRiskRegressionTests {
 
     private static final String HANDOFF_STREET_KEY = "quickaddressfill.buildingsplitter.handoff.street";
     private static final String HANDOFF_POSTCODE_KEY = "quickaddressfill.buildingsplitter.handoff.postcode";
@@ -22,32 +22,32 @@ public final class QuickAddressFillRiskRegressionTests {
     private static final String RELATION_SCAN_LIMIT_KEY = BuildingResolver.PREF_RELATION_SCAN_LIMIT;
     private static final String WAY_SCAN_LIMIT_KEY = BuildingResolver.PREF_WAY_SCAN_LIMIT;
 
-    private QuickAddressFillRiskRegressionTests() {
+    private HouseNumberClickRiskRegressionTests() {
         // Utility class
     }
 
     public static void main(String[] args) throws Exception {
         ensurePreferences();
-        run("AddressSelection normalizes values and step", QuickAddressFillRiskRegressionTests::testAddressSelectionNormalization);
-        run("HouseNumberService normalizes and sanitizes step", QuickAddressFillRiskRegressionTests::testHouseNumberNormalizationAndStepSanitizing);
-        run("HouseNumberService apply increment keeps existing behavior", QuickAddressFillRiskRegressionTests::testHouseNumberIncrementAfterApplyRules);
-        run("HouseNumberService number and letter part updates", QuickAddressFillRiskRegressionTests::testHouseNumberPartUpdateRules);
-        run("AddressReadbackService reads address tags from building", QuickAddressFillRiskRegressionTests::testAddressReadbackFromBuilding);
-        run("AddressReadbackService street fallback keeps postcode/buildingType", QuickAddressFillRiskRegressionTests::testAddressReadbackStreetFallback);
-        run("AddressReadbackService candidate fallback order", QuickAddressFillRiskRegressionTests::testAddressReadbackCandidateOrderAndMissingTags);
-        run("AddressConflictService detects street and postcode conflicts", QuickAddressFillRiskRegressionTests::testAddressConflictDetection);
-        run("AddressConflictService handles missing tags and partial differences", QuickAddressFillRiskRegressionTests::testAddressConflictEdgeCases);
-        run("ConflictDialogModelBuilder keeps field order and value mapping", QuickAddressFillRiskRegressionTests::testConflictDialogModelBuilderMapping);
-        run("ConflictDialogModelBuilder handles empty analysis", QuickAddressFillRiskRegressionTests::testConflictDialogModelBuilderEmpty);
-        run("DataSet transition detection is stable", QuickAddressFillRiskRegressionTests::testDataSetChangeDetection);
-        run("BuildingSplitter stale fallback is discarded", QuickAddressFillRiskRegressionTests::testStaleFallbackIsCleared);
-        run("BuildingSplitter fresh fallback is kept", QuickAddressFillRiskRegressionTests::testFreshFallbackIsKept);
-        run("Successful reflection handoff clears fallback", QuickAddressFillRiskRegressionTests::testReflectionHandoffClearsFallback);
-        run("Scan limit defaults are used when unset", QuickAddressFillRiskRegressionTests::testScanLimitDefaultsWhenUnset);
-        run("Invalid scan limit preferences fall back to defaults", QuickAddressFillRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
-        run("Duplicate click detection blocks true duplicates", QuickAddressFillRiskRegressionTests::testDuplicateClicksAreDetected);
-        run("Duplicate click detection keeps rapid distinct clicks", QuickAddressFillRiskRegressionTests::testRapidDistinctClicksAreKept);
-        System.out.println("All QuickAddressFill risk regression tests passed.");
+        run("AddressSelection normalizes values and step", HouseNumberClickRiskRegressionTests::testAddressSelectionNormalization);
+        run("HouseNumberService normalizes and sanitizes step", HouseNumberClickRiskRegressionTests::testHouseNumberNormalizationAndStepSanitizing);
+        run("HouseNumberService apply increment keeps existing behavior", HouseNumberClickRiskRegressionTests::testHouseNumberIncrementAfterApplyRules);
+        run("HouseNumberService number and letter part updates", HouseNumberClickRiskRegressionTests::testHouseNumberPartUpdateRules);
+        run("AddressReadbackService reads address tags from building", HouseNumberClickRiskRegressionTests::testAddressReadbackFromBuilding);
+        run("AddressReadbackService street fallback keeps postcode/buildingType", HouseNumberClickRiskRegressionTests::testAddressReadbackStreetFallback);
+        run("AddressReadbackService candidate fallback order", HouseNumberClickRiskRegressionTests::testAddressReadbackCandidateOrderAndMissingTags);
+        run("AddressConflictService detects street and postcode conflicts", HouseNumberClickRiskRegressionTests::testAddressConflictDetection);
+        run("AddressConflictService handles missing tags and partial differences", HouseNumberClickRiskRegressionTests::testAddressConflictEdgeCases);
+        run("ConflictDialogModelBuilder keeps field order and value mapping", HouseNumberClickRiskRegressionTests::testConflictDialogModelBuilderMapping);
+        run("ConflictDialogModelBuilder handles empty analysis", HouseNumberClickRiskRegressionTests::testConflictDialogModelBuilderEmpty);
+        run("DataSet transition detection is stable", HouseNumberClickRiskRegressionTests::testDataSetChangeDetection);
+        run("BuildingSplitter stale fallback is discarded", HouseNumberClickRiskRegressionTests::testStaleFallbackIsCleared);
+        run("BuildingSplitter fresh fallback is kept", HouseNumberClickRiskRegressionTests::testFreshFallbackIsKept);
+        run("Successful reflection handoff clears fallback", HouseNumberClickRiskRegressionTests::testReflectionHandoffClearsFallback);
+        run("Scan limit defaults are used when unset", HouseNumberClickRiskRegressionTests::testScanLimitDefaultsWhenUnset);
+        run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
+        run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
+        run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
+        System.out.println("All HouseNumberClick risk regression tests passed.");
     }
 
     private static void testHouseNumberNormalizationAndStepSanitizing() {
@@ -273,12 +273,12 @@ public final class QuickAddressFillRiskRegressionTests {
         Config.getPref().put(WAY_SCAN_LIMIT_KEY, null);
 
         assertEquals(
-                QuickAddressFillStreetMapMode.DEFAULT_RELATION_SCAN_CANDIDATES,
+                HouseNumberClickStreetMapMode.DEFAULT_RELATION_SCAN_CANDIDATES,
                 BuildingResolver.getConfiguredRelationScanLimit(),
                 "relation scan limit should use default when preference is missing"
         );
         assertEquals(
-                QuickAddressFillStreetMapMode.DEFAULT_WAY_SCAN_CANDIDATES,
+                HouseNumberClickStreetMapMode.DEFAULT_WAY_SCAN_CANDIDATES,
                 BuildingResolver.getConfiguredWayScanLimit(),
                 "way scan limit should use default when preference is missing"
         );
@@ -289,19 +289,19 @@ public final class QuickAddressFillRiskRegressionTests {
         Config.getPref().put(WAY_SCAN_LIMIT_KEY, "-9");
 
         assertEquals(
-                QuickAddressFillStreetMapMode.DEFAULT_RELATION_SCAN_CANDIDATES,
+                HouseNumberClickStreetMapMode.DEFAULT_RELATION_SCAN_CANDIDATES,
                 BuildingResolver.getConfiguredRelationScanLimit(),
                 "invalid relation limit should fall back to default"
         );
         assertEquals(
-                QuickAddressFillStreetMapMode.DEFAULT_WAY_SCAN_CANDIDATES,
+                HouseNumberClickStreetMapMode.DEFAULT_WAY_SCAN_CANDIDATES,
                 BuildingResolver.getConfiguredWayScanLimit(),
                 "invalid way limit should fall back to default"
         );
     }
 
     private static void testDuplicateClicksAreDetected() throws Exception {
-        QuickAddressFillStreetMapMode mode = new QuickAddressFillStreetMapMode(new StreetModeController());
+        HouseNumberClickStreetMapMode mode = new HouseNumberClickStreetMapMode(new StreetModeController());
 
         MouseEvent first = newMouseRelease(1000L, 50, 50, MouseEvent.BUTTON1, 0);
         MouseEvent duplicate = newMouseRelease(1060L, 50, 50, MouseEvent.BUTTON1, 0);
@@ -311,7 +311,7 @@ public final class QuickAddressFillRiskRegressionTests {
     }
 
     private static void testRapidDistinctClicksAreKept() throws Exception {
-        QuickAddressFillStreetMapMode mode = new QuickAddressFillStreetMapMode(new StreetModeController());
+        HouseNumberClickStreetMapMode mode = new HouseNumberClickStreetMapMode(new StreetModeController());
 
         MouseEvent first = newMouseRelease(2000L, 100, 100, MouseEvent.BUTTON1, 0);
         MouseEvent differentPosition = newMouseRelease(2060L, 101, 100, MouseEvent.BUTTON1, 0);
@@ -351,8 +351,8 @@ public final class QuickAddressFillRiskRegressionTests {
         return new MouseEvent(source, MouseEvent.MOUSE_RELEASED, when, modifiersEx, x, y, 1, false, button);
     }
 
-    private static boolean invokeDuplicateCheck(QuickAddressFillStreetMapMode mode, MouseEvent event) throws Exception {
-        Method method = QuickAddressFillStreetMapMode.class.getDeclaredMethod("isDuplicateReleaseEvent", MouseEvent.class);
+    private static boolean invokeDuplicateCheck(HouseNumberClickStreetMapMode mode, MouseEvent event) throws Exception {
+        Method method = HouseNumberClickStreetMapMode.class.getDeclaredMethod("isDuplicateReleaseEvent", MouseEvent.class);
         method.setAccessible(true);
         Object result = method.invoke(mode, event);
         return Boolean.TRUE.equals(result);

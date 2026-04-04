@@ -36,7 +36,7 @@ import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
-final class QuickAddressFillStreetMapMode extends MapMode {
+final class HouseNumberClickStreetMapMode extends MapMode {
 
     private static final long DUPLICATE_CLICK_WINDOW_MILLIS = 120L;
     static final String PREF_RELATION_SCAN_LIMIT = BuildingResolver.PREF_RELATION_SCAN_LIMIT;
@@ -72,9 +72,9 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         private BuildingResolver.BuildingResolutionResult resolution = BuildingResolver.BuildingResolutionResult.notEvaluated();
     }
 
-    QuickAddressFillStreetMapMode(StreetModeController controller) {
+    HouseNumberClickStreetMapMode(StreetModeController controller) {
         super(
-                I18n.tr("Quick Address Fill Street Mode"),
+                I18n.tr("HouseNumberClick Street Mode"),
                 "quickaddressfill",
                 I18n.tr("Click buildings to set addr:street"),
                 Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR)
@@ -179,7 +179,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         }
         controlPressed = false;
         if (map != null && map.statusLine != null) {
-            map.statusLine.setHelpText(this, I18n.tr("QAF PAUSED"));
+            map.statusLine.setHelpText(this, I18n.tr("HouseNumberClick PAUSED"));
         }
         controller.notifyModeStateChanged(false);
         super.exitMode();
@@ -245,7 +245,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         }
 
         if (isDuplicateReleaseEvent(e)) {
-            Logging.debug("QuickAddressFill StreetMapMode.mouseReleased: duplicate release suppressed at {0},{1}",
+            Logging.debug("HouseNumberClick StreetMapMode.mouseReleased: duplicate release suppressed at {0},{1}",
                     e.getX(), e.getY());
             return;
         }
@@ -260,7 +260,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
             }
         } catch (RuntimeException ex) {
             Logging.warn(
-                    "QuickAddressFill StreetMapMode.mouseReleased: failure while processing click, control={0}, street={1}, postcode={2}, houseNumber={3}",
+                    "HouseNumberClick StreetMapMode.mouseReleased: failure while processing click, control={0}, street={1}, postcode={2}, houseNumber={3}",
                     e.isControlDown(),
                     displayValue(streetName),
                     displayValue(postcode),
@@ -446,7 +446,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
         JOptionPane optionPane = new JOptionPane(content, JOptionPane.WARNING_MESSAGE, JOptionPane.YES_NO_OPTION);
         optionPane.setInitialValue(JOptionPane.YES_OPTION);
-        JDialog dialog = optionPane.createDialog(MainApplication.getMainFrame(), I18n.tr("Quick Address Fill - Overwrite Warning"));
+        JDialog dialog = optionPane.createDialog(MainApplication.getMainFrame(), I18n.tr("HouseNumberClick - Overwrite Warning"));
         dialog.setVisible(true);
 
         Object selectedValue = optionPane.getValue();
@@ -487,12 +487,12 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         }
 
         if (!isModeActiveOnMap(map)) {
-            map.statusLine.setHelpText(this, I18n.tr("QAF PAUSED"));
+            map.statusLine.setHelpText(this, I18n.tr("HouseNumberClick PAUSED"));
             return;
         }
 
         String baseText = I18n.tr(
-                "QAF ACTIVE | Street: {0} | Postcode: {1} | Nr: {2} | Step: {3}",
+                "HouseNumberClick ACTIVE | Street: {0} | Postcode: {1} | Nr: {2} | Step: {3}",
                 displayValue(streetName),
                 displayValue(postcode),
                 displayValue(houseNumber),
@@ -618,7 +618,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
         long elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000L;
         if (Logging.isDebugEnabled()) {
             Logging.debug(
-                    "QuickAddressFill click-path: outcome={0}, source={1}, nearestCandidates={2}, relationChecked={3}/{4}, wayChecked={5}/{6}, relationLimitReached={7}, wayLimitReached={8}, control={9}, button={10}, modifiers={11}, x={12}, y={13}, durationMs={14}",
+                    "HouseNumberClick click-path: outcome={0}, source={1}, nearestCandidates={2}, relationChecked={3}/{4}, wayChecked={5}/{6}, relationLimitReached={7}, wayLimitReached={8}, control={9}, button={10}, modifiers={11}, x={12}, y={13}, durationMs={14}",
                     stats.outcome,
                     stats.resolution.getSource(),
                     stats.resolution.getNearestCandidates(),
@@ -639,7 +639,7 @@ final class QuickAddressFillStreetMapMode extends MapMode {
 
         if (elapsedMillis >= SLOW_CLICK_LOG_THRESHOLD_MILLIS) {
             Logging.debug(
-                    "QuickAddressFill StreetMapMode.mouseReleased: slow click handling ({0} ms), source={1}, outcome={2}, x={3}, y={4}",
+                    "HouseNumberClick StreetMapMode.mouseReleased: slow click handling ({0} ms), source={1}, outcome={2}, x={3}, y={4}",
                     elapsedMillis,
                     stats.resolution.getSource(),
                     stats.outcome,

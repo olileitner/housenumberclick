@@ -174,7 +174,7 @@ final class BuildingResolver {
             return;
         }
         Logging.warn(
-                "QuickAddressFill BuildingResolver: invalid scan limit preference {0}={1}, falling back to default {2} (allowed range {3}-{4}).",
+                "HouseNumberClick BuildingResolver: invalid scan limit preference {0}={1}, falling back to default {2} (allowed range {3}-{4}).",
                 key,
                 value,
                 defaultValue,
