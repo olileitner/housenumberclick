@@ -22,8 +22,8 @@
 
 ### Konfigurierbare Scan-Limits
 
-- `quickaddressfill.streetmode.relationScanLimit` (Standard: `3000`)
-- `quickaddressfill.streetmode.wayScanLimit` (Standard: `5000`)
+- `housenumberclick.streetmode.relationScanLimit` (Standard: `3000`)
+- `housenumberclick.streetmode.wayScanLimit` (Standard: `5000`)
 
 Ungültige Werte fallen auf sichere Defaults zurück und werden protokolliert.
 
@@ -63,12 +63,12 @@ Ungültige Werte fallen auf sichere Defaults zurück und werden protokolliert.
 - Hohe Datendichte kann Erkennung und Reaktionszeit beeinflussen; zu niedrige Scan-Limits erhöhen False-Negatives.
 - Interoperabilität mit externen Plugins (insb. BuildingSplitter) bleibt versions-/update-abhängig.
 - Für Diagnose Debug-Logs aktivieren und folgende Keys prüfen:
-  - `quickaddressfill.streetmode.relationScanLimit`
-  - `quickaddressfill.streetmode.wayScanLimit`
-  - `quickaddressfill.buildingsplitter.forcePreferenceFallback`
-  - `quickaddressfill.buildingsplitter.handoff.street`
-  - `quickaddressfill.buildingsplitter.handoff.postcode`
-  - `quickaddressfill.buildingsplitter.handoff.pending`
-  - `quickaddressfill.buildingsplitter.handoff.timestamp`
-  - `quickaddressfill.buildingsplitter.handoff.session`
+  - `housenumberclick.streetmode.relationScanLimit`
+  - `housenumberclick.streetmode.wayScanLimit`
+  - `housenumberclick.buildingsplitter.forcePreferenceFallback`
+  - `housenumberclick.buildingsplitter.handoff.street`
+  - `housenumberclick.buildingsplitter.handoff.postcode`
+  - `housenumberclick.buildingsplitter.handoff.pending`
+  - `housenumberclick.buildingsplitter.handoff.timestamp`
+  - `housenumberclick.buildingsplitter.handoff.session`
 

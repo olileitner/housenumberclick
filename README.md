@@ -5,7 +5,7 @@ JOSM plugin for quickly applying address tags to buildings.
 ## Demo
 A simple mouse click is all it takes.
 
-![HouseNumberClick demo](docs/images/qaf-demo.gif)
+![HouseNumberClick demo](docs/images/housenumberclick-demo.gif)
 
 ## Features
 
@@ -47,7 +47,7 @@ A simple mouse click is all it takes.
 9. Press `ESC` to pause/exit Street Mode (you can continue from the dialog).
 
 
-![HouseNumberClick dialog](docs/images/qaf-dialog.png)
+![HouseNumberClick dialog](docs/images/housenumberclick-dialog.png)
 
 ## Build
 
@@ -72,17 +72,17 @@ Reproducible manual scenarios for UI- and integration-heavy paths are documented
 
 ## Advanced Preferences (for QA/Debug)
 
-- `quickaddressfill.streetmode.relationScanLimit` (default: `3000`)
-- `quickaddressfill.streetmode.wayScanLimit` (default: `5000`)
-- `quickaddressfill.buildingsplitter.forcePreferenceFallback` (default: `false`)
+- `housenumberclick.streetmode.relationScanLimit` (default: `3000`)
+- `housenumberclick.streetmode.wayScanLimit` (default: `5000`)
+- `housenumberclick.buildingsplitter.forcePreferenceFallback` (default: `false`)
 
 BuildingSplitter handoff state is stored temporarily in:
 
-- `quickaddressfill.buildingsplitter.handoff.street`
-- `quickaddressfill.buildingsplitter.handoff.postcode`
-- `quickaddressfill.buildingsplitter.handoff.pending`
-- `quickaddressfill.buildingsplitter.handoff.timestamp`
-- `quickaddressfill.buildingsplitter.handoff.session`
+- `housenumberclick.buildingsplitter.handoff.street`
+- `housenumberclick.buildingsplitter.handoff.postcode`
+- `housenumberclick.buildingsplitter.handoff.pending`
+- `housenumberclick.buildingsplitter.handoff.timestamp`
+- `housenumberclick.buildingsplitter.handoff.session`
 
 ## Local Installation
 

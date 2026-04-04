@@ -1,4 +1,4 @@
-package org.openstreetmap.josm.plugins.quickaddressfill;
+package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.awt.Component;
 import java.awt.event.MouseEvent;
@@ -13,12 +13,12 @@ import org.openstreetmap.josm.spi.preferences.Config;
 
 public final class HouseNumberClickRiskRegressionTests {
 
-    private static final String HANDOFF_STREET_KEY = "quickaddressfill.buildingsplitter.handoff.street";
-    private static final String HANDOFF_POSTCODE_KEY = "quickaddressfill.buildingsplitter.handoff.postcode";
-    private static final String HANDOFF_PENDING_KEY = "quickaddressfill.buildingsplitter.handoff.pending";
-    private static final String HANDOFF_TIMESTAMP_KEY = "quickaddressfill.buildingsplitter.handoff.timestamp";
-    private static final String HANDOFF_SESSION_KEY = "quickaddressfill.buildingsplitter.handoff.session";
-    private static final String FORCE_PREFERENCE_FALLBACK_KEY = "quickaddressfill.buildingsplitter.forcePreferenceFallback";
+    private static final String HANDOFF_STREET_KEY = "housenumberclick.buildingsplitter.handoff.street";
+    private static final String HANDOFF_POSTCODE_KEY = "housenumberclick.buildingsplitter.handoff.postcode";
+    private static final String HANDOFF_PENDING_KEY = "housenumberclick.buildingsplitter.handoff.pending";
+    private static final String HANDOFF_TIMESTAMP_KEY = "housenumberclick.buildingsplitter.handoff.timestamp";
+    private static final String HANDOFF_SESSION_KEY = "housenumberclick.buildingsplitter.handoff.session";
+    private static final String FORCE_PREFERENCE_FALLBACK_KEY = "housenumberclick.buildingsplitter.forcePreferenceFallback";
     private static final String RELATION_SCAN_LIMIT_KEY = BuildingResolver.PREF_RELATION_SCAN_LIMIT;
     private static final String WAY_SCAN_LIMIT_KEY = BuildingResolver.PREF_WAY_SCAN_LIMIT;
 

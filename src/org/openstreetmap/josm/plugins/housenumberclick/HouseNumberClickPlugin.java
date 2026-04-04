@@ -1,4 +1,4 @@
-package org.openstreetmap.josm.plugins.quickaddressfill;
+package org.openstreetmap.josm.plugins.housenumberclick;
 
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.preferences.ToolbarPreferences;
@@ -8,8 +8,8 @@ import org.openstreetmap.josm.spi.preferences.Config;
 
 public class HouseNumberClickPlugin extends Plugin {
 
-    private static final String TOOLBAR_ID = "quickaddressfill";
-    private static final String TOOLBAR_MIGRATION_PREF = "quickaddressfill.toolbar.button.added.v1";
+    private static final String TOOLBAR_ID = "housenumberclick";
+    private static final String TOOLBAR_MIGRATION_PREF = "housenumberclick.toolbar.button.added.v1";
 
     public HouseNumberClickPlugin(PluginInformation info) {
         super(info);

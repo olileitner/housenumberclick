@@ -1,4 +1,4 @@
-package org.openstreetmap.josm.plugins.quickaddressfill;
+package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.awt.Cursor;
 import java.awt.Dimension;
@@ -75,7 +75,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     HouseNumberClickStreetMapMode(StreetModeController controller) {
         super(
                 I18n.tr("HouseNumberClick Street Mode"),
-                "quickaddressfill",
+                "housenumberclick",
                 I18n.tr("Click buildings to set addr:street"),
                 Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR)
         );

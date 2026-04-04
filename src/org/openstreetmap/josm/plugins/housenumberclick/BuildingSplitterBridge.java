@@ -1,4 +1,4 @@
-package org.openstreetmap.josm.plugins.quickaddressfill;
+package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.util.Locale;
 import java.util.UUID;
@@ -17,13 +17,13 @@ final class BuildingSplitterBridge {
     private static final String TARGET_PLUGIN_NAME = "buildingsplitter";
     private static final String ADDRESS_CONTEXT_BRIDGE_CLASS =
         "org.openstreetmap.josm.plugins.buildingsplitter.AddressContextBridge";
-    private static final String HANDOFF_STREET_KEY = "quickaddressfill.buildingsplitter.handoff.street";
-    private static final String HANDOFF_POSTCODE_KEY = "quickaddressfill.buildingsplitter.handoff.postcode";
-    private static final String HANDOFF_PENDING_KEY = "quickaddressfill.buildingsplitter.handoff.pending";
-    private static final String HANDOFF_TIMESTAMP_KEY = "quickaddressfill.buildingsplitter.handoff.timestamp";
-    private static final String HANDOFF_SESSION_KEY = "quickaddressfill.buildingsplitter.handoff.session";
+    private static final String HANDOFF_STREET_KEY = "housenumberclick.buildingsplitter.handoff.street";
+    private static final String HANDOFF_POSTCODE_KEY = "housenumberclick.buildingsplitter.handoff.postcode";
+    private static final String HANDOFF_PENDING_KEY = "housenumberclick.buildingsplitter.handoff.pending";
+    private static final String HANDOFF_TIMESTAMP_KEY = "housenumberclick.buildingsplitter.handoff.timestamp";
+    private static final String HANDOFF_SESSION_KEY = "housenumberclick.buildingsplitter.handoff.session";
     private static final String FORCE_PREFERENCE_FALLBACK_KEY =
-        "quickaddressfill.buildingsplitter.forcePreferenceFallback";
+        "housenumberclick.buildingsplitter.forcePreferenceFallback";
     private static final long HANDOFF_MAX_AGE_MILLIS = 5L * 60L * 1000L;
     private static final String HANDOFF_SESSION_ID = UUID.randomUUID().toString();
 

@@ -1,4 +1,4 @@
-package org.openstreetmap.josm.plugins.quickaddressfill;
+package org.openstreetmap.josm.plugins.housenumberclick;
 
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;

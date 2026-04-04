@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project name="housenumberclick" default="dist" basedir=".">
     <property name="plugin.name" value="HouseNumberClick"/>
-    <property name="plugin.class" value="org.openstreetmap.josm.plugins.quickaddressfill.HouseNumberClickPlugin"/>
+    <property name="plugin.class" value="org.openstreetmap.josm.plugins.housenumberclick.HouseNumberClickPlugin"/>
     <property name="plugin.description" value="Quickly opens the HouseNumberClick status dialog."/>
     <property name="plugin.version" value="1.0.3"/>
     <property name="plugin.main.version" value="19481"/>
@@ -116,7 +116,7 @@
     </target>
 
     <target name="test" depends="test-compile" description="Run lightweight regression tests">
-        <java classname="org.openstreetmap.josm.plugins.quickaddressfill.HouseNumberClickRiskRegressionTests"
+        <java classname="org.openstreetmap.josm.plugins.housenumberclick.HouseNumberClickRiskRegressionTests"
               fork="true"
               failonerror="true">
             <jvmarg value="-Djava.awt.headless=true"/>

@@ -1,4 +1,4 @@
-package org.openstreetmap.josm.plugins.quickaddressfill;
+package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.awt.event.ActionEvent;
 import java.util.List;
@@ -14,7 +14,7 @@ public class HouseNumberClickAction extends JosmAction {
     private final StreetSelectionDialog streetSelectionDialog;
 
     public HouseNumberClickAction() {
-        super(I18n.tr("HouseNumberClick"), "quickaddressfill", I18n.tr("Open HouseNumberClick street dialog"), null, true);
+        super(I18n.tr("HouseNumberClick"), "housenumberclick", I18n.tr("Open HouseNumberClick street dialog"), null, true);
         this.streetModeController = new StreetModeController();
         this.streetSelectionDialog = new StreetSelectionDialog(streetModeController);
     }

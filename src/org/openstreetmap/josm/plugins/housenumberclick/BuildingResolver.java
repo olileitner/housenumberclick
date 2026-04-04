@@ -1,4 +1,4 @@
-package org.openstreetmap.josm.plugins.quickaddressfill;
+package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.awt.Point;
 import java.awt.Polygon;
@@ -21,8 +21,8 @@ import org.openstreetmap.josm.tools.Logging;
 
 final class BuildingResolver {
 
-    static final String PREF_RELATION_SCAN_LIMIT = "quickaddressfill.streetmode.relationScanLimit";
-    static final String PREF_WAY_SCAN_LIMIT = "quickaddressfill.streetmode.wayScanLimit";
+    static final String PREF_RELATION_SCAN_LIMIT = "housenumberclick.streetmode.relationScanLimit";
+    static final String PREF_WAY_SCAN_LIMIT = "housenumberclick.streetmode.wayScanLimit";
     static final int DEFAULT_RELATION_SCAN_CANDIDATES = 3000;
     static final int DEFAULT_WAY_SCAN_CANDIDATES = 5000;
 

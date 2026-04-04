@@ -69,8 +69,8 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 ### Preparation
 - JOSM closed.
 - In preferences, set (or keep) stale values for:
-  - `quickaddressfill.buildingsplitter.handoff.pending=true`
-  - `quickaddressfill.buildingsplitter.handoff.timestamp=<very old timestamp>`
+  - `housenumberclick.buildingsplitter.handoff.pending=true`
+  - `housenumberclick.buildingsplitter.handoff.timestamp=<very old timestamp>`
 
 ### Steps
 1. Start JOSM and open HouseNumberClick dialog.
@@ -124,8 +124,8 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 - Load a dense urban area with many buildings/relations.
 - Enable debug logs in JOSM.
 - Optional: set custom limits in advanced preferences:
-  - `quickaddressfill.streetmode.relationScanLimit`
-  - `quickaddressfill.streetmode.wayScanLimit`
+  - `housenumberclick.streetmode.relationScanLimit`
+  - `housenumberclick.streetmode.wayScanLimit`
 
 Suggested test values:
 - baseline/default: leave both keys unset

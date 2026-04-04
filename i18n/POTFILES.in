@@ -1,13 +1,13 @@
 # Java source files scanned by xgettext for JOSM plugin translations.
 # Keep this list deterministic to avoid extraction noise.
-src/org/openstreetmap/josm/plugins/quickaddressfill/BuildingSplitterBridge.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/BuildingSplitterDetector.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/BuildingTagApplier.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/PostcodeCollector.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/HouseNumberClickAction.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/HouseNumberClickPlugin.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/HouseNumberClickStreetMapMode.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/StreetModeController.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/StreetNameCollector.java
-src/org/openstreetmap/josm/plugins/quickaddressfill/StreetSelectionDialog.java
+src/org/openstreetmap/josm/plugins/housenumberclick/BuildingSplitterBridge.java
+src/org/openstreetmap/josm/plugins/housenumberclick/BuildingSplitterDetector.java
+src/org/openstreetmap/josm/plugins/housenumberclick/BuildingTagApplier.java
+src/org/openstreetmap/josm/plugins/housenumberclick/PostcodeCollector.java
+src/org/openstreetmap/josm/plugins/housenumberclick/HouseNumberClickAction.java
+src/org/openstreetmap/josm/plugins/housenumberclick/HouseNumberClickPlugin.java
+src/org/openstreetmap/josm/plugins/housenumberclick/HouseNumberClickStreetMapMode.java
+src/org/openstreetmap/josm/plugins/housenumberclick/StreetModeController.java
+src/org/openstreetmap/josm/plugins/housenumberclick/StreetNameCollector.java
+src/org/openstreetmap/josm/plugins/housenumberclick/StreetSelectionDialog.java
 
