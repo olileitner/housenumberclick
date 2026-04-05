@@ -51,6 +51,7 @@ final class StreetModeController {
     private String currentPostcode = "";
     private boolean houseNumberOverlayEnabled;
     private boolean connectionLinesEnabled;
+    private boolean separateEvenOddConnectionLinesEnabled;
     private HouseNumberUpdateListener houseNumberUpdateListener;
     private AddressValuesReadListener addressValuesReadListener;
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
@@ -185,9 +186,10 @@ final class StreetModeController {
         }
     }
 
-    void updateOverlaySettings(boolean overlayEnabled, boolean connectionLinesEnabled) {
+    void updateOverlaySettings(boolean overlayEnabled, boolean connectionLinesEnabled, boolean separateEvenOddLinesEnabled) {
         houseNumberOverlayEnabled = overlayEnabled;
         this.connectionLinesEnabled = overlayEnabled && connectionLinesEnabled;
+        this.separateEvenOddConnectionLinesEnabled = this.connectionLinesEnabled && separateEvenOddLinesEnabled;
         refreshOverlayLayer();
     }
 
@@ -208,7 +210,11 @@ final class StreetModeController {
             layerManager.addLayer(houseNumberOverlayLayer, false);
         }
 
-        houseNumberOverlayLayer.updateSettings(currentStreet, connectionLinesEnabled);
+        houseNumberOverlayLayer.updateSettings(
+                currentStreet,
+                connectionLinesEnabled,
+                separateEvenOddConnectionLinesEnabled
+        );
         map.mapView.repaint();
     }
 

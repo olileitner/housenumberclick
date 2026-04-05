@@ -39,15 +39,17 @@ final class HouseNumberOverlayLayer extends Layer {
     private final HouseNumberOverlayCollector collector;
     private String selectedStreet = "";
     private boolean connectionLinesEnabled;
+    private boolean separateEvenOddConnectionLinesEnabled;
 
     HouseNumberOverlayLayer() {
         super(I18n.tr("House number overlay"));
         this.collector = new HouseNumberOverlayCollector();
     }
 
-    void updateSettings(String selectedStreet, boolean connectionLinesEnabled) {
+    void updateSettings(String selectedStreet, boolean connectionLinesEnabled, boolean separateEvenOddConnectionLinesEnabled) {
         this.selectedStreet = normalize(selectedStreet);
         this.connectionLinesEnabled = connectionLinesEnabled;
+        this.separateEvenOddConnectionLinesEnabled = connectionLinesEnabled && separateEvenOddConnectionLinesEnabled;
         invalidate();
     }
 
@@ -84,8 +86,25 @@ final class HouseNumberOverlayLayer extends Layer {
         g.setColor(BUBBLE_FILL_COLOR);
         g.setStroke(new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
+        if (!separateEvenOddConnectionLinesEnabled) {
+            drawConnectionLinePath(g, mapView, entries, null);
+            return;
+        }
+
+        drawConnectionLinePath(g, mapView, entries, 0);
+        drawConnectionLinePath(g, mapView, entries, 1);
+    }
+
+    private void drawConnectionLinePath(Graphics2D g, MapView mapView, List<HouseNumberOverlayEntry> entries, Integer parityFilter) {
         Point previous = null;
         for (HouseNumberOverlayEntry entry : entries) {
+            if (parityFilter != null) {
+                int numberPart = entry.getNumberPart();
+                if (numberPart == Integer.MAX_VALUE || Math.abs(numberPart % 2) != parityFilter) {
+                    continue;
+                }
+            }
+
             Point current = mapView.getPoint(entry.getLabelPoint());
             if (!isOnScreen(current, mapView)) {
                 continue;
