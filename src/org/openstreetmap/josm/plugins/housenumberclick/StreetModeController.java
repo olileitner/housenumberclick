@@ -1,5 +1,10 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
+import java.util.List;
+
+import org.openstreetmap.josm.data.osm.OsmPrimitive;
+import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
+import org.openstreetmap.josm.data.osm.visitor.OsmPrimitiveVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.gui.layer.LayerManager;
@@ -48,6 +53,7 @@ final class StreetModeController {
     private HouseNumberClickStreetMapMode streetMapMode;
     private HouseNumberOverlayLayer houseNumberOverlayLayer;
     private HouseNumberOverviewDialog houseNumberOverviewDialog;
+    private final HouseNumberOverlayCollector houseNumberOverlayCollector = new HouseNumberOverlayCollector();
     private final HouseNumberOverviewCollector houseNumberOverviewCollector = new HouseNumberOverviewCollector();
     private String currentStreet = "";
     private String currentPostcode = "";
@@ -55,6 +61,7 @@ final class StreetModeController {
     private boolean connectionLinesEnabled;
     private boolean separateEvenOddConnectionLinesEnabled;
     private boolean houseNumberOverviewEnabled;
+    private boolean zoomToSelectedStreetEnabled;
     private HouseNumberUpdateListener houseNumberUpdateListener;
     private AddressValuesReadListener addressValuesReadListener;
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
@@ -201,6 +208,44 @@ final class StreetModeController {
     void setHouseNumberOverviewEnabled(boolean enabled) {
         houseNumberOverviewEnabled = enabled;
         refreshHouseNumberOverview();
+    }
+
+    void setZoomToSelectedStreetEnabled(boolean enabled) {
+        zoomToSelectedStreetEnabled = enabled;
+    }
+
+    void zoomToCurrentStreet() {
+        if (!zoomToSelectedStreetEnabled || normalize(currentStreet).isEmpty()) {
+            return;
+        }
+
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null || MainApplication.getLayerManager() == null) {
+            return;
+        }
+
+        List<HouseNumberOverlayEntry> entries = houseNumberOverlayCollector.collect(
+                MainApplication.getLayerManager().getEditDataSet(),
+                currentStreet
+        );
+        if (entries.isEmpty()) {
+            return;
+        }
+
+        BoundingXYVisitor visitor = new BoundingXYVisitor();
+        for (HouseNumberOverlayEntry entry : entries) {
+            OsmPrimitive primitive = entry.getPrimitive();
+            if (primitive == null || !primitive.isUsable()) {
+                continue;
+            }
+            primitive.accept((OsmPrimitiveVisitor) visitor);
+        }
+
+        if (!visitor.hasExtend()) {
+            return;
+        }
+        visitor.enlargeBoundingBox();
+        map.mapView.zoomTo(visitor);
     }
 
     private void refreshOverlayLayer() {

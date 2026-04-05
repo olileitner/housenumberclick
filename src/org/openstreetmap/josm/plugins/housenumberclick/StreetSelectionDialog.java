@@ -22,6 +22,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
+import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
@@ -50,6 +51,7 @@ final class StreetSelectionDialog {
     private final JCheckBox showConnectionLinesCheckbox;
     private final JCheckBox showSeparateEvenOddConnectionLinesCheckbox;
     private final JCheckBox showHouseNumberOverviewCheckbox;
+    private final JCheckBox zoomToSelectedStreetCheckbox;
     private final JLabel buildingSplitterStatusLabel;
     private final JButton splitBuildingButton;
     private int houseNumberIncrementStep = 1;
@@ -65,11 +67,12 @@ final class StreetSelectionDialog {
     private boolean rememberedSeparateEvenOddLinesEnabled;
     private boolean rememberedSeparateEvenOddLinesPreference = true;
     private boolean rememberedHouseNumberOverviewEnabled;
+    private boolean rememberedZoomToSelectedStreetEnabled;
     private boolean updatingInputs;
     private DataSet rememberedDataSet;
 
     private static final int DIALOG_WIDTH = 390;
-    private static final int DIALOG_HEIGHT = 490;
+    private static final int DIALOG_HEIGHT = 515;
     private static final int DIALOG_OFFSET_X = 66;
     private static final int DIALOG_OFFSET_Y = 80;
     private static final List<String> COMMON_BUILDING_TYPES = Arrays.asList(
@@ -148,10 +151,12 @@ final class StreetSelectionDialog {
         this.showConnectionLinesCheckbox = new JCheckBox(I18n.tr("Show connection lines"));
         this.showSeparateEvenOddConnectionLinesCheckbox = new JCheckBox(I18n.tr("Separate even and odd connection lines"));
         this.showHouseNumberOverviewCheckbox = new JCheckBox(I18n.tr("Show house number overview"));
+        this.zoomToSelectedStreetCheckbox = new JCheckBox(I18n.tr("Zoom to selected street"));
         this.showHouseNumberLayerCheckbox.addActionListener(e -> onOverlayLayerSelectionChanged());
         this.showConnectionLinesCheckbox.addActionListener(e -> onConnectionLinesSelectionChanged());
         this.showSeparateEvenOddConnectionLinesCheckbox.addActionListener(e -> onSeparateEvenOddConnectionLinesSelectionChanged());
         this.showHouseNumberOverviewCheckbox.addActionListener(e -> onHouseNumberOverviewSelectionChanged());
+        this.zoomToSelectedStreetCheckbox.addActionListener(e -> onZoomToSelectedStreetSelectionChanged());
         updateOverlayOptionsEnablement(false, false);
 
         JPanel modeStatePanel = new JPanel(new BorderLayout(8, 0));
@@ -291,6 +296,10 @@ final class StreetSelectionDialog {
         gbc.insets = new Insets(2, 12, 0, 0);
         formPanel.add(showHouseNumberOverviewCheckbox, gbc);
 
+        gbc.gridy = 14;
+        gbc.insets = new Insets(2, 12, 0, 0);
+        formPanel.add(zoomToSelectedStreetCheckbox, gbc);
+
         JPanel buildingSplitterPanel = new JPanel(new BorderLayout(8, 0));
         this.buildingSplitterStatusLabel = new JLabel();
         this.splitBuildingButton = new JButton(I18n.tr("Split building"));
@@ -299,7 +308,7 @@ final class StreetSelectionDialog {
         buildingSplitterPanel.add(buildingSplitterStatusLabel, BorderLayout.WEST);
         buildingSplitterPanel.add(splitBuildingButton, BorderLayout.EAST);
 
-        gbc.gridy = 14;
+        gbc.gridy = 15;
         gbc.insets = new Insets(6, 0, 0, 0);
         formPanel.add(buildingSplitterPanel, gbc);
 
@@ -372,12 +381,14 @@ final class StreetSelectionDialog {
                 rememberedSeparateEvenOddLinesEnabled
         );
         showHouseNumberOverviewCheckbox.setSelected(rememberedHouseNumberOverviewEnabled);
+        zoomToSelectedStreetCheckbox.setSelected(rememberedZoomToSelectedStreetEnabled);
         lastSelectedStreet = getSelectedStreet();
         updatingInputs = false;
 
         notifyAddressChanged();
         notifyOverlaySettingsChanged();
         notifyHouseNumberOverviewChanged();
+        notifyZoomToSelectedStreetChanged();
         refreshModeStateUi(streetModeController.isActive());
         refreshBuildingSplitterAvailability();
 
@@ -408,7 +419,8 @@ final class StreetSelectionDialog {
         }
 
         String selectedStreet = getSelectedStreet();
-        if (selectedStreet != null && !selectedStreet.equals(lastSelectedStreet)) {
+        boolean streetChanged = selectedStreet != null && !selectedStreet.equals(lastSelectedStreet);
+        if (streetChanged) {
             boolean wasUpdatingInputs = updatingInputs;
             updatingInputs = true;
             houseNumberField.setText(DEFAULT_HOUSE_NUMBER);
@@ -417,6 +429,10 @@ final class StreetSelectionDialog {
         lastSelectedStreet = selectedStreet;
         rememberedStreet = normalize(selectedStreet);
         notifyAddressChanged();
+        if (streetChanged && zoomToSelectedStreetCheckbox.isSelected()) {
+            streetModeController.zoomToCurrentStreet();
+        }
+        requestStreetComboFocusForKeyboardNavigation();
     }
 
     private JComboBox<String> createBuildingTypeCombo() {
@@ -576,6 +592,17 @@ final class StreetSelectionDialog {
         notifyHouseNumberOverviewChanged();
     }
 
+    private void onZoomToSelectedStreetSelectionChanged() {
+        if (updatingInputs) {
+            return;
+        }
+        rememberCurrentValues();
+        notifyZoomToSelectedStreetChanged();
+        if (zoomToSelectedStreetCheckbox.isSelected()) {
+            streetModeController.zoomToCurrentStreet();
+        }
+    }
+
     private void setStreetSelection(String streetName) {
         String normalizedStreet = streetName == null ? "" : streetName.trim();
         if (normalizedStreet.isEmpty()) {
@@ -686,6 +713,8 @@ final class StreetSelectionDialog {
                 && showSeparateEvenOddConnectionLinesCheckbox.isSelected();
         rememberedHouseNumberOverviewEnabled = showHouseNumberOverviewCheckbox != null
                 && showHouseNumberOverviewCheckbox.isSelected();
+        rememberedZoomToSelectedStreetEnabled = zoomToSelectedStreetCheckbox != null
+                && zoomToSelectedStreetCheckbox.isSelected();
         if (rememberedHouseNumberLayerEnabled) {
             rememberedConnectionLinesPreference = rememberedConnectionLinesEnabled;
             if (rememberedConnectionLinesEnabled) {
@@ -741,6 +770,10 @@ final class StreetSelectionDialog {
         streetModeController.setHouseNumberOverviewEnabled(showHouseNumberOverviewCheckbox.isSelected());
     }
 
+    private void notifyZoomToSelectedStreetChanged() {
+        streetModeController.setZoomToSelectedStreetEnabled(zoomToSelectedStreetCheckbox.isSelected());
+    }
+
     private int normalizeIncrementStep(int step) {
         return step == -2 || step == -1 || step == 1 || step == 2 ? step : 1;
     }
@@ -775,6 +808,7 @@ final class StreetSelectionDialog {
         rememberedSeparateEvenOddLinesEnabled = false;
         rememberedSeparateEvenOddLinesPreference = true;
         rememberedHouseNumberOverviewEnabled = false;
+        rememberedZoomToSelectedStreetEnabled = false;
         lastSelectedStreet = null;
     }
 
@@ -788,5 +822,13 @@ final class StreetSelectionDialog {
             return normalizedPrimary;
         }
         return normalize(fallback);
+    }
+
+    private void requestStreetComboFocusForKeyboardNavigation() {
+        SwingUtilities.invokeLater(() -> {
+            if (streetCombo != null) {
+                streetCombo.requestFocusInWindow();
+            }
+        });
     }
 }
