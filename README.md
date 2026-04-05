@@ -30,6 +30,9 @@ A simple mouse click is all it takes.
 - Optional connection lines in the overlay (`Show connection lines`) connect house numbers in sorted order.
 - Optional split mode for connection lines (`Separate even and odd connection lines`) draws two separate paths (even/odd) based on the numeric part of the house number.
 - Duplicate house numbers are emphasized in the overlay with stronger contour markers (thicker border and additional outer ring).
+- Optional house-number overview window (`Show house number overview`) shows odd and even groups in a compact side-by-side table.
+- Clicking a populated overview cell zooms to the corresponding mapped building and selects it.
+- Missing base numbers are shown as a subtle dot (`•`) in the overview table to make gaps visible.
 
 ## BuildingSplitter Integration
 
@@ -50,7 +53,8 @@ A simple mouse click is all it takes.
 8. Optional: press `L` to toggle a trailing `a` suffix on/off.
 9. Optional: enable `Show house number layer` in the dialog display section.
 10. Optional: enable `Show connection lines`; if needed, also enable `Separate even and odd connection lines` for split parity paths.
-11. Press `ESC` to pause/exit Street Mode (you can continue from the dialog).
+11. Optional: enable `Show house number overview` and click a table entry to jump to the mapped building.
+12. Press `ESC` to pause/exit Street Mode (you can continue from the dialog).
 
 
 ![HouseNumberClick dialog](docs/images/housenumberclick-dialog.png)
