@@ -275,6 +275,19 @@ final class StreetModeController {
         map.mapView.zoomTo(visitor);
     }
 
+    private void onStreetHouseNumberCountSelected(String streetName) {
+        String normalizedStreet = normalize(streetName);
+        if (normalizedStreet.isEmpty()) {
+            return;
+        }
+
+        // Keep optional street-based overlays in sync with the row the user clicked.
+        currentStreet = normalizedStreet;
+        refreshOverlayLayer();
+        refreshHouseNumberOverview();
+        zoomToStreet(normalizedStreet);
+    }
+
     private void refreshOverlayLayer() {
         if (!houseNumberOverlayEnabled || normalize(currentStreet).isEmpty()) {
             removeOverlayLayer();
@@ -348,7 +361,7 @@ final class StreetModeController {
         }
 
         if (streetHouseNumberCountDialog == null) {
-            streetHouseNumberCountDialog = new StreetHouseNumberCountDialog(this::zoomToStreet);
+            streetHouseNumberCountDialog = new StreetHouseNumberCountDialog(this::onStreetHouseNumberCountSelected);
         }
 
         DataSet editDataSet = MainApplication.getLayerManager() != null
