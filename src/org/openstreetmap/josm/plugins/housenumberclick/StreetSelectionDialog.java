@@ -6,25 +6,25 @@ import java.awt.Frame;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Arrays;
 import java.util.List;
 
 import javax.swing.JButton;
-import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.ButtonGroup;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
-import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.JToggleButton;
-import javax.swing.KeyStroke;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
@@ -51,6 +51,7 @@ final class StreetSelectionDialog {
     private final JButton continueWorkingButton;
     private final JButton previousStreetButton;
     private final JButton nextStreetButton;
+    private final KeyEventDispatcher streetNavigationKeyDispatcher;
     private final JCheckBox showHouseNumberLayerCheckbox;
     private final JCheckBox showConnectionLinesCheckbox;
     private final JCheckBox showSeparateEvenOddConnectionLinesCheckbox;
@@ -74,6 +75,7 @@ final class StreetSelectionDialog {
     private boolean rememberedZoomToSelectedStreetEnabled;
     private boolean updatingInputs;
     private DataSet rememberedDataSet;
+    private boolean streetNavigationDispatcherRegistered;
 
     private static final int DIALOG_WIDTH = 390;
     private static final int DIALOG_HEIGHT = 535;
@@ -89,6 +91,7 @@ final class StreetSelectionDialog {
 
     StreetSelectionDialog(StreetModeController streetModeController) {
         this.streetModeController = streetModeController;
+        this.streetNavigationKeyDispatcher = this::handleGlobalStreetNavigationKeyEvent;
 
         Frame owner = MainApplication.getMainFrame();
         this.dialog = new JDialog(owner, I18n.tr("HouseNumberClick"), false);
@@ -341,7 +344,6 @@ final class StreetSelectionDialog {
         content.add(navigationPanel, BorderLayout.SOUTH);
 
         this.dialog.getContentPane().add(content, BorderLayout.CENTER);
-        registerStreetNavigationShortcuts();
         this.dialog.setMinimumSize(new Dimension(DIALOG_WIDTH, DIALOG_HEIGHT));
         this.dialog.setSize(new Dimension(DIALOG_WIDTH, DIALOG_HEIGHT));
         positionTopLeftInOwner(owner);
@@ -419,6 +421,7 @@ final class StreetSelectionDialog {
         if (!dialog.isVisible()) {
             positionTopLeftInOwner(MainApplication.getMainFrame());
             dialog.setVisible(true);
+            registerStreetNavigationDispatcher();
         } else {
             dialog.toFront();
             dialog.requestFocus();
@@ -660,6 +663,7 @@ final class StreetSelectionDialog {
     private void closeDialog() {
         rememberCurrentValues();
         dialog.setVisible(false);
+        unregisterStreetNavigationDispatcher();
         streetModeController.deactivate();
     }
 
@@ -872,26 +876,40 @@ final class StreetSelectionDialog {
         nextStreetButton.setEnabled(canNavigateStreet(1));
     }
 
-    private void registerStreetNavigationShortcuts() {
-        if (dialog == null || dialog.getRootPane() == null) {
-            return;
+    private boolean handleGlobalStreetNavigationKeyEvent(KeyEvent event) {
+        if (event.getID() != KeyEvent.KEY_RELEASED) {
+            return false;
+        }
+        if (!dialog.isVisible() || !streetModeController.isActive()) {
+            return false;
+        }
+        if (event.getModifiersEx() != 0) {
+            return false;
         }
 
-        JComponent root = dialog.getRootPane();
-        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("LEFT"), "street-prev");
-        root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke("RIGHT"), "street-next");
+        int keyCode = event.getKeyCode();
+        if (keyCode != KeyEvent.VK_LEFT && keyCode != KeyEvent.VK_RIGHT) {
+            return false;
+        }
 
-        root.getActionMap().put("street-prev", new AbstractAction() {
-            @Override
-            public void actionPerformed(java.awt.event.ActionEvent e) {
-                navigateStreetByOffset(-1);
-            }
-        });
-        root.getActionMap().put("street-next", new AbstractAction() {
-            @Override
-            public void actionPerformed(java.awt.event.ActionEvent e) {
-                navigateStreetByOffset(1);
-            }
-        });
+        navigateStreetByOffset(keyCode == KeyEvent.VK_LEFT ? -1 : 1);
+        event.consume();
+        return true;
+    }
+
+    private void registerStreetNavigationDispatcher() {
+        if (streetNavigationDispatcherRegistered) {
+            return;
+        }
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(streetNavigationKeyDispatcher);
+        streetNavigationDispatcherRegistered = true;
+    }
+
+    private void unregisterStreetNavigationDispatcher() {
+        if (!streetNavigationDispatcherRegistered) {
+            return;
+        }
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(streetNavigationKeyDispatcher);
+        streetNavigationDispatcherRegistered = false;
     }
 }
