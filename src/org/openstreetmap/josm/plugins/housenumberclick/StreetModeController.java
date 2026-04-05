@@ -335,6 +335,13 @@ final class StreetModeController {
         streetHouseNumberCountDialog.highlightStreet(currentStreet);
     }
 
+    void rescanPluginData() {
+        // Recompute all collector-driven views so plugin UI reflects latest dataset state.
+        refreshOverlayLayer();
+        refreshHouseNumberOverview();
+        refreshStreetHouseNumberCounts();
+    }
+
     private void refreshOverlayLayer() {
         if (!houseNumberOverlayEnabled || normalize(currentStreet).isEmpty()) {
             removeOverlayLayer();
@@ -410,7 +417,10 @@ final class StreetModeController {
         }
 
         if (streetHouseNumberCountDialog == null) {
-            streetHouseNumberCountDialog = new StreetHouseNumberCountDialog(this::onStreetHouseNumberCountSelected);
+            streetHouseNumberCountDialog = new StreetHouseNumberCountDialog(
+                    this::onStreetHouseNumberCountSelected,
+                    this::rescanPluginData
+            );
         }
 
         DataSet editDataSet = MainApplication.getLayerManager() != null

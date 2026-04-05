@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
+import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.RowSorter;
 import javax.swing.JScrollPane;
@@ -39,6 +40,7 @@ final class StreetHouseNumberCountDialog {
     private final JTable table;
     private final List<StreetHouseNumberCountRow> currentRows = new ArrayList<>();
     private final Consumer<String> streetClickListener;
+    private final Runnable rescanListener;
 
     static List<StreetHouseNumberCountRow> sortRowsForDisplay(List<StreetHouseNumberCountRow> rows) {
         if (rows == null || rows.isEmpty()) {
@@ -70,8 +72,9 @@ final class StreetHouseNumberCountDialog {
         return orderedStreetNames;
     }
 
-    StreetHouseNumberCountDialog(Consumer<String> streetClickListener) {
+    StreetHouseNumberCountDialog(Consumer<String> streetClickListener, Runnable rescanListener) {
         this.streetClickListener = streetClickListener;
+        this.rescanListener = rescanListener;
 
         Frame owner = MainApplication.getMainFrame();
         this.dialog = new JDialog(owner, I18n.tr("Street house number counts"), false);
@@ -131,6 +134,13 @@ final class StreetHouseNumberCountDialog {
         JScrollPane scrollPane = new JScrollPane(table);
         javax.swing.JPanel content = new javax.swing.JPanel(new BorderLayout());
         content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+        JButton rescanButton = new JButton(I18n.tr("Rescan"));
+        rescanButton.addActionListener(e -> onRescanRequested());
+        javax.swing.JPanel topPanel = new javax.swing.JPanel(new BorderLayout());
+        topPanel.add(rescanButton, BorderLayout.WEST);
+
+        content.add(topPanel, BorderLayout.NORTH);
         content.add(scrollPane, BorderLayout.CENTER);
 
         this.dialog.getContentPane().add(content, BorderLayout.CENTER);
@@ -240,6 +250,14 @@ final class StreetHouseNumberCountDialog {
         if (map != null && map.mapView != null) {
             map.mapView.requestFocusInWindow();
         }
+    }
+
+    private void onRescanRequested() {
+        if (rescanListener == null) {
+            return;
+        }
+        rescanListener.run();
+        focusMapView();
     }
 }
 
