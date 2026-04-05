@@ -19,6 +19,8 @@ import javax.swing.Icon;
 
 import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.osm.DataSet;
+import org.openstreetmap.josm.data.osm.Node;
+import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapView;
@@ -41,6 +43,8 @@ final class HouseNumberOverlayLayer extends Layer {
     private static final Color DUPLICATE_BUBBLE_FILL_COLOR = new Color(255, 175, 175, 235);
     private static final Color DUPLICATE_BUBBLE_BORDER_COLOR = new Color(195, 20, 20, 235);
     private static final Color TEXT_COLOR = new Color(10, 10, 10, 230);
+    private static final Color STREET_HIGHLIGHT_COLOR = new Color(135, 200, 255, 170);
+    private static final float STREET_HIGHLIGHT_WIDTH = 14.0f;
 
     private final HouseNumberOverlayCollector collector;
     private String selectedStreet = "";
@@ -72,15 +76,18 @@ final class HouseNumberOverlayLayer extends Layer {
             return;
         }
 
-        List<HouseNumberOverlayEntry> entries = collector.collect(dataSet, selectedStreet);
-        if (entries.isEmpty()) {
-            return;
-        }
-
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
         g.setFont(TEXT_FONT);
+
+        drawSelectedStreetHighlight(g, mapView, dataSet);
+
+        List<HouseNumberOverlayEntry> entries = collector.collect(dataSet, selectedStreet);
+        if (entries.isEmpty()) {
+            g.dispose();
+            return;
+        }
 
         if (connectionLinesEnabled && entries.size() > 1) {
             drawConnectionLines(g, mapView, entries);
@@ -88,6 +95,46 @@ final class HouseNumberOverlayLayer extends Layer {
         Set<String> duplicateNumbers = collectDuplicateHouseNumbers(entries);
         drawBubblesAndLabels(g, mapView, entries, duplicateNumbers);
         g.dispose();
+    }
+
+    private void drawSelectedStreetHighlight(Graphics2D g, MapView mapView, DataSet dataSet) {
+        if (g == null || mapView == null || dataSet == null) {
+            return;
+        }
+        g.setColor(STREET_HIGHLIGHT_COLOR);
+        g.setStroke(new BasicStroke(STREET_HIGHLIGHT_WIDTH, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (Way way : dataSet.getWays()) {
+            if (!isSelectedStreetWay(way)) {
+                continue;
+            }
+            drawWayHighlight(g, mapView, way);
+        }
+    }
+
+    private boolean isSelectedStreetWay(Way way) {
+        if (way == null || !way.isUsable() || !way.hasKey("highway")) {
+            return false;
+        }
+        return normalize(way.get("name")).equalsIgnoreCase(selectedStreet);
+    }
+
+    private void drawWayHighlight(Graphics2D g, MapView mapView, Way way) {
+        Point previous = null;
+        for (Node node : way.getNodes()) {
+            if (node == null || !node.isUsable()) {
+                previous = null;
+                continue;
+            }
+            Point current = mapView.getPoint(node);
+            if (!isOnScreen(current, mapView)) {
+                previous = null;
+                continue;
+            }
+            if (previous != null) {
+                g.drawLine(previous.x, previous.y, current.x, current.y);
+            }
+            previous = current;
+        }
     }
 
     private void drawConnectionLines(Graphics2D g, MapView mapView, List<HouseNumberOverlayEntry> entries) {
