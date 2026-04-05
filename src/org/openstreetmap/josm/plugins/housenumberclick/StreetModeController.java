@@ -13,6 +13,7 @@ import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.data.osm.visitor.OsmPrimitiveVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.gui.layer.LayerManager;
 import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.tools.I18n;
@@ -58,6 +59,7 @@ final class StreetModeController {
 
     private HouseNumberClickStreetMapMode streetMapMode;
     private HouseNumberOverlayLayer houseNumberOverlayLayer;
+    private BuildingOverviewLayer buildingOverviewLayer;
     private HouseNumberOverviewDialog houseNumberOverviewDialog;
     private StreetHouseNumberCountDialog streetHouseNumberCountDialog;
     private final HouseNumberOverlayCollector houseNumberOverlayCollector = new HouseNumberOverlayCollector();
@@ -359,6 +361,32 @@ final class StreetModeController {
         activate(lastSelection);
     }
 
+    void createBuildingOverviewLayer() {
+        LayerManager layerManager = MainApplication.getLayerManager();
+        if (layerManager == null) {
+            return;
+        }
+
+        DataSet editDataSet = MainApplication.getLayerManager() != null
+                ? MainApplication.getLayerManager().getEditDataSet()
+                : null;
+        if (editDataSet == null) {
+            new Notification(I18n.tr("No active dataset available."))
+                    .setDuration(Notification.TIME_SHORT)
+                    .show();
+            return;
+        }
+
+        removeBuildingOverviewLayer();
+        buildingOverviewLayer = new BuildingOverviewLayer(editDataSet);
+        layerManager.addLayer(buildingOverviewLayer, false);
+
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.repaint();
+        }
+    }
+
     private void refreshOverlayLayer() {
         if (!houseNumberOverlayEnabled || normalize(currentStreet).isEmpty()) {
             removeOverlayLayer();
@@ -393,6 +421,22 @@ final class StreetModeController {
             layerManager.removeLayer(houseNumberOverlayLayer);
         }
         houseNumberOverlayLayer = null;
+    }
+
+    private void removeBuildingOverviewLayer() {
+        LayerManager layerManager = MainApplication.getLayerManager();
+        if (layerManager == null) {
+            buildingOverviewLayer = null;
+            return;
+        }
+
+        List<Layer> layers = new ArrayList<>(layerManager.getLayers());
+        for (Layer layer : layers) {
+            if (layer instanceof BuildingOverviewLayer && layerManager.containsLayer(layer)) {
+                layerManager.removeLayer(layer);
+            }
+        }
+        buildingOverviewLayer = null;
     }
 
     private void refreshHouseNumberOverview() {

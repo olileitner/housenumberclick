@@ -54,9 +54,11 @@ public final class HouseNumberClickRiskRegressionTests {
         run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
         run("Main dialog close cleanup is safe", HouseNumberClickRiskRegressionTests::testMainDialogCloseCleanupIsSafe);
         run("Rescan refresh entrypoint is safe", HouseNumberClickRiskRegressionTests::testRescanRefreshEntrypointIsSafe);
+        run("Create building overview layer entrypoint is safe", HouseNumberClickRiskRegressionTests::testCreateBuildingOverviewLayerEntrypointIsSafe);
         run("Table click continue hook is safe", HouseNumberClickRiskRegressionTests::testTableClickContinueHookIsSafe);
         run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
         run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
+        run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
         System.out.println("All HouseNumberClick risk regression tests passed.");
     }
 
@@ -261,11 +263,15 @@ public final class HouseNumberClickRiskRegressionTests {
     }
 
     private static Way createClosedBuilding(String street, String houseNumber) {
+        return createClosedBuildingWithSize(street, houseNumber, 0.0001);
+    }
+
+    private static Way createClosedBuildingWithSize(String street, String houseNumber, double size) {
         Way way = new Way();
         Node n1 = new Node(new LatLon(0.0, 0.0));
-        Node n2 = new Node(new LatLon(0.0, 0.0001));
-        Node n3 = new Node(new LatLon(0.0001, 0.0001));
-        Node n4 = new Node(new LatLon(0.0001, 0.0));
+        Node n2 = new Node(new LatLon(0.0, size));
+        Node n3 = new Node(new LatLon(size, size));
+        Node n4 = new Node(new LatLon(size, 0.0));
         List<Node> nodes = new ArrayList<>();
         nodes.add(n1);
         nodes.add(n2);
@@ -274,8 +280,12 @@ public final class HouseNumberClickRiskRegressionTests {
         nodes.add(n1);
         way.setNodes(nodes);
         way.put("building", "yes");
-        way.put("addr:street", street);
-        way.put("addr:housenumber", houseNumber);
+        if (street != null && !street.isBlank()) {
+            way.put("addr:street", street);
+        }
+        if (houseNumber != null && !houseNumber.isBlank()) {
+            way.put("addr:housenumber", houseNumber);
+        }
         return way;
     }
 
@@ -440,6 +450,12 @@ public final class HouseNumberClickRiskRegressionTests {
         assertTrue(true, "rescan refresh entrypoint should complete without exceptions");
     }
 
+    private static void testCreateBuildingOverviewLayerEntrypointIsSafe() {
+        StreetModeController controller = new StreetModeController();
+        controller.createBuildingOverviewLayer();
+        assertTrue(true, "overview layer entrypoint should complete without exceptions");
+    }
+
     private static void testTableClickContinueHookIsSafe() {
         StreetModeController controller = new StreetModeController();
         controller.continueWorkingFromTableInteraction();
@@ -481,6 +497,42 @@ public final class HouseNumberClickRiskRegressionTests {
 
         assertEquals(1, matchingWays.size(), "only usable named highway ways should match fallback street zoom");
         assertTrue(matchingWays.contains(matching), "matching highway way should be part of fallback selection");
+    }
+
+    private static void testBuildingOverviewCollectorFilteringAndClassification() {
+        DataSet dataSet = new DataSet();
+
+        Way addressedLarge = createClosedBuildingWithSize("Example Street", "1", 0.0002);
+        Way unaddressedLarge = createClosedBuildingWithSize(null, null, 0.0002);
+        Way addressedTiny = createClosedBuildingWithSize("Example Street", "99", 0.00001);
+
+        dataSet.addPrimitiveRecursive(addressedLarge);
+        dataSet.addPrimitiveRecursive(unaddressedLarge);
+        dataSet.addPrimitiveRecursive(addressedTiny);
+
+        BuildingOverviewCollector collector = new BuildingOverviewCollector();
+        List<BuildingOverviewCollector.BuildingOverviewEntry> entries = collector.collect(dataSet);
+
+        assertEquals(2, entries.size(), "collector should skip buildings below minimum area");
+
+        boolean containsAddressedLarge = false;
+        boolean containsUnaddressedLarge = false;
+        boolean containsAddressedTiny = false;
+        for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
+            if (entry.getPrimitive() == addressedLarge && entry.hasHouseNumber()) {
+                containsAddressedLarge = true;
+            }
+            if (entry.getPrimitive() == unaddressedLarge && !entry.hasHouseNumber()) {
+                containsUnaddressedLarge = true;
+            }
+            if (entry.getPrimitive() == addressedTiny) {
+                containsAddressedTiny = true;
+            }
+        }
+
+        assertTrue(containsAddressedLarge, "large addressed building should be included and marked addressed");
+        assertTrue(containsUnaddressedLarge, "large unaddressed building should be included and marked unaddressed");
+        assertFalse(containsAddressedTiny, "tiny building should be excluded by minimum area filter");
     }
 
     private static Way createOpenStreetWay(String streetName, boolean withHighwayTag) {

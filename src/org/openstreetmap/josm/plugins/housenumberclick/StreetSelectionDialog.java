@@ -52,6 +52,7 @@ final class StreetSelectionDialog {
     private JToggleButton plusTwoIncrementButton;
     private final JLabel modeStateLabel;
     private final JButton continueWorkingButton;
+    private final JButton createOverviewButton;
     private final JButton previousStreetButton;
     private final JButton nextStreetButton;
     private final KeyEventDispatcher streetNavigationKeyDispatcher;
@@ -162,6 +163,8 @@ final class StreetSelectionDialog {
         this.modeStateLabel = new JLabel();
         this.continueWorkingButton = new JButton(I18n.tr("Continue working"));
         this.continueWorkingButton.addActionListener(e -> continueWorking());
+        this.createOverviewButton = new JButton(I18n.tr("Create Overview"));
+        this.createOverviewButton.addActionListener(e -> onCreateOverviewRequested());
         this.streetModeController.setModeStateListener(this::refreshModeStateUi);
 
         this.showHouseNumberLayerCheckbox = new JCheckBox(I18n.tr("Show house number layer"));
@@ -334,6 +337,10 @@ final class StreetSelectionDialog {
         gbc.gridy = 16;
         gbc.insets = new Insets(6, 0, 0, 0);
         formPanel.add(buildingSplitterPanel, gbc);
+
+        gbc.gridy = 17;
+        gbc.insets = new Insets(6, 0, 0, 0);
+        formPanel.add(createOverviewButton, gbc);
 
         JPanel content = new JPanel(new BorderLayout(8, 8));
         content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
@@ -743,6 +750,11 @@ final class StreetSelectionDialog {
         new Notification(I18n.tr("Could not activate Building Splitter."))
                 .setDuration(Notification.TIME_SHORT)
                 .show();
+    }
+
+    private void onCreateOverviewRequested() {
+        streetModeController.createBuildingOverviewLayer();
+        focusMapViewIfStreetModeActive();
     }
 
     private String resolveStreetForSplitter() {

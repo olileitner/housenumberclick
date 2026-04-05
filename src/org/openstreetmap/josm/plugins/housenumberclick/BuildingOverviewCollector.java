@@ -1,0 +1,157 @@
+package org.openstreetmap.josm.plugins.housenumberclick;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.openstreetmap.josm.data.coor.LatLon;
+import org.openstreetmap.josm.data.osm.DataSet;
+import org.openstreetmap.josm.data.osm.Node;
+import org.openstreetmap.josm.data.osm.OsmPrimitive;
+import org.openstreetmap.josm.data.osm.Relation;
+import org.openstreetmap.josm.data.osm.RelationMember;
+import org.openstreetmap.josm.data.osm.Way;
+
+final class BuildingOverviewCollector {
+
+    static final double MIN_BUILDING_AREA = 25.0;
+    private static final double METERS_PER_DEGREE_LAT = 111_132.0;
+    private static final double METERS_PER_DEGREE_LON_AT_EQUATOR = 111_320.0;
+
+    List<BuildingOverviewEntry> collect(DataSet dataSet) {
+        if (dataSet == null) {
+            return List.of();
+        }
+
+        List<BuildingOverviewEntry> entries = new ArrayList<>();
+        for (Way way : dataSet.getWays()) {
+            collectPrimitive(entries, way);
+        }
+        for (Relation relation : dataSet.getRelations()) {
+            collectPrimitive(entries, relation);
+        }
+        return entries;
+    }
+
+    private void collectPrimitive(List<BuildingOverviewEntry> entries, OsmPrimitive primitive) {
+        if (!AddressedBuildingMatcher.isBuildingGeometry(primitive)) {
+            return;
+        }
+
+        double primitiveArea = computeArea(primitive);
+        if (primitiveArea < MIN_BUILDING_AREA) {
+            return;
+        }
+
+        boolean hasHouseNumber = !normalize(primitive.get("addr:housenumber")).isEmpty();
+        entries.add(new BuildingOverviewEntry(primitive, hasHouseNumber));
+    }
+
+    private double computeArea(OsmPrimitive primitive) {
+        if (primitive instanceof Way) {
+            return computeWayArea((Way) primitive);
+        }
+        if (primitive instanceof Relation) {
+            return computeRelationOuterArea((Relation) primitive);
+        }
+        return 0.0;
+    }
+
+    private double computeRelationOuterArea(Relation relation) {
+        if (relation == null || !relation.isUsable()) {
+            return 0.0;
+        }
+
+        double totalArea = 0.0;
+        for (RelationMember member : relation.getMembers()) {
+            if (member == null || !member.isWay()) {
+                continue;
+            }
+            String role = normalize(member.getRole());
+            if (!role.isEmpty() && !"outer".equals(role)) {
+                continue;
+            }
+            totalArea += computeWayArea(member.getWay());
+        }
+        return totalArea;
+    }
+
+    private double computeWayArea(Way way) {
+        if (way == null || !way.isUsable() || !way.isClosed()) {
+            return 0.0;
+        }
+
+        List<Node> nodes = way.getNodes();
+        if (nodes.size() < 4) {
+            return 0.0;
+        }
+
+        double latSum = 0.0;
+        int coordinateCount = 0;
+        for (int i = 0; i < nodes.size() - 1; i++) {
+            Node node = nodes.get(i);
+            LatLon coor = node != null ? node.getCoor() : null;
+            if (node == null || !node.isUsable() || coor == null) {
+                return 0.0;
+            }
+            latSum += coor.lat();
+            coordinateCount++;
+        }
+        if (coordinateCount == 0) {
+            return 0.0;
+        }
+
+        double meanLatitudeRadians = Math.toRadians(latSum / coordinateCount);
+        double metersPerDegreeLon = METERS_PER_DEGREE_LON_AT_EQUATOR * Math.cos(meanLatitudeRadians);
+        if (Math.abs(metersPerDegreeLon) < 1e-9) {
+            return 0.0;
+        }
+
+        double twiceArea = 0.0;
+        for (int i = 0; i < nodes.size() - 1; i++) {
+            Node current = nodes.get(i);
+            Node next = nodes.get(i + 1);
+            if (current == null || next == null || !current.isUsable() || !next.isUsable()) {
+                return 0.0;
+            }
+
+            LatLon currentCoor = current.getCoor();
+            LatLon nextCoor = next.getCoor();
+            if (currentCoor == null || nextCoor == null) {
+                return 0.0;
+            }
+
+            double currentX = currentCoor.lon() * metersPerDegreeLon;
+            double currentY = currentCoor.lat() * METERS_PER_DEGREE_LAT;
+            double nextX = nextCoor.lon() * metersPerDegreeLon;
+            double nextY = nextCoor.lat() * METERS_PER_DEGREE_LAT;
+
+            twiceArea += (currentX * nextY) - (nextX * currentY);
+        }
+
+        return Math.abs(twiceArea) / 2.0;
+    }
+
+    private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    static final class BuildingOverviewEntry {
+        private final OsmPrimitive primitive;
+        private final boolean hasHouseNumber;
+
+        BuildingOverviewEntry(OsmPrimitive primitive, boolean hasHouseNumber) {
+            this.primitive = primitive;
+            this.hasHouseNumber = hasHouseNumber;
+        }
+
+        OsmPrimitive getPrimitive() {
+            return primitive;
+        }
+
+        boolean hasHouseNumber() {
+            return hasHouseNumber;
+        }
+    }
+}
+
+

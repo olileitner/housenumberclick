@@ -10,8 +10,7 @@ final class AddressedBuildingMatcher {
         // Utility class
     }
 
-    static boolean isAddressedBuilding(OsmPrimitive primitive) {
-        // Base filter shared by all collectors: usable addressed building geometry only.
+    static boolean isBuildingGeometry(OsmPrimitive primitive) {
         if (primitive == null || !primitive.isUsable() || !primitive.hasKey("building")) {
             return false;
         }
@@ -25,6 +24,15 @@ final class AddressedBuildingMatcher {
             if (!relationType.isEmpty() && !"multipolygon".equals(relationType)) {
                 return false;
             }
+        }
+
+        return true;
+    }
+
+    static boolean isAddressedBuilding(OsmPrimitive primitive) {
+        // Base filter shared by all collectors: usable addressed building geometry only.
+        if (!isBuildingGeometry(primitive)) {
+            return false;
         }
 
         String houseNumber = normalize(primitive.get("addr:housenumber"));
