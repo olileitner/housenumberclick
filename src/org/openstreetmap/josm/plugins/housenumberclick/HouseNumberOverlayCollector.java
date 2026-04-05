@@ -64,7 +64,7 @@ final class HouseNumberOverlayCollector {
     }
 
     private HouseNumberOverlayEntry buildEntry(OsmPrimitive primitive, String selectedStreet, int stableIndex) {
-        if (!isMatchingAddressedBuilding(primitive, selectedStreet)) {
+        if (!AddressedBuildingMatcher.isAddressedBuildingForStreet(primitive, selectedStreet)) {
             return null;
         }
 
@@ -83,32 +83,6 @@ final class HouseNumberOverlayCollector {
                 labelPoint,
                 stableIndex
         );
-    }
-
-    private boolean isMatchingAddressedBuilding(OsmPrimitive primitive, String selectedStreet) {
-        if (primitive == null || !primitive.isUsable()) {
-            return false;
-        }
-
-        boolean building = primitive.hasKey("building");
-        if (!building) {
-            return false;
-        }
-
-        if (primitive instanceof Way && !((Way) primitive).isClosed()) {
-            return false;
-        }
-
-        if (primitive instanceof Relation) {
-            String relationType = normalize(primitive.get("type"));
-            if (!relationType.isEmpty() && !"multipolygon".equals(relationType)) {
-                return false;
-            }
-        }
-
-        String houseNumber = normalize(primitive.get("addr:housenumber"));
-        String street = normalize(primitive.get("addr:street"));
-        return !houseNumber.isEmpty() && selectedStreet.equals(street);
     }
 
 

@@ -54,14 +54,17 @@ final class StreetModeController {
     private HouseNumberClickStreetMapMode streetMapMode;
     private HouseNumberOverlayLayer houseNumberOverlayLayer;
     private HouseNumberOverviewDialog houseNumberOverviewDialog;
+    private StreetHouseNumberCountDialog streetHouseNumberCountDialog;
     private final HouseNumberOverlayCollector houseNumberOverlayCollector = new HouseNumberOverlayCollector();
     private final HouseNumberOverviewCollector houseNumberOverviewCollector = new HouseNumberOverviewCollector();
+    private final StreetHouseNumberCountCollector streetHouseNumberCountCollector = new StreetHouseNumberCountCollector();
     private String currentStreet = "";
     private String currentPostcode = "";
     private boolean houseNumberOverlayEnabled;
     private boolean connectionLinesEnabled;
     private boolean separateEvenOddConnectionLinesEnabled;
     private boolean houseNumberOverviewEnabled;
+    private boolean streetHouseNumberCountsEnabled;
     private boolean zoomToSelectedStreetEnabled;
     private HouseNumberUpdateListener houseNumberUpdateListener;
     private AddressValuesReadListener addressValuesReadListener;
@@ -104,6 +107,7 @@ final class StreetModeController {
         if (currentStreet.isEmpty()) {
             refreshOverlayLayer();
             refreshHouseNumberOverview();
+            refreshStreetHouseNumberCounts();
             Logging.debug("HouseNumberClick StreetModeController.activate: skipped because street is empty.");
             return;
         }
@@ -138,6 +142,7 @@ final class StreetModeController {
         );
         refreshOverlayLayer();
         refreshHouseNumberOverview();
+        refreshStreetHouseNumberCounts();
         map.selectMapMode(streetMapMode);
     }
 
@@ -215,8 +220,22 @@ final class StreetModeController {
         zoomToSelectedStreetEnabled = enabled;
     }
 
+    void setStreetHouseNumberCountsEnabled(boolean enabled) {
+        streetHouseNumberCountsEnabled = enabled;
+        refreshStreetHouseNumberCounts();
+    }
+
     void zoomToCurrentStreet() {
         if (!zoomToSelectedStreetEnabled || normalize(currentStreet).isEmpty()) {
+            return;
+        }
+
+        zoomToStreet(currentStreet);
+    }
+
+    void zoomToStreet(String streetName) {
+        String normalizedStreet = normalize(streetName);
+        if (normalizedStreet.isEmpty()) {
             return;
         }
 
@@ -225,9 +244,16 @@ final class StreetModeController {
             return;
         }
 
+        DataSet editDataSet = MainApplication.getLayerManager() != null
+                ? MainApplication.getLayerManager().getEditDataSet()
+                : null;
+        if (editDataSet == null) {
+            return;
+        }
+
         List<HouseNumberOverlayEntry> entries = houseNumberOverlayCollector.collect(
-                MainApplication.getLayerManager().getEditDataSet(),
-                currentStreet
+                editDataSet,
+                normalizedStreet
         );
         if (entries.isEmpty()) {
             return;
@@ -310,9 +336,37 @@ final class StreetModeController {
         houseNumberOverviewDialog.showDialog();
     }
 
+    private void refreshStreetHouseNumberCounts() {
+        if (!streetHouseNumberCountsEnabled) {
+            hideStreetHouseNumberCounts();
+            return;
+        }
+
+        if (MainApplication.getLayerManager() == null) {
+            hideStreetHouseNumberCounts();
+            return;
+        }
+
+        if (streetHouseNumberCountDialog == null) {
+            streetHouseNumberCountDialog = new StreetHouseNumberCountDialog(this::zoomToStreet);
+        }
+
+        DataSet editDataSet = MainApplication.getLayerManager() != null
+                ? MainApplication.getLayerManager().getEditDataSet()
+                : null;
+        streetHouseNumberCountDialog.updateData(streetHouseNumberCountCollector.collectRows(editDataSet));
+        streetHouseNumberCountDialog.showDialog();
+    }
+
     private void hideHouseNumberOverview() {
         if (houseNumberOverviewDialog != null) {
             houseNumberOverviewDialog.hideDialog();
+        }
+    }
+
+    private void hideStreetHouseNumberCounts() {
+        if (streetHouseNumberCountDialog != null) {
+            streetHouseNumberCountDialog.hideDialog();
         }
     }
 

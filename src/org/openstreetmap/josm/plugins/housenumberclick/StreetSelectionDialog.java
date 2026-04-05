@@ -58,6 +58,7 @@ final class StreetSelectionDialog {
     private final JCheckBox showConnectionLinesCheckbox;
     private final JCheckBox showSeparateEvenOddConnectionLinesCheckbox;
     private final JCheckBox showHouseNumberOverviewCheckbox;
+    private final JCheckBox showStreetHouseNumberCountsCheckbox;
     private final JCheckBox zoomToSelectedStreetCheckbox;
     private final JLabel buildingSplitterStatusLabel;
     private final JButton splitBuildingButton;
@@ -74,13 +75,14 @@ final class StreetSelectionDialog {
     private boolean rememberedSeparateEvenOddLinesEnabled;
     private boolean rememberedSeparateEvenOddLinesPreference = true;
     private boolean rememberedHouseNumberOverviewEnabled;
+    private boolean rememberedStreetHouseNumberCountsEnabled;
     private boolean rememberedZoomToSelectedStreetEnabled;
     private boolean updatingInputs;
     private DataSet rememberedDataSet;
     private boolean streetNavigationDispatcherRegistered;
 
     private static final int DIALOG_WIDTH = 390;
-    private static final int DIALOG_HEIGHT = 535;
+    private static final int DIALOG_HEIGHT = 560;
     private static final int DIALOG_OFFSET_X = 66;
     private static final int DIALOG_OFFSET_Y = 80;
     private static final List<String> COMMON_BUILDING_TYPES = Arrays.asList(
@@ -165,11 +167,13 @@ final class StreetSelectionDialog {
         this.showConnectionLinesCheckbox = new JCheckBox(I18n.tr("Show connection lines"));
         this.showSeparateEvenOddConnectionLinesCheckbox = new JCheckBox(I18n.tr("Separate even and odd connection lines"));
         this.showHouseNumberOverviewCheckbox = new JCheckBox(I18n.tr("Show house number overview"));
+        this.showStreetHouseNumberCountsCheckbox = new JCheckBox(I18n.tr("Show street house number counts"));
         this.zoomToSelectedStreetCheckbox = new JCheckBox(I18n.tr("Zoom to selected street"));
         this.showHouseNumberLayerCheckbox.addActionListener(e -> onOverlayLayerSelectionChanged());
         this.showConnectionLinesCheckbox.addActionListener(e -> onConnectionLinesSelectionChanged());
         this.showSeparateEvenOddConnectionLinesCheckbox.addActionListener(e -> onSeparateEvenOddConnectionLinesSelectionChanged());
         this.showHouseNumberOverviewCheckbox.addActionListener(e -> onHouseNumberOverviewSelectionChanged());
+        this.showStreetHouseNumberCountsCheckbox.addActionListener(e -> onStreetHouseNumberCountsSelectionChanged());
         this.zoomToSelectedStreetCheckbox.addActionListener(e -> onZoomToSelectedStreetSelectionChanged());
         updateOverlayOptionsEnablement(false, false);
 
@@ -312,6 +316,10 @@ final class StreetSelectionDialog {
 
         gbc.gridy = 14;
         gbc.insets = new Insets(2, 12, 0, 0);
+        formPanel.add(showStreetHouseNumberCountsCheckbox, gbc);
+
+        gbc.gridy = 15;
+        gbc.insets = new Insets(2, 12, 0, 0);
         formPanel.add(zoomToSelectedStreetCheckbox, gbc);
 
         JPanel buildingSplitterPanel = new JPanel(new BorderLayout(8, 0));
@@ -322,7 +330,7 @@ final class StreetSelectionDialog {
         buildingSplitterPanel.add(buildingSplitterStatusLabel, BorderLayout.WEST);
         buildingSplitterPanel.add(splitBuildingButton, BorderLayout.EAST);
 
-        gbc.gridy = 15;
+        gbc.gridy = 16;
         gbc.insets = new Insets(6, 0, 0, 0);
         formPanel.add(buildingSplitterPanel, gbc);
 
@@ -408,6 +416,7 @@ final class StreetSelectionDialog {
                 rememberedSeparateEvenOddLinesEnabled
         );
         showHouseNumberOverviewCheckbox.setSelected(rememberedHouseNumberOverviewEnabled);
+        showStreetHouseNumberCountsCheckbox.setSelected(rememberedStreetHouseNumberCountsEnabled);
         zoomToSelectedStreetCheckbox.setSelected(rememberedZoomToSelectedStreetEnabled);
         lastSelectedStreet = getSelectedStreet();
         updatingInputs = false;
@@ -416,6 +425,7 @@ final class StreetSelectionDialog {
         notifyAddressChanged();
         notifyOverlaySettingsChanged();
         notifyHouseNumberOverviewChanged();
+        notifyStreetHouseNumberCountsChanged();
         notifyZoomToSelectedStreetChanged();
         refreshModeStateUi(streetModeController.isActive());
         refreshBuildingSplitterAvailability();
@@ -632,6 +642,14 @@ final class StreetSelectionDialog {
         }
     }
 
+    private void onStreetHouseNumberCountsSelectionChanged() {
+        if (updatingInputs) {
+            return;
+        }
+        rememberCurrentValues();
+        notifyStreetHouseNumberCountsChanged();
+    }
+
     private void setStreetSelection(String streetName) {
         String normalizedStreet = streetName == null ? "" : streetName.trim();
         if (normalizedStreet.isEmpty()) {
@@ -743,6 +761,8 @@ final class StreetSelectionDialog {
                 && showSeparateEvenOddConnectionLinesCheckbox.isSelected();
         rememberedHouseNumberOverviewEnabled = showHouseNumberOverviewCheckbox != null
                 && showHouseNumberOverviewCheckbox.isSelected();
+        rememberedStreetHouseNumberCountsEnabled = showStreetHouseNumberCountsCheckbox != null
+                && showStreetHouseNumberCountsCheckbox.isSelected();
         rememberedZoomToSelectedStreetEnabled = zoomToSelectedStreetCheckbox != null
                 && zoomToSelectedStreetCheckbox.isSelected();
         if (rememberedHouseNumberLayerEnabled) {
@@ -800,6 +820,10 @@ final class StreetSelectionDialog {
         streetModeController.setHouseNumberOverviewEnabled(showHouseNumberOverviewCheckbox.isSelected());
     }
 
+    private void notifyStreetHouseNumberCountsChanged() {
+        streetModeController.setStreetHouseNumberCountsEnabled(showStreetHouseNumberCountsCheckbox.isSelected());
+    }
+
     private void notifyZoomToSelectedStreetChanged() {
         streetModeController.setZoomToSelectedStreetEnabled(zoomToSelectedStreetCheckbox.isSelected());
     }
@@ -838,6 +862,7 @@ final class StreetSelectionDialog {
         rememberedSeparateEvenOddLinesEnabled = false;
         rememberedSeparateEvenOddLinesPreference = true;
         rememberedHouseNumberOverviewEnabled = false;
+        rememberedStreetHouseNumberCountsEnabled = false;
         rememberedZoomToSelectedStreetEnabled = false;
         lastSelectedStreet = null;
     }

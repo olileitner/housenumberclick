@@ -43,7 +43,7 @@ final class HouseNumberOverviewCollector {
 
     private void collectPrimitive(OsmPrimitive primitive, String selectedStreet,
             Map<Integer, BaseNumberGroup> oddGroups, Map<Integer, BaseNumberGroup> evenGroups) {
-        if (!isMatchingAddressedBuilding(primitive, selectedStreet)) {
+        if (!AddressedBuildingMatcher.isAddressedBuildingForStreet(primitive, selectedStreet)) {
             return;
         }
 
@@ -57,26 +57,6 @@ final class HouseNumberOverviewCollector {
         group.addOccurrence(parsed.suffix, primitive);
     }
 
-    private boolean isMatchingAddressedBuilding(OsmPrimitive primitive, String selectedStreet) {
-        if (primitive == null || !primitive.isUsable() || !primitive.hasKey("building")) {
-            return false;
-        }
-
-        if (primitive instanceof Way && !((Way) primitive).isClosed()) {
-            return false;
-        }
-
-        if (primitive instanceof Relation) {
-            String relationType = normalize(primitive.get("type"));
-            if (!relationType.isEmpty() && !"multipolygon".equals(relationType)) {
-                return false;
-            }
-        }
-
-        String houseNumber = normalize(primitive.get("addr:housenumber"));
-        String street = normalize(primitive.get("addr:street"));
-        return !houseNumber.isEmpty() && selectedStreet.equals(street);
-    }
 
     private ParsedHouseNumber parseHouseNumber(String rawValue) {
         String value = normalize(rawValue);
