@@ -1,9 +1,14 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
+import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.data.osm.visitor.OsmPrimitiveVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
@@ -58,6 +63,7 @@ final class StreetModeController {
     private final HouseNumberOverlayCollector houseNumberOverlayCollector = new HouseNumberOverlayCollector();
     private final HouseNumberOverviewCollector houseNumberOverviewCollector = new HouseNumberOverviewCollector();
     private final StreetHouseNumberCountCollector streetHouseNumberCountCollector = new StreetHouseNumberCountCollector();
+    private List<String> streetNavigationOrder = List.of();
     private String currentStreet = "";
     private String currentPostcode = "";
     private boolean houseNumberOverlayEnabled;
@@ -225,6 +231,10 @@ final class StreetModeController {
         refreshStreetHouseNumberCounts();
     }
 
+    List<String> getStreetNavigationOrder() {
+        return new ArrayList<>(streetNavigationOrder);
+    }
+
     void zoomToCurrentStreet() {
         if (!zoomToSelectedStreetEnabled || normalize(currentStreet).isEmpty()) {
             return;
@@ -255,17 +265,22 @@ final class StreetModeController {
                 editDataSet,
                 normalizedStreet
         );
-        if (entries.isEmpty()) {
-            return;
-        }
+        List<OsmPrimitive> fallbackStreetWays = List.of();
 
         BoundingXYVisitor visitor = new BoundingXYVisitor();
-        for (HouseNumberOverlayEntry entry : entries) {
-            OsmPrimitive primitive = entry.getPrimitive();
-            if (primitive == null || !primitive.isUsable()) {
-                continue;
+        if (entries.isEmpty()) {
+            fallbackStreetWays = collectStreetWayFallbackPrimitives(editDataSet, normalizedStreet);
+            for (OsmPrimitive primitive : fallbackStreetWays) {
+                primitive.accept((OsmPrimitiveVisitor) visitor);
             }
-            primitive.accept((OsmPrimitiveVisitor) visitor);
+        } else {
+            for (HouseNumberOverlayEntry entry : entries) {
+                OsmPrimitive primitive = entry.getPrimitive();
+                if (primitive == null || !primitive.isUsable()) {
+                    continue;
+                }
+                primitive.accept((OsmPrimitiveVisitor) visitor);
+            }
         }
 
         if (!visitor.hasExtend()) {
@@ -273,6 +288,30 @@ final class StreetModeController {
         }
         visitor.enlargeBoundingBox();
         map.mapView.zoomTo(visitor);
+        if (!fallbackStreetWays.isEmpty()) {
+            editDataSet.setSelected(fallbackStreetWays);
+            map.mapView.repaint();
+        }
+    }
+
+    static List<OsmPrimitive> collectStreetWayFallbackPrimitives(DataSet dataSet, String streetName) {
+        String normalizedStreet = normalize(streetName);
+        if (dataSet == null || normalizedStreet.isEmpty()) {
+            return List.of();
+        }
+
+        Collection<Way> candidates = dataSet.getWays();
+        LinkedHashSet<OsmPrimitive> matchingWays = new LinkedHashSet<>();
+        for (Way way : candidates) {
+            if (way == null || !way.isUsable() || !way.hasTag("highway")) {
+                continue;
+            }
+            if (!normalize(way.get("name")).equalsIgnoreCase(normalizedStreet)) {
+                continue;
+            }
+            matchingWays.add(way);
+        }
+        return new ArrayList<>(matchingWays);
     }
 
     private void onStreetHouseNumberCountSelected(String streetName) {
@@ -351,11 +390,13 @@ final class StreetModeController {
 
     private void refreshStreetHouseNumberCounts() {
         if (!streetHouseNumberCountsEnabled) {
+            streetNavigationOrder = List.of();
             hideStreetHouseNumberCounts();
             return;
         }
 
         if (MainApplication.getLayerManager() == null) {
+            streetNavigationOrder = List.of();
             hideStreetHouseNumberCounts();
             return;
         }
@@ -367,7 +408,11 @@ final class StreetModeController {
         DataSet editDataSet = MainApplication.getLayerManager() != null
                 ? MainApplication.getLayerManager().getEditDataSet()
                 : null;
-        streetHouseNumberCountDialog.updateData(streetHouseNumberCountCollector.collectRows(editDataSet));
+        List<StreetHouseNumberCountRow> rows = streetHouseNumberCountCollector.collectRows(editDataSet);
+        streetNavigationOrder = Collections.unmodifiableList(
+                StreetHouseNumberCountDialog.buildStreetNavigationOrder(rows)
+        );
+        streetHouseNumberCountDialog.updateData(rows);
         streetHouseNumberCountDialog.showDialog();
     }
 

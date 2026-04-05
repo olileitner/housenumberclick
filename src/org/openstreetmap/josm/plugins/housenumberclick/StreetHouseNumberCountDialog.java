@@ -7,6 +7,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -35,6 +36,36 @@ final class StreetHouseNumberCountDialog {
     private final TableRowSorter<DefaultTableModel> tableRowSorter;
     private final List<StreetHouseNumberCountRow> currentRows = new ArrayList<>();
     private final Consumer<String> streetClickListener;
+
+    static List<StreetHouseNumberCountRow> sortRowsForDisplay(List<StreetHouseNumberCountRow> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+
+        List<StreetHouseNumberCountRow> sortedRows = new ArrayList<>();
+        for (StreetHouseNumberCountRow row : rows) {
+            if (row != null) {
+                sortedRows.add(row);
+            }
+        }
+        sortedRows.sort(Comparator
+                .comparingInt(StreetHouseNumberCountRow::getCount).reversed()
+                .thenComparing(row -> normalizeStreetName(row.getStreetName()), String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(row -> normalizeStreetName(row.getStreetName()), Comparator.naturalOrder()));
+        return sortedRows;
+    }
+
+    static List<String> buildStreetNavigationOrder(List<StreetHouseNumberCountRow> rows) {
+        List<StreetHouseNumberCountRow> sortedRows = sortRowsForDisplay(rows);
+        List<String> orderedStreetNames = new ArrayList<>(sortedRows.size());
+        for (StreetHouseNumberCountRow row : sortedRows) {
+            String streetName = normalizeStreetName(row.getStreetName());
+            if (!streetName.isEmpty()) {
+                orderedStreetNames.add(streetName);
+            }
+        }
+        return orderedStreetNames;
+    }
 
     StreetHouseNumberCountDialog(Consumer<String> streetClickListener) {
         this.streetClickListener = streetClickListener;
@@ -105,14 +136,7 @@ final class StreetHouseNumberCountDialog {
     void updateData(List<StreetHouseNumberCountRow> rows) {
         currentRows.clear();
         tableModel.setRowCount(0);
-        if (rows == null) {
-            return;
-        }
-
-        for (StreetHouseNumberCountRow row : rows) {
-            if (row == null) {
-                continue;
-            }
+        for (StreetHouseNumberCountRow row : sortRowsForDisplay(rows)) {
             currentRows.add(row);
             tableModel.addRow(new Object[] {row.getStreetName(), row.getCount()});
         }
@@ -122,6 +146,10 @@ final class StreetHouseNumberCountDialog {
                 new RowSorter.SortKey(0, SortOrder.ASCENDING)
         ));
         tableRowSorter.sort();
+    }
+
+    private static String normalizeStreetName(String value) {
+        return value == null ? "" : value.trim();
     }
 
     void showDialog() {

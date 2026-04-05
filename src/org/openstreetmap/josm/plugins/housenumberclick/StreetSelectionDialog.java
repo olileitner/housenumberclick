@@ -897,9 +897,17 @@ final class StreetSelectionDialog {
     }
 
     private void navigateStreetByOffset(int offset) {
-        if (!canNavigateStreet(offset)) {
+        String selectedStreet = getSelectedStreet();
+        if (!canNavigateStreet(offset) || selectedStreet == null) {
             return;
         }
+
+        String nextStreet = resolveNextStreetByNavigationOrder(selectedStreet, offset);
+        if (nextStreet != null) {
+            setStreetSelection(nextStreet);
+            return;
+        }
+
         int nextIndex = streetCombo.getSelectedIndex() + offset;
         streetCombo.setSelectedIndex(nextIndex);
     }
@@ -908,8 +916,38 @@ final class StreetSelectionDialog {
         if (streetCombo == null || streetCombo.getItemCount() == 0 || offset == 0) {
             return false;
         }
+
+        String selectedStreet = getSelectedStreet();
+        String nextByOrder = resolveNextStreetByNavigationOrder(selectedStreet, offset);
+        if (nextByOrder != null) {
+            return true;
+        }
+
         int nextIndex = streetCombo.getSelectedIndex() + offset;
         return nextIndex >= 0 && nextIndex < streetCombo.getItemCount();
+    }
+
+    private String resolveNextStreetByNavigationOrder(String selectedStreet, int offset) {
+        if (selectedStreet == null || offset == 0) {
+            return null;
+        }
+
+        List<String> orderedStreets = streetModeController.getStreetNavigationOrder();
+        if (orderedStreets == null || orderedStreets.isEmpty()) {
+            return null;
+        }
+
+        int currentIndex = orderedStreets.indexOf(selectedStreet);
+        if (currentIndex < 0) {
+            return null;
+        }
+
+        int nextIndex = currentIndex + offset;
+        if (nextIndex < 0 || nextIndex >= orderedStreets.size()) {
+            return null;
+        }
+
+        return orderedStreets.get(nextIndex);
     }
 
     private void updateStreetNavigationButtonState() {

@@ -52,6 +52,8 @@ public final class HouseNumberClickRiskRegressionTests {
         run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
         run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
         run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
+        run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
+        run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
         System.out.println("All HouseNumberClick risk regression tests passed.");
     }
 
@@ -421,6 +423,69 @@ public final class HouseNumberClickRiskRegressionTests {
         assertFalse(invokeDuplicateCheck(mode, first), "first click must not be duplicate");
         assertFalse(invokeDuplicateCheck(mode, differentPosition), "different position should not be duplicate");
         assertFalse(invokeDuplicateCheck(mode, differentModifiers), "different modifiers should not be duplicate");
+    }
+
+    private static void testStreetNavigationOrderMatchesStreetCountsSorting() {
+        List<StreetHouseNumberCountRow> rows = List.of(
+                new StreetHouseNumberCountRow("Bravo Street", 5, false),
+                new StreetHouseNumberCountRow("alpha street", 7, false),
+                new StreetHouseNumberCountRow("  Charlie Street  ", 5, false),
+                new StreetHouseNumberCountRow("Delta Street", 5, false)
+        );
+
+        List<String> ordered = StreetHouseNumberCountDialog.buildStreetNavigationOrder(rows);
+        assertEquals(4, ordered.size(), "all rows should be included in navigation order");
+        assertEquals("alpha street", ordered.get(0), "highest count should appear first");
+        assertEquals("Bravo Street", ordered.get(1), "same-count rows should sort by street name");
+        assertEquals("Charlie Street", ordered.get(2), "street names should be trimmed for navigation order");
+        assertEquals("Delta Street", ordered.get(3), "remaining same-count row should follow alphabetic order");
+    }
+
+    private static void testStreetZoomFallbackWayMatching() {
+        DataSet dataSet = new DataSet();
+
+        Way matching = createOpenStreetWay("  Sample Street  ", true);
+        Way otherName = createOpenStreetWay("Other Street", true);
+        Way notHighway = createOpenNonHighwayWay("Sample Street", true);
+        Way deletedMatching = createOpenStreetWay("Sample Street", true);
+        deletedMatching.setDeleted(true);
+
+        dataSet.addPrimitiveRecursive(matching);
+        dataSet.addPrimitiveRecursive(otherName);
+        dataSet.addPrimitiveRecursive(notHighway);
+        dataSet.addPrimitiveRecursive(deletedMatching);
+
+        List<org.openstreetmap.josm.data.osm.OsmPrimitive> matchingWays =
+                StreetModeController.collectStreetWayFallbackPrimitives(dataSet, "sample street");
+
+        assertEquals(1, matchingWays.size(), "only usable named highway ways should match fallback street zoom");
+        assertTrue(matchingWays.contains(matching), "matching highway way should be part of fallback selection");
+    }
+
+    private static Way createOpenStreetWay(String streetName, boolean withHighwayTag) {
+        Way way = createOpenBaseWay();
+        if (withHighwayTag) {
+            way.put("highway", "residential");
+        }
+        way.put("name", streetName);
+        return way;
+    }
+
+    private static Way createOpenNonHighwayWay(String streetName, boolean withBuildingTag) {
+        Way way = createOpenBaseWay();
+        if (withBuildingTag) {
+            way.put("building", "yes");
+        }
+        way.put("name", streetName);
+        return way;
+    }
+
+    private static Way createOpenBaseWay() {
+        Way way = new Way();
+        Node n1 = new Node(new LatLon(1.0, 1.0));
+        Node n2 = new Node(new LatLon(1.0, 1.0001));
+        way.setNodes(List.of(n1, n2));
+        return way;
     }
 
     private static void clearHandoffPrefs() {
