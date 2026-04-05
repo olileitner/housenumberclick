@@ -32,6 +32,7 @@ import javax.swing.text.JTextComponent;
 
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.gui.MainApplication;
+import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.tools.I18n;
 
@@ -595,6 +596,7 @@ final class StreetSelectionDialog {
         updateOverlayOptionsEnablement(overlayEnabled, showConnectionLinesCheckbox.isSelected());
         rememberCurrentValues();
         notifyOverlaySettingsChanged();
+        focusMapViewIfStreetModeActive();
     }
 
     private void onConnectionLinesSelectionChanged() {
@@ -612,6 +614,7 @@ final class StreetSelectionDialog {
         updateOverlayOptionsEnablement(showHouseNumberLayerCheckbox.isSelected(), connectionLinesEnabled);
         rememberCurrentValues();
         notifyOverlaySettingsChanged();
+        focusMapViewIfStreetModeActive();
     }
 
     private void onSeparateEvenOddConnectionLinesSelectionChanged() {
@@ -621,6 +624,7 @@ final class StreetSelectionDialog {
         rememberedSeparateEvenOddLinesPreference = showSeparateEvenOddConnectionLinesCheckbox.isSelected();
         rememberCurrentValues();
         notifyOverlaySettingsChanged();
+        focusMapViewIfStreetModeActive();
     }
 
     private void onHouseNumberOverviewSelectionChanged() {
@@ -629,6 +633,7 @@ final class StreetSelectionDialog {
         }
         rememberCurrentValues();
         notifyHouseNumberOverviewChanged();
+        focusMapViewIfStreetModeActive();
     }
 
     private void onZoomToSelectedStreetSelectionChanged() {
@@ -640,6 +645,7 @@ final class StreetSelectionDialog {
         if (zoomToSelectedStreetCheckbox.isSelected()) {
             streetModeController.zoomToCurrentStreet();
         }
+        focusMapViewIfStreetModeActive();
     }
 
     private void onStreetHouseNumberCountsSelectionChanged() {
@@ -648,6 +654,17 @@ final class StreetSelectionDialog {
         }
         rememberCurrentValues();
         notifyStreetHouseNumberCountsChanged();
+        focusMapViewIfStreetModeActive();
+    }
+
+    private void focusMapViewIfStreetModeActive() {
+        if (!streetModeController.isActive()) {
+            return;
+        }
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.requestFocusInWindow();
+        }
     }
 
     private void setStreetSelection(String streetName) {

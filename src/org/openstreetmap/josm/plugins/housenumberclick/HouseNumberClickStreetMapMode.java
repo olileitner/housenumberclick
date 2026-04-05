@@ -1,5 +1,6 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
+import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -18,12 +19,14 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import javax.swing.JComboBox;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
+import javax.swing.text.JTextComponent;
 
 import org.openstreetmap.josm.actions.mapmode.MapMode;
 import org.openstreetmap.josm.data.osm.DataSet;
@@ -95,37 +98,6 @@ final class HouseNumberClickStreetMapMode extends MapMode {
                 if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
                     controller.deactivate();
                     e.consume();
-                } else if (isPlusShortcut(e)) {
-                    boolean letterMode = houseNumberService.hasLetterSuffix(houseNumber);
-                    if (letterMode ? incrementHouseNumberLetterByOne() : incrementHouseNumberNumberByOne()) {
-                        refreshModePresentation(letterMode
-                                ? I18n.tr("House number letter increased.")
-                                : I18n.tr("House number increased."));
-                    } else {
-                        updateStatusLine(letterMode
-                                ? I18n.tr("House number letter could not be increased.")
-                                : I18n.tr("House number could not be increased."));
-                    }
-                    e.consume();
-                } else if (e.getKeyCode() == KeyEvent.VK_L) {
-                    if (toggleLetterSuffixOnHouseNumber()) {
-                        refreshModePresentation(I18n.tr("House number letter toggle applied."));
-                    } else {
-                        updateStatusLine(I18n.tr("House number letter toggle is only available for numeric house numbers."));
-                    }
-                    e.consume();
-                } else if (isMinusShortcut(e)) {
-                    boolean letterMode = houseNumberService.hasLetterSuffix(houseNumber);
-                    if (letterMode ? decrementHouseNumberLetterByOne() : decrementHouseNumberNumberByOne()) {
-                        refreshModePresentation(letterMode
-                                ? I18n.tr("House number letter decreased.")
-                                : I18n.tr("House number decreased."));
-                    } else {
-                        updateStatusLine(letterMode
-                                ? I18n.tr("House number letter could not be decreased.")
-                                : I18n.tr("House number could not be decreased."));
-                    }
-                    e.consume();
                 }
             }
 
@@ -196,6 +168,75 @@ final class HouseNumberClickStreetMapMode extends MapMode {
                 setControlPressed(id == KeyEvent.KEY_PRESSED);
             } else {
                 setControlPressed(e.isControlDown());
+            }
+        }
+
+        if (id != KeyEvent.KEY_PRESSED || e.isConsumed()) {
+            return false;
+        }
+        if (e.isControlDown() || e.isAltDown() || e.isMetaDown()) {
+            return false;
+        }
+        if (isTextInputFocused()) {
+            return false;
+        }
+        if (!handleHouseNumberShortcut(e)) {
+            return false;
+        }
+
+        e.consume();
+        return true;
+    }
+
+    private boolean handleHouseNumberShortcut(KeyEvent e) {
+        if (isPlusShortcut(e)) {
+            boolean letterMode = houseNumberService.hasLetterSuffix(houseNumber);
+            if (letterMode ? incrementHouseNumberLetterByOne() : incrementHouseNumberNumberByOne()) {
+                refreshModePresentation(letterMode
+                        ? I18n.tr("House number letter increased.")
+                        : I18n.tr("House number increased."));
+            } else {
+                updateStatusLine(letterMode
+                        ? I18n.tr("House number letter could not be increased.")
+                        : I18n.tr("House number could not be increased."));
+            }
+            return true;
+        }
+        if (e.getKeyCode() == KeyEvent.VK_L) {
+            if (toggleLetterSuffixOnHouseNumber()) {
+                refreshModePresentation(I18n.tr("House number letter toggle applied."));
+            } else {
+                updateStatusLine(I18n.tr("House number letter toggle is only available for numeric house numbers."));
+            }
+            return true;
+        }
+        if (isMinusShortcut(e)) {
+            boolean letterMode = houseNumberService.hasLetterSuffix(houseNumber);
+            if (letterMode ? decrementHouseNumberLetterByOne() : decrementHouseNumberNumberByOne()) {
+                refreshModePresentation(letterMode
+                        ? I18n.tr("House number letter decreased.")
+                        : I18n.tr("House number decreased."));
+            } else {
+                updateStatusLine(letterMode
+                        ? I18n.tr("House number letter could not be decreased.")
+                        : I18n.tr("House number could not be decreased."));
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isTextInputFocused() {
+        Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        if (focusOwner == null) {
+            return false;
+        }
+        if (focusOwner instanceof JTextComponent) {
+            return true;
+        }
+        for (Component component = focusOwner; component != null; component = component.getParent()) {
+            if (component instanceof JComboBox && ((JComboBox<?>) component).isEditable()) {
+                return true;
             }
         }
         return false;

@@ -9,6 +9,12 @@ JOSM plugin for fast house-number mapping on buildings.
 - Extended street workflow visuals: overlay, odd/even connection lines, duplicate highlighting, and overview-based zoom.
 - Input/shortcut behavior hardened so street navigation shortcuts do not interfere with text editing.
 
+## What's New in 1.1.1
+
+- Improved `L`, `+`, and `-` shortcut reliability when dialogs are open.
+- Prevented shortcut actions while typing in text fields.
+- Checkbox interactions now return focus to the map when Street Mode is active.
+
 ## Demo
 ![HouseNumberClick demo](docs/images/housenumberclick-demo.gif)
 

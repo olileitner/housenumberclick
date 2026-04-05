@@ -1,10 +1,10 @@
-# GitHub Release Steps (v1.1.0)
+# GitHub Release Steps (v1.1.1)
 
-This file documents the release flow for the next GitHub release after `1.0.4`.
+This file documents the release flow for the next GitHub patch release after `1.1.0`.
 
-## Why 1.1.0
+## Why 1.1.1
 
-`1.1.0` is recommended instead of `1.0.5` because this release includes new user-visible functionality (new street-count window, sorting, additional zoom flows), not only fixes.
+`1.1.1` is a patch release focused on shortcut/focus reliability and UX consistency improvements without feature or workflow breaks.
 
 ## 1) Preflight
 
@@ -33,15 +33,15 @@ Expected artifact:
 
 ```bash
 cd /home/oliver/IdeaProjects/housenumberclick
-git tag v1.1.0
-git push origin v1.1.0
+git tag v1.1.1
+git push origin v1.1.1
 ```
 
 ## 4) Create GitHub Release
 
 1. Open GitHub repository releases page.
-2. Create a new release from tag `v1.1.0`.
-3. Title suggestion: `HouseNumberClick v1.1.0`.
+2. Create a new release from tag `v1.1.1`.
+3. Title suggestion: `HouseNumberClick v1.1.1`.
 4. Copy content from `RELEASE_NOTES.md` into the release description.
 5. Upload artifact `dist/HouseNumberClick.jar`.
 6. Publish release.
