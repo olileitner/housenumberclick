@@ -68,7 +68,7 @@ JOSM plugin for fast house-number mapping on buildings.
 
 1. Start <img src="images/housenumberclick.svg" alt="HouseNumberClick icon" width="18" /> `HouseNumberClick` in JOSM.
 2. Select street and optional postcode/building type/house number.
-3. Click buildings to apply addresses.
+3. Click buildings to apply addresses. The house number increments automatically after each successful click.
 4. Use optional shortcuts and overview windows as needed.
 
 ![HouseNumberClick dialog](docs/images/housenumberclick-dialog.png)
