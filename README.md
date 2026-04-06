@@ -48,6 +48,10 @@ JOSM plugin for fast house-number mapping on buildings.
 - `Show house number overview`: odd/even table including gap markers (`•` for missing base numbers); click a cell to zoom to the mapped object.
 - `Show street house number counts`: list of streets with known house-number counts; click a row to zoom to that street.
 - Street-count table supports sorting by `Street` and `Count`.
+- `Show Overview`: building-only overview layer with color coding:
+  - blue = building has `addr:housenumber` on the building object,
+  - subtle yellow/ochre = multipolygon building relation has no `addr:housenumber`, but at least one `outer` way has one (misplaced tag warning),
+  - dark gray = no house number found.
 
 ## Optional Integration
 
