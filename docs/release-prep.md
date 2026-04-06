@@ -1,80 +1,47 @@
-# HouseNumberClick Release Prep
+# HouseNumberClick Release Prep (PluginsSource-First)
 
-## Release v1.0.4 (Naming Correction)
+## Scope
 
-- Korrigiert sichtbare Release-Benennung auf `HouseNumberClick` (statt altem Pluginnamen).
-- Keine funktionale Verhaltensaenderung im Plugin-Workflow.
-- Folge-Release zu `v1.0.3`, damit Store/GitHub-Darstellung konsistent bleibt.
+This checklist prepares a release for externally hosted jars (for example GitHub Releases) that can be consumed by JOSM PluginsSource.
 
-## A. Release Notes (Entwurf)
+## 1) Update Version and Notes
 
-### Technischer Fokus dieses Release-Kandidaten
+1. Set `plugin.version` in `build.xml`.
+2. Update `RELEASE_NOTES.md` for that version.
+3. Keep only one `What's New` block for the current version in `README.md`.
 
-- Mehrere kleine, verhaltensgleiche Struktur-Refactorings entlasten den bisherigen Monolithen im Street-MapMode.
-- Fachlogik wurde in dedizierte Services ausgelagert (Resolver, House-Number-Regeln, Readback, Konfliktanalyse, Dialogmodell-Aufbereitung), ohne den Benutzer-Workflow zu ändern.
-- Fehlerdiagnose in kritischen Pfaden wurde verbessert; relevante Klickpfad- und Integrationsinformationen sind über Debug-Logs nachvollziehbarer.
+## 2) Build and Validate
 
-### Stabilitätsverbesserungen
+```bash
+cd /home/oliver/IdeaProjects/housenumberclick
+ant clean
+ant test
+ant release-artifact
+```
 
-- Robusterer Klickpfad mit klarerer Deduplizierung für echte Release-Dubletten.
-- Kandidaten-Scans in dichtem Gebiet sind begrenzt und diagnostizierbar.
-- Datensatzwechsel invalidiert gemerkte Dialogkontexte kontrolliert.
-- Address-Handoff für BuildingSplitter wurde gegen stale Zustand gehärtet.
+Expected files:
 
-### Debug-/Diagnoseverbesserungen
+- `dist/HouseNumberClick.jar`
+- `dist/HouseNumberClick-<version>.jar`
 
-- Debug-Logs für Klickpfad enthalten unter anderem Outcome, Trefferquelle, Kandidatenzahlen, Limit-Flags und Laufzeit.
-- Kritische Fehlerpfade loggen konsistenter mit Kontext.
+## 3) Verify Manifest Metadata
 
-### Konfigurierbare Scan-Limits
+Check the built jar contains:
 
-- `housenumberclick.streetmode.relationScanLimit` (Standard: `3000`)
-- `housenumberclick.streetmode.wayScanLimit` (Standard: `5000`)
+- `Plugin-Class`
+- `Plugin-Version`
+- `Plugin-Mainversion`
 
-Ungültige Werte fallen auf sichere Defaults zurück und werden protokolliert.
+## 4) GitHub Release
 
-### BuildingSplitter-Handoff
+1. Create and push tag `v<version>`.
+2. Create GitHub release for `v<version>`.
+3. Upload `dist/HouseNumberClick-<version>.jar`.
+4. Use release notes from `RELEASE_NOTES.md`.
 
-- Reflection-Handoff bleibt bevorzugter Pfad.
-- Preference-Fallback besitzt Session-/Timestamp-Härtung zur Vermeidung stale pending Daten.
+## 5) PluginsSource URL Pattern
 
-## B. QA-Checkliste vor Release
+Use the direct release asset URL:
 
-1. Apply-Flow
-   - Dialogwerte setzen, mehrere Gebäude klicken.
-   - Erwartet: Tags korrekt gesetzt, Hausnummernfortschritt wie konfiguriert.
-
-2. Ctrl+Click Readback
-   - Ctrl+Click auf getaggtes Gebäude und auf benannte Straße.
-   - Erwartet: Gebäude-Readback lädt `street/postcode/housenumber`; Street-Pickup setzt Hausnummer auf `1`.
-
-3. Overwrite/Suppression
-   - Konfliktfall auslösen, einmal abbrechen, danach akzeptieren mit Suppression.
-   - Erwartet: Abbruch stoppt Apply; Suppression unterdrückt Folgewarnung für dieselbe Straße.
-
-4. Dataset-Wechsel
-   - Werte in Dataset A setzen, auf Dataset B wechseln, Dialog öffnen.
-   - Erwartet: keine unkontrollierte Übernahme gemerkter Werte aus A.
-
-5. BuildingSplitter-Handoff
-   - Split-Flow mit BuildingSplitter verfügbar und optional nicht verfügbar testen.
-   - Erwartet: sauberer Handoff bzw. saubere Fehler-/Fallback-Reaktion.
-
-6. Dichtes Gebiet / Kandidatenlimits
-   - Test mit Standard- und bewusst niedrigen Limits.
-   - Erwartet: bei niedrigen Limits mehr Misses; bei Standard gute Balance aus Trefferquote/Reaktionszeit.
-
-## C. Known Issues / Support-Hinweise
-
-- Hohe Datendichte kann Erkennung und Reaktionszeit beeinflussen; zu niedrige Scan-Limits erhöhen False-Negatives.
-- Interoperabilität mit externen Plugins (insb. BuildingSplitter) bleibt versions-/update-abhängig.
-- Für Diagnose Debug-Logs aktivieren und folgende Keys prüfen:
-  - `housenumberclick.streetmode.relationScanLimit`
-  - `housenumberclick.streetmode.wayScanLimit`
-  - `housenumberclick.buildingsplitter.forcePreferenceFallback`
-  - `housenumberclick.buildingsplitter.handoff.street`
-  - `housenumberclick.buildingsplitter.handoff.postcode`
-  - `housenumberclick.buildingsplitter.handoff.pending`
-  - `housenumberclick.buildingsplitter.handoff.timestamp`
-  - `housenumberclick.buildingsplitter.handoff.session`
+`https://github.com/<owner>/<repo>/releases/download/v<version>/HouseNumberClick-<version>.jar`
 

@@ -5,6 +5,7 @@
     <property name="plugin.description" value="Fast building address tagging with street-focused overlays and overview tools."/>
     <property name="plugin.version" value="1.1.4"/>
     <property name="plugin.main.version" value="19481"/>
+    <property name="java.release" value="17"/>
 
     <property name="src.dir" value="src"/>
     <property name="test.dir" value="test"/>
@@ -23,6 +24,29 @@
     <property name="i18n.pot.file" value="${i18n.templates.dir}/${plugin.name}.pot"/>
     <property name="i18n.potfiles" value="${i18n.dir}/POTFILES.in"/>
     <property name="i18n.pl" value="${i18n.dir}/i18n.pl"/>
+
+    <target name="validate-metadata" description="Validate required plugin metadata properties">
+        <fail message="Missing plugin.name property.">
+            <condition>
+                <equals arg1="${plugin.name}" arg2="" trim="true"/>
+            </condition>
+        </fail>
+        <fail message="Missing plugin.class property.">
+            <condition>
+                <equals arg1="${plugin.class}" arg2="" trim="true"/>
+            </condition>
+        </fail>
+        <fail message="Missing plugin.version property.">
+            <condition>
+                <equals arg1="${plugin.version}" arg2="" trim="true"/>
+            </condition>
+        </fail>
+        <fail message="Missing plugin.main.version property.">
+            <condition>
+                <equals arg1="${plugin.main.version}" arg2="" trim="true"/>
+            </condition>
+        </fail>
+    </target>
 
     <target name="clean">
         <delete dir="${build.dir}"/>
@@ -89,16 +113,21 @@
              skipexisting="true"/>
     </target>
 
-    <target name="compile" depends="fetch-josm">
+    <target name="compile" depends="fetch-josm,validate-metadata">
+        <condition property="buildingsplitter.status" value="available" else="not found (optional)">
+            <available file="${buildingsplitter.jar}"/>
+        </condition>
+        <echo message="BuildingSplitter jar ${buildingsplitter.status}: ${buildingsplitter.jar}"/>
+        <path id="compile.classpath">
+            <pathelement location="${josm.jar}"/>
+            <pathelement location="${buildingsplitter.jar}"/>
+        </path>
         <javac srcdir="${src.dir}"
                destdir="${classes.dir}"
                includeantruntime="false"
-               release="17"
+               release="${java.release}"
                encoding="UTF-8">
-            <classpath>
-                <pathelement location="${josm.jar}"/>
-                <pathelement location="${buildingsplitter.jar}"/>
-            </classpath>
+            <classpath refid="compile.classpath"/>
         </javac>
     </target>
 
@@ -106,7 +135,7 @@
         <javac srcdir="${test.dir}"
                destdir="${test.classes.dir}"
                includeantruntime="false"
-               release="17"
+               release="${java.release}"
                encoding="UTF-8">
             <classpath>
                 <pathelement location="${josm.jar}"/>
@@ -142,5 +171,9 @@
                 <attribute name="Plugin-Mainversion" value="${plugin.main.version}"/>
             </manifest>
         </jar>
+    </target>
+
+    <target name="release-artifact" depends="dist" description="Create versioned release JAR for external hosting">
+        <copy file="${dist.dir}/${plugin.name}.jar" tofile="${dist.dir}/${plugin.name}-${plugin.version}.jar" overwrite="true"/>
     </target>
 </project>

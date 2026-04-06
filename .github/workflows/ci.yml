@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test (Ant)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Run tests
+        run: ant -q clean test
+
+      - name: Build release artifact
+        run: ant -q release-artifact
+
+      - name: Upload release jars
+        uses: actions/upload-artifact@v4
+        with:
+          name: housenumberclick-jars
+          path: |
+            dist/HouseNumberClick.jar
+            dist/HouseNumberClick-*.jar
+          if-no-files-found: error
+

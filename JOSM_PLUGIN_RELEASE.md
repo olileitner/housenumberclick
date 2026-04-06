@@ -1,74 +1,50 @@
-# JOSM Plugin Manager Release Preparation
+# JOSM PluginsSource Release Preparation
 
-This document captures what is currently verifiable in this repository and what is still needed for an official JOSM Plugin Manager publication.
+This repository is prepared for a PluginsSource-first release flow using an externally hosted jar (for example GitHub Releases).
 
-## 1) Current Repository Status (Verified)
+## 1) Repository Status (Verified)
 
 From `build.xml` in this repository:
 
-- Present metadata:
-  - `plugin.class`
-  - `plugin.version` (now `1.1.2`)
-  - `plugin.main.version` (`19481`)
-- Present build targets:
-  - `clean`, `compile`, `test`, `dist`, `i18n-*`
-- Missing target:
-  - no `publish` target in this standalone build file
-- Missing property for publish workflow:
-  - no `commit.message` property in this standalone build file
+- Metadata in jar manifest is set:
+  - `Plugin-Class`
+  - `Plugin-Version`
+  - `Plugin-Mainversion`
+- Build targets available:
+  - `clean`, `compile`, `test`, `dist`, `release-artifact`, `i18n-*`
+- Release artifact support:
+  - `dist/HouseNumberClick.jar`
+  - `dist/HouseNumberClick-<version>.jar` via `ant release-artifact`
 
-Conclusion:
-- The repository is ready for GitHub releases.
-- It is **not yet directly publish-ready** for an `ant publish`-based JOSM Plugin Manager workflow from this repository alone.
+## 2) Recommended PluginsSource-First Flow
 
-## 2) What Is Needed For Official JOSM Publication
-
-For an official JOSM Plugin Manager release, you need the JOSM plugin publication context where `ant publish` is available.
-
-Required preparation steps:
-
-1. Place/sync plugin sources in the official JOSM plugin publication repository/context.
-2. Use the build setup expected by that context (including `publish` target).
-3. Add required publication metadata there (including commit/release message field if required by that build setup).
-4. Ensure plugin metadata values are correct and consistent:
-   - plugin class
-   - plugin version
-   - required JOSM main version
-5. Run publication in that context:
-   - `ant clean`
-   - `ant test` (or equivalent validation target)
-   - `ant dist`
-   - `ant publish`
-
-## 3) Practical Checklist Before Moving To Official Publish Context
-
-Run locally in this repository first:
+1. Set `plugin.version` in `build.xml`.
+2. Build and verify:
 
 ```bash
 cd /home/oliver/IdeaProjects/housenumberclick
 ant clean
 ant test
-ant dist
+ant release-artifact
 ```
 
-Verify artifact:
-- `dist/HouseNumberClick.jar`
+3. Tag and release on GitHub:
 
-Verify manifest fields in built jar:
-- `Plugin-Class`
-- `Plugin-Version`
-- `Plugin-Mainversion`
+```bash
+git tag v<version>
+git push origin v<version>
+```
 
-## 4) GitHub Release vs Official JOSM Release
+4. Upload `dist/HouseNumberClick-<version>.jar` as release asset.
+5. Use the direct release asset URL for PluginsSource.
 
-GitHub release (already supported here):
-- tag + release notes + upload `dist/HouseNumberClick.jar`
+URL pattern:
 
-Official JOSM Plugin Manager release:
-- requires JOSM publication repository/context and `ant publish`
-- updates plugin availability in JOSM Plugin Manager, not only GitHub assets
+`https://github.com/<owner>/<repo>/releases/download/v<version>/HouseNumberClick-<version>.jar`
 
-## 5) Recommended Next Step
+## 3) Optional Future Official JOSM Publish Path
 
-Use `RELEASE_STEPS.md` for GitHub release `v1.1.2`, then prepare migration/synchronization into the official JOSM plugin publication workflow to execute `ant publish` there.
+This repository intentionally does not include an `ant publish` target.
+
+If you later decide to use the official JOSM publish path, that must be done in the JOSM publication context/repository where `ant publish` is supported.
 
