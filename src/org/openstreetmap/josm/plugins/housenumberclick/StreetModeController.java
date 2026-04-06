@@ -244,10 +244,14 @@ final class StreetModeController {
             return;
         }
 
-        zoomToStreet(currentStreet);
+        zoomToStreetInternal(currentStreet, false);
     }
 
     void zoomToStreet(String streetName) {
+        zoomToStreetInternal(streetName, true);
+    }
+
+    private void zoomToStreetInternal(String streetName, boolean selectFallbackWays) {
         String normalizedStreet = normalize(streetName);
         if (normalizedStreet.isEmpty()) {
             return;
@@ -292,7 +296,9 @@ final class StreetModeController {
         }
         visitor.enlargeBoundingBox();
         map.mapView.zoomTo(visitor);
-        if (!fallbackStreetWays.isEmpty()) {
+        // Selection updates can trigger additional viewport reactions in JOSM.
+        // For automatic checkbox-based zoom we keep selection untouched to avoid flicker.
+        if (selectFallbackWays && !fallbackStreetWays.isEmpty()) {
             editDataSet.setSelected(fallbackStreetWays);
             map.mapView.repaint();
         }
