@@ -38,7 +38,7 @@ JOSM plugin for fast house-number mapping on buildings.
 - House number can auto-advance after successful apply, including letter suffix handling (`12a -> 12b`).
 - `Ctrl` + left-click reads existing address values from a building; if no building is hit, nearby street name can be picked.
 - Conflict warning protects overwriting existing address values (street/postcode).
-- Optional `Zoom to selected street` zooms to all mapped house numbers of the currently selected street.
+- Optional `Auto-zoom to selected street` zooms to all mapped house numbers of the currently selected street.
 
 ## Map Mode Shortcuts
 
@@ -49,13 +49,13 @@ JOSM plugin for fast house-number mapping on buildings.
 
 ## Optional Visual Tools
 
-- `Show house number layer`: overlay of house numbers for the selected street.
-- `Show connection lines`: connect mapped numbers in sorted order; `Separate even and odd connection lines` draws parity-specific paths.
+- `Show house number labels`: overlay of house numbers for the selected street.
+- `Show connection lines`: connect mapped numbers in sorted order; `Separate even / odd` draws parity-specific paths.
 - Duplicate house numbers are highlighted in the overlay.
-- `Show house number overview`: odd/even table including gap markers (`•` for missing base numbers); click a cell to zoom to the mapped object.
-- `Show street house number counts`: list of streets with known house-number counts; click a row to zoom to that street.
+- `Show overview panel (selected street)`: odd/even table including gap markers (`•` for missing base numbers); click a cell to zoom to the mapped object.
+- `Show all street counts`: list of streets with known house-number counts; click a row to zoom to that street.
 - Street-count table supports sorting by `Street` and `Count`.
-- `Show Overview`: building-only overview layer with color coding:
+- `Show overview` / `Hide overview`: building-only overview layer with color coding:
   - green = building has `addr:housenumber` on the building object,
   - subtle yellow/ochre = multipolygon building relation has no `addr:housenumber`, but at least one `outer` way has one (misplaced tag warning),
   - dark gray = no house number found.
