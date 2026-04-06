@@ -3,6 +3,7 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Frame;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -87,8 +88,8 @@ final class StreetSelectionDialog {
     private static final int DIALOG_HEIGHT = 750;
     private static final int DIALOG_OFFSET_X = 66;
     private static final int DIALOG_OFFSET_Y = 80;
-    private static final String SHOW_OVERVIEW_BUTTON_TEXT = I18n.tr("Show building overview");
-    private static final String HIDE_OVERVIEW_BUTTON_TEXT = I18n.tr("Hide building overview");
+    private static final String SHOW_OVERVIEW_BUTTON_TEXT = I18n.tr("Show overview");
+    private static final String HIDE_OVERVIEW_BUTTON_TEXT = I18n.tr("Hide overview");
     private static final List<String> COMMON_BUILDING_TYPES = Arrays.asList(
             "yes", "apartments", "residential", "house", "detached", "terrace", "garage", "garages",
             "retail", "commercial", "industrial", "warehouse", "office", "school", "hospital", "hotel",
@@ -163,11 +164,12 @@ final class StreetSelectionDialog {
         this.nextStreetButton.addActionListener(e -> navigateStreetByOffset(1));
 
         this.modeStateLabel = new JLabel();
-        this.continueWorkingButton = new JButton(I18n.tr("Continue working"));
+        this.continueWorkingButton = new JButton(I18n.tr("Resume"));
         this.continueWorkingButton.addActionListener(e -> continueWorking());
         this.createOverviewButton = new JButton(SHOW_OVERVIEW_BUTTON_TEXT);
         this.createOverviewButton.addActionListener(e -> onCreateOverviewRequested());
         this.streetModeController.setModeStateListener(this::refreshModeStateUi);
+        this.modeStateLabel.setFont(this.modeStateLabel.getFont().deriveFont(Font.BOLD));
 
         this.showHouseNumberLayerCheckbox = new JCheckBox(I18n.tr("Show house numbers"));
         this.showConnectionLinesCheckbox = new JCheckBox(I18n.tr("Show connections"));
@@ -220,6 +222,7 @@ final class StreetSelectionDialog {
         this.splitBuildingButton = new JButton(I18n.tr("Split building"));
         this.splitBuildingButton.setEnabled(false);
         this.splitBuildingButton.addActionListener(e -> onSplitBuildingRequested());
+        harmonizePrimaryActionButtonWidths();
         buildingSplitterPanel.add(splitBuildingButton, BorderLayout.WEST);
         buildingSplitterPanel.add(buildingSplitterStatusLabel, BorderLayout.CENTER);
 
@@ -235,23 +238,23 @@ final class StreetSelectionDialog {
         sectionsPanel.add(createAddressSection(incrementButtonsPanel), sectionGbc);
 
         sectionGbc.gridy = 1;
-        sectionGbc.insets = new Insets(4, 0, 0, 0);
+        sectionGbc.insets = new Insets(6, 0, 0, 0);
         sectionsPanel.add(createDisplaySection(), sectionGbc);
 
         sectionGbc.gridy = 2;
-        sectionGbc.insets = new Insets(8, 0, 0, 0);
+        sectionGbc.insets = new Insets(6, 0, 0, 0);
         sectionsPanel.add(createAnalysisSection(), sectionGbc);
 
         sectionGbc.gridy = 3;
-        sectionGbc.insets = new Insets(8, 0, 0, 0);
+        sectionGbc.insets = new Insets(6, 0, 0, 0);
         sectionsPanel.add(createStreetNavigationSection(), sectionGbc);
 
         sectionGbc.gridy = 4;
-        sectionGbc.insets = new Insets(8, 0, 0, 0);
+        sectionGbc.insets = new Insets(6, 0, 0, 0);
         sectionsPanel.add(createAdvancedToolsSection(buildingSplitterPanel), sectionGbc);
 
         sectionGbc.gridy = 5;
-        sectionGbc.insets = new Insets(8, 0, 0, 0);
+        sectionGbc.insets = new Insets(6, 0, 0, 0);
         sectionsPanel.add(createHelpSection(), sectionGbc);
 
         sectionGbc.gridy = 6;
@@ -776,6 +779,8 @@ final class StreetSelectionDialog {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createTitledBorder(I18n.tr("Street navigation")));
 
+        harmonizeNavigationButtonWidths();
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0;
         gbc.gridy = 0;
@@ -793,7 +798,7 @@ final class StreetSelectionDialog {
         gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(0, 0, 0, 0);
-        panel.add(new JLabel(I18n.tr("Jump to previous / next street in current list")), gbc);
+        panel.add(new JLabel(I18n.tr("Jump to previous / next street")), gbc);
 
         return panel;
     }
@@ -813,11 +818,11 @@ final class StreetSelectionDialog {
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.anchor = GridBagConstraints.WEST;
-        panel.add(new JLabel(I18n.tr("Click: apply address    Ctrl+Click: read address")), gbc);
+        panel.add(new JLabel(I18n.tr("Click: apply address    Ctrl+Click: read")), gbc);
 
         gbc.gridy = 1;
         gbc.insets = new Insets(2, 0, 0, 0);
-        panel.add(new JLabel(I18n.tr("+ / -: change number or letter    L: toggle letter")), gbc);
+        panel.add(new JLabel(I18n.tr("+ / -: change number    L: toggle letter")), gbc);
 
         return panel;
     }
@@ -848,6 +853,27 @@ final class StreetSelectionDialog {
                         ? HIDE_OVERVIEW_BUTTON_TEXT
                         : SHOW_OVERVIEW_BUTTON_TEXT
         );
+    }
+
+    private void harmonizeNavigationButtonWidths() {
+        if (previousStreetButton == null || nextStreetButton == null) {
+            return;
+        }
+        int width = Math.max(previousStreetButton.getPreferredSize().width, nextStreetButton.getPreferredSize().width);
+        int previousHeight = previousStreetButton.getPreferredSize().height;
+        int nextHeight = nextStreetButton.getPreferredSize().height;
+        previousStreetButton.setPreferredSize(new Dimension(width, previousHeight));
+        nextStreetButton.setPreferredSize(new Dimension(width, nextHeight));
+    }
+
+    private void harmonizePrimaryActionButtonWidths() {
+        if (createOverviewButton == null || splitBuildingButton == null) {
+            return;
+        }
+        int width = Math.max(createOverviewButton.getPreferredSize().width, splitBuildingButton.getPreferredSize().width);
+        width += 10;
+        createOverviewButton.setPreferredSize(new Dimension(width, createOverviewButton.getPreferredSize().height));
+        splitBuildingButton.setPreferredSize(new Dimension(width, splitBuildingButton.getPreferredSize().height));
     }
 
     private String resolveStreetForSplitter() {
