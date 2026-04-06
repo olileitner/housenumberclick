@@ -428,9 +428,15 @@ final class StreetModeController {
             return;
         }
 
-        // Re-adding the overlay keeps it above the building overview among plugin-created layers.
-        layerManager.removeLayer(houseNumberOverlayLayer);
-        layerManager.addLayer(houseNumberOverlayLayer, false);
+        List<Layer> layers = layerManager.getLayers();
+        int overlayIndex = layers.indexOf(houseNumberOverlayLayer);
+        int overviewIndex = layers.indexOf(buildingOverviewLayer);
+        if (overlayIndex < 0 || overviewIndex < 0 || overlayIndex > overviewIndex) {
+            return;
+        }
+
+        // Keep ordering stable without destroying/recreating the overlay layer instance.
+        layerManager.moveLayer(houseNumberOverlayLayer, Math.min(overviewIndex + 1, layers.size() - 1));
     }
 
     private void removeOverlayLayer() {
