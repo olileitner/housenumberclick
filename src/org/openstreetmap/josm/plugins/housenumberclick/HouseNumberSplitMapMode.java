@@ -1,28 +1,83 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.awt.Cursor;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.Point;
+import java.awt.Polygon;
+import java.awt.Toolkit;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import javax.swing.SwingUtilities;
+
 import org.openstreetmap.josm.actions.mapmode.MapMode;
+import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.coor.LatLon;
+import org.openstreetmap.josm.data.osm.DataSet;
+import org.openstreetmap.josm.data.osm.Node;
+import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.gui.layer.MapViewPaintable;
 import org.openstreetmap.josm.tools.I18n;
+import org.openstreetmap.josm.tools.ImageProvider;
+import org.openstreetmap.josm.tools.Logging;
 
 final class HouseNumberSplitMapMode extends MapMode {
 
-    private final StreetModeController controller;
-    private LatLon dragStart;
-    private boolean flowCompleted;
+    enum InteractionKind {
+        LINE_SPLIT,
+        TERRACE_CLICK
+    }
 
-    HouseNumberSplitMapMode(StreetModeController controller) {
+    private static final int CURSOR_HOTSPOT_X = 15;
+    private static final int CURSOR_HOTSPOT_Y = 29;
+
+    private final StreetModeController controller;
+    private InteractionKind interactionKind;
+    private int terraceParts;
+    private final DragLineOverlay dragLineOverlay = new DragLineOverlay();
+    private final KeyAdapter splitKeyListener;
+    private LatLon dragStart;
+    private LatLon dragCurrent;
+    private boolean flowCompleted;
+    private boolean dragOverlayAttached;
+
+    HouseNumberSplitMapMode(StreetModeController controller, InteractionKind interactionKind, int terraceParts) {
         super(
                 I18n.tr("HouseNumberClick Split Mode"),
-                "housenumberclick",
-                I18n.tr("Drag a line across one selected building to split it"),
+                "housenumberclick_split",
+                interactionKind == InteractionKind.TERRACE_CLICK
+                        ? I18n.tr("Click inside one building to create row houses")
+                        : I18n.tr("Drag a line across one building to split it"),
                 Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR)
         );
         this.controller = controller;
+        this.interactionKind = interactionKind == null ? InteractionKind.LINE_SPLIT : interactionKind;
+        this.terraceParts = terraceParts >= 2 ? terraceParts : 4;
+        this.splitKeyListener = new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                if (interactionKind != InteractionKind.TERRACE_CLICK || e == null) {
+                    return;
+                }
+                handleTerraceModeKey(e);
+            }
+        };
+    }
+
+    void configureFor(InteractionKind nextInteractionKind, int nextTerraceParts) {
+        this.interactionKind = nextInteractionKind == null ? InteractionKind.LINE_SPLIT : nextInteractionKind;
+        this.terraceParts = nextTerraceParts >= 2 ? nextTerraceParts : 4;
+        dragStart = null;
+        dragCurrent = null;
+        repaintMapView();
     }
 
     @Override
@@ -33,52 +88,106 @@ final class HouseNumberSplitMapMode extends MapMode {
         if (map != null && map.mapView != null) {
             map.mapView.addMouseListener(this);
             map.mapView.addMouseMotionListener(this);
+            map.mapView.addKeyListener(splitKeyListener);
+            dragOverlayAttached = interactionKind == InteractionKind.LINE_SPLIT
+                    && map.mapView.addTemporaryLayer(dragLineOverlay);
+            map.mapView.setCursor(createSplitCursor());
+            map.mapView.requestFocusInWindow();
         }
     }
 
     @Override
     public void exitMode() {
+        boolean notifyCancelled = !flowCompleted;
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.removeMouseListener(this);
             map.mapView.removeMouseMotionListener(this);
+            map.mapView.removeKeyListener(splitKeyListener);
+            if (dragOverlayAttached) {
+                map.mapView.removeTemporaryLayer(dragLineOverlay);
+                dragOverlayAttached = false;
+            }
             map.mapView.setCursor(Cursor.getDefaultCursor());
         }
-        if (!flowCompleted) {
+        dragStart = null;
+        dragCurrent = null;
+        super.exitMode();
+        if (notifyCancelled) {
             flowCompleted = true;
             controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.CANCELLED);
         }
-        dragStart = null;
-        super.exitMode();
     }
 
     @Override
     public void mousePressed(MouseEvent e) {
+        if (interactionKind != InteractionKind.LINE_SPLIT) {
+            return;
+        }
         if (!isLeftButton(e)) {
             return;
         }
         dragStart = toLatLon(e);
+        dragCurrent = dragStart;
+        repaintMapView();
     }
 
     @Override
-    public void mouseReleased(MouseEvent e) {
-        if (!isLeftButton(e)) {
+    public void mouseDragged(MouseEvent e) {
+        if (interactionKind != InteractionKind.LINE_SPLIT) {
             return;
         }
         if (dragStart == null) {
             return;
         }
+        LatLon next = toLatLon(e);
+        if (next != null) {
+            dragCurrent = next;
+            repaintMapView();
+        }
+    }
 
+    @Override
+    public void mouseReleased(MouseEvent e) {
+        if (interactionKind == InteractionKind.TERRACE_CLICK) {
+            if (!isLeftButton(e)) {
+                return;
+            }
+            Way clickedBuilding = resolveClickedBuilding(e);
+            TerraceSplitResult result = controller.executeInternalTerraceSplitAtClick(clickedBuilding, terraceParts);
+            if (result.isSuccess()) {
+                // Keep terrace mode active; user confirms finish with Enter.
+                MapFrame map = MainApplication.getMap();
+                if (map != null && map.mapView != null) {
+                    map.mapView.requestFocusInWindow();
+                }
+            }
+            return;
+        }
+
+        // Release events can arrive as NOBUTTON on some platforms; rely on left press state.
+        if (dragStart == null) {
+            return;
+        }
+
+        LatLon splitStart = dragStart;
         LatLon dragEnd = toLatLon(e);
+        if (dragEnd == null) {
+            dragEnd = dragCurrent;
+        }
+
+        dragStart = null;
+        dragCurrent = null;
+        repaintMapView();
+
         if (dragEnd != null) {
-            SingleSplitResult result = controller.executeInternalSingleSplit(dragStart, dragEnd);
+            SingleSplitResult result = controller.executeInternalSingleSplit(splitStart, dragEnd);
             completeWithOutcome(result.isSuccess()
                     ? StreetModeController.SplitFlowOutcome.SUCCESS
                     : StreetModeController.SplitFlowOutcome.FAILED);
         } else {
             completeWithOutcome(StreetModeController.SplitFlowOutcome.CANCELLED);
         }
-        dragStart = null;
     }
 
     private void completeWithOutcome(StreetModeController.SplitFlowOutcome outcome) {
@@ -90,7 +199,26 @@ final class HouseNumberSplitMapMode extends MapMode {
     }
 
     private boolean isLeftButton(MouseEvent event) {
-        return event != null && event.getButton() == MouseEvent.BUTTON1;
+        return event != null && SwingUtilities.isLeftMouseButton(event);
+    }
+
+    private Cursor createSplitCursor() {
+        try {
+            Icon icon = ImageProvider.get("mapmode", "housenumberclick_split");
+            if (icon instanceof ImageIcon) {
+                Image image = ((ImageIcon) icon).getImage();
+                if (image != null) {
+                    return Toolkit.getDefaultToolkit().createCustomCursor(
+                            image,
+                            new Point(CURSOR_HOTSPOT_X, CURSOR_HOTSPOT_Y),
+                            "hnc-split-cursor"
+                    );
+                }
+            }
+        } catch (RuntimeException ex) {
+            Logging.debug(ex);
+        }
+        return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
     }
 
     private LatLon toLatLon(MouseEvent event) {
@@ -100,6 +228,111 @@ final class HouseNumberSplitMapMode extends MapMode {
         }
         return map.mapView.getLatLon(event.getX(), event.getY());
     }
+
+    private void repaintMapView() {
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.repaint();
+        }
+    }
+
+    private Way resolveClickedBuilding(MouseEvent event) {
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null || event == null || MainApplication.getLayerManager() == null) {
+            return null;
+        }
+        DataSet dataSet = MainApplication.getLayerManager().getEditDataSet();
+        LatLon clickLatLon = map.mapView.getLatLon(event.getX(), event.getY());
+        if (dataSet == null || clickLatLon == null || map.mapView.getRealBounds() == null) {
+            return null;
+        }
+
+        Way best = null;
+        double bestArea = Double.MAX_VALUE;
+        for (Way way : dataSet.searchWays(map.mapView.getRealBounds().toBBox())) {
+            if (way == null || !way.isUsable() || !way.isClosed() || !way.hasKey("building")) {
+                continue;
+            }
+            if (!containsClickPoint(way, map, event.getPoint(), clickLatLon)) {
+                continue;
+            }
+            double area = way.getBBox().area();
+            if (area < bestArea) {
+                best = way;
+                bestArea = area;
+            }
+        }
+        return best;
+    }
+
+    private void handleTerraceModeKey(KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        if (keyCode == KeyEvent.VK_ENTER) {
+            completeWithOutcome(StreetModeController.SplitFlowOutcome.CANCELLED);
+            event.consume();
+            return;
+        }
+
+        char keyChar = event.getKeyChar();
+        if (!Character.isDigit(keyChar)) {
+            return;
+        }
+        int digit = Character.digit(keyChar, 10);
+        if (digit < 2) {
+            terraceParts = 2;
+        } else {
+            terraceParts = digit;
+        }
+        event.consume();
+    }
+
+    private boolean containsClickPoint(Way way, MapFrame map, Point clickPoint, LatLon clickLatLon) {
+        if (way == null || map == null || map.mapView == null || clickPoint == null || clickLatLon == null) {
+            return false;
+        }
+        if (!way.getBBox().bounds(clickLatLon) || way.getNodesCount() < 4) {
+            return false;
+        }
+
+        Polygon polygon = new Polygon();
+        for (Node node : way.getNodes()) {
+            if (node == null || node.getCoor() == null) {
+                return false;
+            }
+            Point point = map.mapView.getPoint(node);
+            if (point == null) {
+                return false;
+            }
+            polygon.addPoint(point.x, point.y);
+        }
+        return polygon.contains(clickPoint);
+    }
+
+    private final class DragLineOverlay implements MapViewPaintable {
+        @Override
+        public void paint(Graphics2D graphics, org.openstreetmap.josm.gui.MapView mapView, Bounds bounds) {
+            if (dragStart == null || dragCurrent == null || graphics == null || mapView == null) {
+                return;
+            }
+
+            Point from = mapView.getPoint(dragStart);
+            Point to = mapView.getPoint(dragCurrent);
+            if (from == null || to == null) {
+                return;
+            }
+
+            Graphics2D g = (Graphics2D) graphics.create();
+            try {
+                g.setColor(new Color(0, 0, 0, 190));
+                g.setStroke(new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.drawLine(from.x, from.y, to.x, to.y);
+
+                g.setColor(new Color(255, 255, 255, 230));
+                g.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.drawLine(from.x, from.y, to.x, to.y);
+            } finally {
+                g.dispose();
+            }
+        }
+    }
 }
-
-

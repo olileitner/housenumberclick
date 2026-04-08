@@ -1,18 +1,18 @@
 # HouseNumberClick Stability Manual Tests
 
-These scenarios focus on the recent hardening changes (state reset, fallback cleanup, click handling).
+These scenarios focus on recent hardening changes (state reset, fallback cleanup, click handling).
 
 ## Checkpoint Smoke Plan (short)
 
 ### A) Normal Apply Flow
-- Preparation: load edit layer with building ways and visible named street.
-- Steps: open dialog, set street/postcode/house number, click building twice.
+- Preparation: load an editable layer with building ways and a visible named street.
+- Steps: open dialog, set street/postcode/house number, click a building twice.
 - Expected: first click applies tags, second click uses incremented house number.
 - Relevant logs: `HouseNumberClick click-path: outcome=applied, source=...` (debug).
 
 ### B) Ctrl+Click Readback/Pickup
 - Preparation: one building with `addr:*` tags, one nearby named highway without building under cursor.
-- Steps: Ctrl+click on tagged building; then Ctrl+click on named street area.
+- Steps: Ctrl+click tagged building; then Ctrl+click named street area.
 - Expected: building readback loads `street/postcode/housenumber`; street pickup loads street and sets house number to `1`.
 - Relevant logs: `outcome=address-picked` or `outcome=street-picked` (debug).
 
@@ -28,8 +28,8 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 - Expected: remembered values from A are invalidated for B.
 - Relevant logs: optional activation logs if map state is unavailable.
 
-### F) Dense Area / Candidate Limits
-- Preparation: dense city area; debug logs enabled; optionally lower scan limits.
+### E) Dense Area / Candidate Limits
+- Preparation: dense city area, debug logs enabled; optionally lower scan limits.
 - Steps: repeated clicks in dense area with default and low limits.
 - Expected: default stays responsive with fewer misses; low limits increase `source=no-hit` and `*LimitReached=true`.
 - Relevant logs: `HouseNumberClick click-path: ... relationLimitReached=..., wayLimitReached=..., durationMs=...`.
@@ -46,10 +46,7 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
   - House number: `77a`
   - Increment: `+2`
 
-## 5) Candidate Limit Monitoring
-
-
-## 4) Click Deduplizierung
+### Steps
 1. Close the dialog.
 2. Switch to another editable layer or open DataSet B.
 3. Open HouseNumberClick again.
@@ -59,17 +56,17 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 - Default-like state appears (house number starts from default, previous custom values are cleared).
 
 ### Relevant Logs
-- Optional diagnostic around mode activation can appear in JOSM log if map view is unavailable.
+- Optional diagnostics around mode activation can appear in JOSM log if map view is unavailable.
 
-## 2) Click Deduplizierung
+## 2) Click Deduplication
 
 ### Preparation
-- Open area with buildings.
+- Open an area with buildings.
 - Enable debug logs in JOSM.
 
 ### Steps
 1. Click one building once normally.
-2. Trigger near-identical duplicated release event (for example via touchpad ghost click) if reproducible.
+2. Trigger a near-identical duplicated release event (for example via touchpad ghost click), if reproducible.
 3. Perform two very fast but slightly different clicks at different positions.
 
 ### Expected
@@ -97,7 +94,7 @@ Suggested test values:
 - intentionally high: `10000` / `20000`
 
 ### Steps
-1. Click repeatedly in dense area where nearest-hit fallback scans are likely.
+1. Click repeatedly in dense areas where nearest-hit fallback scans are likely.
 2. Repeat with low and high limit values.
 
 ### Expected
@@ -114,4 +111,3 @@ Suggested test values:
 How to identify limits that are too low:
 - `relationLimitReached=true` or `wayLimitReached=true` appears frequently.
 - `source=no-hit` appears despite likely building targets in dense regions.
-

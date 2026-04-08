@@ -49,14 +49,12 @@ final class TerraceSplitService {
         if (request == null || !request.hasValidParts()) {
             return TerraceSplitResult.failure("Terrace split requires parts >= 2.");
         }
-        int parts = request.getParts();
 
         Bounds bounds = computeBounds(buildingWay);
         if (!bounds.isValid()) {
             return TerraceSplitResult.failure("Building geometry is not suitable for terrace split.");
         }
 
-        // Iteration 1 intentionally derives split lines from the bbox for predictable, simple equal spacing.
         boolean splitAlongLongitude = bounds.width() >= bounds.height();
         double margin = Math.max(Math.max(bounds.width(), bounds.height()) * 0.25, LINE_MARGIN_FALLBACK);
 
@@ -65,8 +63,8 @@ final class TerraceSplitService {
 
         SplitContext splitContext = context == null ? SplitContext.empty() : context;
 
-        for (int partIndex = 1; partIndex < parts; partIndex++) {
-            double ratio = partIndex / (double) parts;
+        for (int partIndex = 1; partIndex < request.getParts(); partIndex++) {
+            double ratio = partIndex / (double) request.getParts();
             LatLon lineStart;
             LatLon lineEnd;
             if (splitAlongLongitude) {
@@ -99,7 +97,7 @@ final class TerraceSplitService {
             pieces.addAll(splitResult.getResultWays());
         }
 
-        if (pieces.size() != parts) {
+        if (pieces.size() != request.getParts()) {
             return TerraceSplitResult.failure("Terrace split produced an unexpected number of result ways.");
         }
 

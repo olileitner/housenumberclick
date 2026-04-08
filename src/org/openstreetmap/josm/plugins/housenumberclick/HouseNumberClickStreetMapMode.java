@@ -362,7 +362,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         controller.onAddressApplied();
         DataSet dataSet = MainApplication.getLayerManager().getEditDataSet();
         if (dataSet != null) {
-            dataSet.setSelected(Collections.singleton(getSelectionTarget(building)));
+            dataSet.setSelected(Collections.emptyList());
         }
 
         if (buildingTypeWasUsed) {

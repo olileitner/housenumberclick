@@ -66,6 +66,7 @@ final class StreetSelectionDialog {
     private final JCheckBox showStreetHouseNumberCountsCheckbox;
     private final JCheckBox zoomToSelectedStreetCheckbox;
     private final JButton splitBuildingButton;
+    private final JCheckBox splitMakeRectangularCheckbox;
     private final JButton createRowHousesButton;
     private final JTextField rowHousePartsField;
     private int houseNumberIncrementStep = 1;
@@ -223,6 +224,7 @@ final class StreetSelectionDialog {
         JPanel splitToolsPanel = new JPanel(new GridBagLayout());
         this.splitBuildingButton = new JButton(I18n.tr("Split building"));
         this.splitBuildingButton.addActionListener(e -> onSplitBuildingRequested());
+        this.splitMakeRectangularCheckbox = new JCheckBox(I18n.tr("Make rectangular"));
         this.createRowHousesButton = new JButton(I18n.tr("Create row houses"));
         this.createRowHousesButton.addActionListener(e -> onCreateRowHousesRequested());
         this.rowHousePartsField = new JTextField("4", 4);
@@ -235,8 +237,16 @@ final class StreetSelectionDialog {
         splitGbc.insets = new Insets(0, 0, 4, 8);
         splitToolsPanel.add(splitBuildingButton, splitGbc);
 
+        splitGbc.gridx = 1;
+        splitGbc.weightx = 1.0;
+        splitGbc.fill = GridBagConstraints.HORIZONTAL;
+        splitGbc.insets = new Insets(0, 0, 4, 0);
+        splitToolsPanel.add(splitMakeRectangularCheckbox, splitGbc);
+
         splitGbc.gridx = 0;
         splitGbc.gridy = 1;
+        splitGbc.weightx = 0.0;
+        splitGbc.fill = GridBagConstraints.NONE;
         splitGbc.insets = new Insets(0, 0, 0, 8);
         splitToolsPanel.add(createRowHousesButton, splitGbc);
 
@@ -840,7 +850,9 @@ final class StreetSelectionDialog {
     }
 
     private void onSplitBuildingRequested() {
-        runSplitBuildingAction(streetModeController::startInternalSingleSplitFlowFromDialog);
+        runSplitBuildingAction(() -> streetModeController.startInternalSingleSplitFlowFromDialog(
+                splitMakeRectangularCheckbox != null && splitMakeRectangularCheckbox.isSelected()
+        ));
     }
 
     private void onCreateRowHousesRequested() {

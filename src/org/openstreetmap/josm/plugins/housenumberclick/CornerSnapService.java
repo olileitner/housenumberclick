@@ -50,7 +50,6 @@ final class CornerSnapService {
             }
 
             LatLon coordinate = segmentIntersection.intersection;
-            // Keep snapping intentionally conservative: only reuse the current segment endpoints.
             Node existingNode = findNearestEndpointNode(coordinate, nodeA, nodeB);
             if (existingNode != null && existingNode.getCoor() != null) {
                 coordinate = existingNode.getCoor();
@@ -121,10 +120,9 @@ final class CornerSnapService {
             return Double.POSITIVE_INFINITY;
         }
 
-        var projection = ProjectionRegistry.getProjection();
-        if (projection != null) {
-            EastNorth firstEn = projection.latlon2eastNorth(first);
-            EastNorth secondEn = projection.latlon2eastNorth(second);
+        if (ProjectionRegistry.getProjection() != null) {
+            EastNorth firstEn = ProjectionRegistry.getProjection().latlon2eastNorth(first);
+            EastNorth secondEn = ProjectionRegistry.getProjection().latlon2eastNorth(second);
             if (firstEn != null && secondEn != null) {
                 return firstEn.distance(secondEn);
             }
@@ -240,9 +238,6 @@ final class CornerSnapService {
     }
 
     private boolean isSamePoint(LatLon first, LatLon second) {
-        if (first == null || second == null) {
-            return false;
-        }
         return Math.abs(first.lat() - second.lat()) <= EPSILON
                 && Math.abs(first.lon() - second.lon()) <= EPSILON;
     }

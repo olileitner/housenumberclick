@@ -7,6 +7,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 
 import org.openstreetmap.josm.data.coor.LatLon;
+import org.openstreetmap.josm.actions.OrthogonalizeAction;
+import org.openstreetmap.josm.command.SequenceCommand;
+import org.openstreetmap.josm.data.UndoRedoHandler;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
@@ -75,6 +78,8 @@ final class StreetModeController {
     private final StreetHouseNumberCountCollector streetHouseNumberCountCollector = new StreetHouseNumberCountCollector();
     private final SingleBuildingSplitService singleBuildingSplitService = new SingleBuildingSplitService();
     private final TerraceSplitService terraceSplitService = new TerraceSplitService();
+    private final CornerSnapService cornerSnapService = new CornerSnapService();
+    private boolean rectangularizeAfterLineSplit;
     private AddressSelection lastSelection = new AddressSelection("", "", "", "", 1);
     private List<String> streetNavigationOrder = List.of();
     private String currentStreet = "";
@@ -584,22 +589,39 @@ final class StreetModeController {
     }
 
     boolean activateInternalSplitMode() {
+        return activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.LINE_SPLIT, 0);
+    }
+
+    private boolean activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind interactionKind, int terraceParts) {
         MapFrame map = MainApplication.getMap();
         if (map == null || map.mapView == null) {
             return false;
         }
 
         if (splitMapMode == null) {
-            splitMapMode = new HouseNumberSplitMapMode(this);
+            splitMapMode = new HouseNumberSplitMapMode(this, interactionKind, terraceParts);
+        } else {
+            splitMapMode.configureFor(interactionKind, terraceParts);
+        }
+
+        if (map.mapMode == splitMapMode) {
+            return true;
         }
         return map.selectMapMode(splitMapMode);
     }
 
     boolean startInternalSingleSplitFlowFromDialog() {
-        if (getActiveEditDataSet() == null) {
+        return startInternalSingleSplitFlowFromDialog(false);
+    }
+
+    boolean startInternalSingleSplitFlowFromDialog(boolean makeRectangular) {
+        DataSet dataSet = getActiveEditDataSet();
+        if (dataSet == null) {
             showNoDataSetNotification();
             return false;
         }
+        rectangularizeAfterLineSplit = makeRectangular;
+        dataSet.setSelected(Collections.emptyList());
         if (activateInternalSplitMode()) {
             return true;
         }
@@ -614,16 +636,20 @@ final class StreetModeController {
         if (dataSet == null) {
             return SingleSplitResult.failure("No editable dataset is available.");
         }
+        dataSet.setSelected(Collections.emptyList());
 
-        List<Way> selectedWays = new ArrayList<>(dataSet.getSelectedWays());
-        if (selectedWays.size() != 1) {
-            return SingleSplitResult.failure("Select exactly one closed building way before splitting.");
+        List<Way> intersectedBuildings = findIntersectedClosedBuildingWays(dataSet, lineStart, lineEnd);
+        if (intersectedBuildings.isEmpty()) {
+            return SingleSplitResult.failure("Split line does not intersect a building.");
+        }
+        if (intersectedBuildings.size() > 1) {
+            return SingleSplitResult.failure("Split line intersects multiple buildings. Draw a line through only one building.");
         }
 
         SplitContext splitContext = new SplitContext(currentStreet, currentPostcode);
         SingleSplitResult result = singleBuildingSplitService.splitBuilding(
                 dataSet,
-                selectedWays.get(0),
+                intersectedBuildings.get(0),
                 lineStart,
                 lineEnd,
                 splitContext
@@ -633,6 +659,11 @@ final class StreetModeController {
             new Notification(I18n.tr(result.getMessage()))
                     .setDuration(Notification.TIME_SHORT)
                     .show();
+        } else {
+            if (rectangularizeAfterLineSplit) {
+                applyRectangularizeOnWays(result.getResultWays());
+            }
+            dataSet.setSelected(Collections.emptyList());
         }
         return result;
     }
@@ -641,25 +672,45 @@ final class StreetModeController {
         DataSet dataSet = getActiveEditDataSet();
         if (dataSet == null) {
             showNoDataSetNotification();
-            TerraceSplitResult failure = TerraceSplitResult.failure("No editable dataset is available.");
-            onInternalSplitFlowFinished(SplitFlowOutcome.FAILED);
-            return failure;
+            return TerraceSplitResult.failure("No editable dataset is available.");
+        }
+        if (!new TerraceSplitRequest(parts).hasValidParts()) {
+            return TerraceSplitResult.failure("Create row houses requires parts >= 2.");
         }
 
-        List<Way> selectedWays = new ArrayList<>(dataSet.getSelectedWays());
-        if (selectedWays.size() != 1) {
-            TerraceSplitResult failure = TerraceSplitResult.failure("Select exactly one closed building way before creating row houses.");
+        dataSet.setSelected(Collections.emptyList());
+        if (!activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.TERRACE_CLICK, parts)) {
+            new Notification(I18n.tr("Split mode could not be started."))
+                    .setDuration(Notification.TIME_SHORT)
+                    .show();
+            return TerraceSplitResult.failure("Split mode could not be started.");
+        }
+        return TerraceSplitResult.success("Click inside one building to create row houses.", List.of());
+    }
+
+    TerraceSplitResult executeInternalTerraceSplitAtClick(Way clickedBuilding, int parts) {
+        DataSet dataSet = getActiveEditDataSet();
+        if (dataSet == null) {
+            TerraceSplitResult failure = TerraceSplitResult.failure("No editable dataset is available.");
             new Notification(I18n.tr(failure.getMessage()))
                     .setDuration(Notification.TIME_SHORT)
                     .show();
-            onInternalSplitFlowFinished(SplitFlowOutcome.FAILED);
             return failure;
         }
+        if (clickedBuilding == null) {
+            TerraceSplitResult failure = TerraceSplitResult.failure("Click inside one closed building to create row houses.");
+            new Notification(I18n.tr(failure.getMessage()))
+                    .setDuration(Notification.TIME_SHORT)
+                    .show();
+            return failure;
+        }
+
+        dataSet.setSelected(Collections.emptyList());
 
         SplitContext splitContext = new SplitContext(currentStreet, currentPostcode);
         TerraceSplitResult result = terraceSplitService.splitBuildingIntoTerrace(
                 dataSet,
-                selectedWays.get(0),
+                clickedBuilding,
                 new TerraceSplitRequest(parts),
                 splitContext
         );
@@ -667,13 +718,46 @@ final class StreetModeController {
             new Notification(I18n.tr(result.getMessage()))
                     .setDuration(Notification.TIME_SHORT)
                     .show();
-            onInternalSplitFlowFinished(SplitFlowOutcome.FAILED);
             return result;
         }
 
-        dataSet.setSelected(result.getResultWays());
-        onInternalSplitFlowFinished(SplitFlowOutcome.SUCCESS);
+        dataSet.setSelected(Collections.emptyList());
         return result;
+    }
+
+    private void applyRectangularizeOnWays(List<Way> ways) {
+        if (ways == null || ways.isEmpty()) {
+            return;
+        }
+        try {
+            SequenceCommand orthogonalizeCommand = OrthogonalizeAction.orthogonalize(new ArrayList<>(ways));
+            if (orthogonalizeCommand != null) {
+                UndoRedoHandler.getInstance().add(orthogonalizeCommand);
+            }
+        } catch (OrthogonalizeAction.InvalidUserInputException ex) {
+            Logging.debug(ex);
+            new Notification(I18n.tr("Rectangularize failed for the split result."))
+                    .setDuration(Notification.TIME_SHORT)
+                    .show();
+        }
+    }
+
+    private List<Way> findIntersectedClosedBuildingWays(DataSet dataSet, LatLon lineStart, LatLon lineEnd) {
+        if (dataSet == null || lineStart == null || lineEnd == null) {
+            return List.of();
+        }
+
+        List<Way> intersected = new ArrayList<>();
+        for (Way way : dataSet.getWays()) {
+            if (way == null || !way.isUsable() || !way.isClosed() || !way.hasKey("building")) {
+                continue;
+            }
+            IntersectionScanResult scanResult = cornerSnapService.findSplitIntersections(way, lineStart, lineEnd);
+            if (scanResult.isSuccess() && !scanResult.getIntersections().isEmpty()) {
+                intersected.add(way);
+            }
+        }
+        return intersected;
     }
 
     void onInternalSplitFlowFinished(SplitFlowOutcome outcome) {
