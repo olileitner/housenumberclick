@@ -227,7 +227,7 @@ final class StreetSelectionDialog {
         this.splitMakeRectangularCheckbox = new JCheckBox(I18n.tr("Make rectangular"));
         this.createRowHousesButton = new JButton(I18n.tr("Create row houses"));
         this.createRowHousesButton.addActionListener(e -> onCreateRowHousesRequested());
-        this.rowHousePartsField = new JTextField("4", 4);
+        this.rowHousePartsField = new JTextField("2", 4);
         harmonizePrimaryActionButtonWidths();
 
         GridBagConstraints splitGbc = new GridBagConstraints();
@@ -1173,13 +1173,25 @@ final class StreetSelectionDialog {
         }
 
         int keyCode = event.getKeyCode();
-        if (keyCode != KeyEvent.VK_LEFT && keyCode != KeyEvent.VK_RIGHT) {
-            return false;
+        if (keyCode == KeyEvent.VK_LEFT || keyCode == KeyEvent.VK_RIGHT) {
+            navigateStreetByOffset(keyCode == KeyEvent.VK_LEFT ? -1 : 1);
+            event.consume();
+            return true;
         }
 
-        navigateStreetByOffset(keyCode == KeyEvent.VK_LEFT ? -1 : 1);
-        event.consume();
-        return true;
+        if (keyCode == KeyEvent.VK_S) {
+            onSplitBuildingRequested();
+            event.consume();
+            return true;
+        }
+
+        if (keyCode == KeyEvent.VK_C) {
+            onCreateRowHousesRequested();
+            event.consume();
+            return true;
+        }
+
+        return false;
     }
 
     private boolean isTextInputFocused() {

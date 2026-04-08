@@ -60,7 +60,7 @@ final class HouseNumberSplitMapMode extends MapMode {
         );
         this.controller = controller;
         this.interactionKind = interactionKind == null ? InteractionKind.LINE_SPLIT : interactionKind;
-        this.terraceParts = terraceParts >= 2 ? terraceParts : 4;
+        this.terraceParts = terraceParts >= 2 ? terraceParts : 2;
         this.splitKeyListener = new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
@@ -74,7 +74,7 @@ final class HouseNumberSplitMapMode extends MapMode {
 
     void configureFor(InteractionKind nextInteractionKind, int nextTerraceParts) {
         this.interactionKind = nextInteractionKind == null ? InteractionKind.LINE_SPLIT : nextInteractionKind;
-        this.terraceParts = nextTerraceParts >= 2 ? nextTerraceParts : 4;
+        this.terraceParts = nextTerraceParts >= 2 ? nextTerraceParts : 2;
         dragStart = null;
         dragCurrent = null;
         repaintMapView();
