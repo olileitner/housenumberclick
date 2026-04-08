@@ -238,6 +238,9 @@ final class CornerSnapService {
     }
 
     private boolean isSamePoint(LatLon first, LatLon second) {
+        if (first == null || second == null) {
+            return false;
+        }
         return Math.abs(first.lat() - second.lat()) <= EPSILON
                 && Math.abs(first.lon() - second.lon()) <= EPSILON;
     }

@@ -705,7 +705,6 @@ final class StreetModeController {
     }
 
     private void returnToStreetModeAfterSplit() {
-        notifyModeStateChanged(false);
         if (splitFlowReturnHook != null) {
             splitFlowReturnHook.run();
         }

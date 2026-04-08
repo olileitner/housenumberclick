@@ -63,8 +63,6 @@ final class HouseNumberSplitMapMode extends MapMode {
     @Override
     public void mouseReleased(MouseEvent e) {
         if (!isLeftButton(e)) {
-            completeWithOutcome(StreetModeController.SplitFlowOutcome.CANCELLED);
-            dragStart = null;
             return;
         }
         if (dragStart == null) {
