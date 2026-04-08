@@ -5,6 +5,8 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
 import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.Toolkit;
@@ -17,6 +19,7 @@ import javax.swing.ImageIcon;
 import javax.swing.SwingUtilities;
 
 import org.openstreetmap.josm.actions.mapmode.MapMode;
+import org.openstreetmap.josm.data.UndoRedoHandler;
 import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.DataSet;
@@ -44,10 +47,14 @@ final class HouseNumberSplitMapMode extends MapMode {
     private int terraceParts;
     private final DragLineOverlay dragLineOverlay = new DragLineOverlay();
     private final KeyAdapter splitKeyListener;
+    private final KeyEventDispatcher splitKeyDispatcher;
     private LatLon dragStart;
     private LatLon dragCurrent;
     private boolean flowCompleted;
     private boolean dragOverlayAttached;
+    private Way activeTerraceSourceBuilding;
+    private int activeTerraceUndoStart = -1;
+    private boolean splitDispatcherRegistered;
 
     HouseNumberSplitMapMode(StreetModeController controller, InteractionKind interactionKind, int terraceParts) {
         super(
@@ -64,12 +71,10 @@ final class HouseNumberSplitMapMode extends MapMode {
         this.splitKeyListener = new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
-                if (HouseNumberSplitMapMode.this.interactionKind != InteractionKind.TERRACE_CLICK || e == null) {
-                    return;
-                }
-                handleTerraceModeKey(e);
+                // Handled centrally through the key dispatcher on KEY_PRESSED.
             }
         };
+        this.splitKeyDispatcher = this::handleGlobalKeyEvent;
     }
 
     void configureFor(InteractionKind nextInteractionKind, int nextTerraceParts) {
@@ -77,6 +82,8 @@ final class HouseNumberSplitMapMode extends MapMode {
         this.terraceParts = nextTerraceParts >= 2 ? nextTerraceParts : 2;
         dragStart = null;
         dragCurrent = null;
+        activeTerraceSourceBuilding = null;
+        activeTerraceUndoStart = -1;
         applyInteractionPresentation();
         repaintMapView();
     }
@@ -89,6 +96,7 @@ final class HouseNumberSplitMapMode extends MapMode {
     public void enterMode() {
         super.enterMode();
         flowCompleted = false;
+        registerSplitKeyDispatcher();
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.addMouseListener(this);
@@ -102,6 +110,7 @@ final class HouseNumberSplitMapMode extends MapMode {
     @Override
     public void exitMode() {
         boolean notifyCancelled = !flowCompleted;
+        unregisterSplitKeyDispatcher();
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.removeMouseListener(this);
@@ -115,6 +124,8 @@ final class HouseNumberSplitMapMode extends MapMode {
         }
         dragStart = null;
         dragCurrent = null;
+        activeTerraceSourceBuilding = null;
+        activeTerraceUndoStart = -1;
         super.exitMode();
         if (notifyCancelled) {
             flowCompleted = true;
@@ -157,13 +168,19 @@ final class HouseNumberSplitMapMode extends MapMode {
                 return;
             }
             Way clickedBuilding = resolveClickedBuilding(e);
+            int undoBaseline = UndoRedoHandler.getInstance().getUndoCommands().size();
             TerraceSplitResult result = controller.executeInternalTerraceSplitAtClick(clickedBuilding, terraceParts);
             if (result.isSuccess()) {
+                activeTerraceSourceBuilding = clickedBuilding;
+                activeTerraceUndoStart = undoBaseline;
                 // Keep terrace mode active; user confirms finish with Enter.
                 MapFrame map = MainApplication.getMap();
                 if (map != null && map.mapView != null) {
                     map.mapView.requestFocusInWindow();
                 }
+            } else {
+                activeTerraceSourceBuilding = null;
+                activeTerraceUndoStart = -1;
             }
             return;
         }
@@ -203,6 +220,46 @@ final class HouseNumberSplitMapMode extends MapMode {
 
     private boolean isLeftButton(MouseEvent event) {
         return event != null && SwingUtilities.isLeftMouseButton(event);
+    }
+
+    private boolean handleGlobalKeyEvent(KeyEvent event) {
+        if (!isModeActiveOnMap(MainApplication.getMap()) || interactionKind != InteractionKind.TERRACE_CLICK || event == null) {
+            return false;
+        }
+        if (event.getID() != KeyEvent.KEY_PRESSED || event.isConsumed()) {
+            return false;
+        }
+        if (event.isControlDown() || event.isAltDown() || event.isMetaDown()) {
+            return false;
+        }
+
+        int keyCode = event.getKeyCode();
+        if (keyCode == KeyEvent.VK_ESCAPE || keyCode == KeyEvent.VK_ENTER || keyCodeToDigit(keyCode) >= 0) {
+            handleTerraceModeKey(event);
+            event.consume();
+            return true;
+        }
+        return false;
+    }
+
+    private void registerSplitKeyDispatcher() {
+        if (splitDispatcherRegistered) {
+            return;
+        }
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(splitKeyDispatcher);
+        splitDispatcherRegistered = true;
+    }
+
+    private void unregisterSplitKeyDispatcher() {
+        if (!splitDispatcherRegistered) {
+            return;
+        }
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(splitKeyDispatcher);
+        splitDispatcherRegistered = false;
+    }
+
+    private boolean isModeActiveOnMap(MapFrame map) {
+        return map != null && map.mapMode == this;
     }
 
     private Cursor createSplitCursor() {
@@ -308,7 +365,32 @@ final class HouseNumberSplitMapMode extends MapMode {
 
         // Number keys directly choose parts to avoid accidental multi-digit values (e.g. 2 -> 24).
         terraceParts = Math.max(2, digit);
+        rerunActiveTerraceSplit();
         event.consume();
+    }
+
+    private void rerunActiveTerraceSplit() {
+        if (activeTerraceSourceBuilding == null || activeTerraceUndoStart < 0) {
+            return;
+        }
+
+        int currentUndoSize = UndoRedoHandler.getInstance().getUndoCommands().size();
+        int undoDelta = currentUndoSize - activeTerraceUndoStart;
+        if (undoDelta > 0) {
+            UndoRedoHandler.getInstance().undo(undoDelta);
+        }
+
+        TerraceSplitResult result = controller.executeInternalTerraceSplitAtClick(activeTerraceSourceBuilding, terraceParts);
+        if (!result.isSuccess()) {
+            activeTerraceSourceBuilding = null;
+            activeTerraceUndoStart = -1;
+            return;
+        }
+
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.requestFocusInWindow();
+        }
     }
 
     private int keyCodeToDigit(int keyCode) {

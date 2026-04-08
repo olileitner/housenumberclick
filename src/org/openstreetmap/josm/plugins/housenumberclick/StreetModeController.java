@@ -747,7 +747,7 @@ final class StreetModeController {
             return result;
         }
 
-        dataSet.setSelected(Collections.emptyList());
+        dataSet.setSelected(result.getResultWays());
         return result;
     }
 
