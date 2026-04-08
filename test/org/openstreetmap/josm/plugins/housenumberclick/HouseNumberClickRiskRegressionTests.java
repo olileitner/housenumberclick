@@ -24,58 +24,67 @@ public final class HouseNumberClickRiskRegressionTests {
         // Utility class
     }
 
-    public static void main(String[] args) throws Exception {
-        ensurePreferences();
-        run("AddressSelection normalizes values and step", HouseNumberClickRiskRegressionTests::testAddressSelectionNormalization);
-        run("HouseNumberService normalizes and sanitizes step", HouseNumberClickRiskRegressionTests::testHouseNumberNormalizationAndStepSanitizing);
-        run("HouseNumberService apply increment keeps existing behavior", HouseNumberClickRiskRegressionTests::testHouseNumberIncrementAfterApplyRules);
-        run("HouseNumberService number and letter part updates", HouseNumberClickRiskRegressionTests::testHouseNumberPartUpdateRules);
-        run("AddressReadbackService reads address tags from building", HouseNumberClickRiskRegressionTests::testAddressReadbackFromBuilding);
-        run("AddressReadbackService street fallback keeps postcode/buildingType", HouseNumberClickRiskRegressionTests::testAddressReadbackStreetFallback);
-        run("AddressReadbackService candidate fallback order", HouseNumberClickRiskRegressionTests::testAddressReadbackCandidateOrderAndMissingTags);
-        run("AddressConflictService detects street and postcode conflicts", HouseNumberClickRiskRegressionTests::testAddressConflictDetection);
-        run("AddressConflictService handles missing tags and partial differences", HouseNumberClickRiskRegressionTests::testAddressConflictEdgeCases);
-        run("ConflictDialogModelBuilder keeps field order and value mapping", HouseNumberClickRiskRegressionTests::testConflictDialogModelBuilderMapping);
-        run("ConflictDialogModelBuilder handles empty analysis", HouseNumberClickRiskRegressionTests::testConflictDialogModelBuilderEmpty);
-        run("HouseNumberOverview duplicate marker ignores mixed variants", HouseNumberClickRiskRegressionTests::testOverviewDuplicateMarkerIgnoresMixedVariants);
-        run("HouseNumberOverview duplicate marker tracks exact repeats", HouseNumberClickRiskRegressionTests::testOverviewDuplicateMarkerTracksExactRepeats);
-        run("HouseNumberOverview duplicate rows expose grouped primitives", HouseNumberClickRiskRegressionTests::testOverviewDuplicateRowCarriesGroupedPrimitives);
-        run("DataSet transition detection is stable", HouseNumberClickRiskRegressionTests::testDataSetChangeDetection);
-        run("Single split fails without dataset", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithoutDataset);
-        run("Single split fails for open way", HouseNumberClickRiskRegressionTests::testSingleSplitFailsForOpenWay);
-        run("Single split fails without building tag", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithoutBuildingTag);
-        run("Single split fails with zero intersections", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithZeroIntersections);
-        run("Single split fails with one intersection", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithOneIntersection);
-        run("Single split fails with more than two intersections", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithMoreThanTwoIntersections);
-        run("Single split succeeds with exactly two intersections", HouseNumberClickRiskRegressionTests::testSingleSplitSucceedsWithTwoIntersections);
-        run("Single split reuses exact corner nodes", HouseNumberClickRiskRegressionTests::testSingleSplitReusesExactCornerNodes);
-        run("Single split reuses one snapped node and inserts one node", HouseNumberClickRiskRegressionTests::testSingleSplitReusesOneNodeAndInsertsOne);
-        run("Single split inserts node when snap is outside tolerance", HouseNumberClickRiskRegressionTests::testSingleSplitOutsideToleranceInsertsNode);
-        run("Single split adjacency protection remains active with snapping", HouseNumberClickRiskRegressionTests::testSingleSplitAdjacencyProtectionWithSnap);
-        run("Terrace split succeeds with parts=2", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithTwoParts);
-        run("Terrace split succeeds with parts=4", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithFourParts);
-        run("Terrace split fails for invalid parts", HouseNumberClickRiskRegressionTests::testTerraceSplitFailsForInvalidParts);
-        run("Terrace split result order is deterministic", HouseNumberClickRiskRegressionTests::testTerraceSplitOrderIsDeterministic);
-        run("Split building button triggers internal flow hook", HouseNumberClickRiskRegressionTests::testSplitBuildingButtonTriggersInternalFlowHook);
-        run("Create row houses button triggers internal flow hook with parts", HouseNumberClickRiskRegressionTests::testCreateRowHousesButtonTriggersInternalFlowHook);
-        run("Dialog split actions fail cleanly without dataset", HouseNumberClickRiskRegressionTests::testDialogSplitActionsFailWithoutDataset);
-        run("New dialog split paths avoid bridge and detector", HouseNumberClickRiskRegressionTests::testDialogSplitPathsAvoidBridgeAndDetector);
-        run("Split flow returns to street mode on success", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnSuccess);
-        run("Split flow returns to street mode on failure", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnFailure);
-        run("Split flow returns to street mode on cancel", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnCancel);
-        run("Split flow keeps mode state signaling consistent", HouseNumberClickRiskRegressionTests::testSplitFlowModeStateSignalingConsistency);
-        run("Scan limit defaults are used when unset", HouseNumberClickRiskRegressionTests::testScanLimitDefaultsWhenUnset);
-        run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
-        run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
-        run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
-        run("Main dialog close cleanup is safe", HouseNumberClickRiskRegressionTests::testMainDialogCloseCleanupIsSafe);
-        run("Rescan refresh entrypoint is safe", HouseNumberClickRiskRegressionTests::testRescanRefreshEntrypointIsSafe);
-        run("Create building overview layer entrypoint is safe", HouseNumberClickRiskRegressionTests::testCreateBuildingOverviewLayerEntrypointIsSafe);
-        run("Table click continue hook is safe", HouseNumberClickRiskRegressionTests::testTableClickContinueHookIsSafe);
-        run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
-        run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
-        run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
-        System.out.println("All HouseNumberClick risk regression tests passed.");
+    public static void main(String[] args) {
+        int exitCode = 0;
+        try {
+            ensurePreferences();
+            run("AddressSelection normalizes values and step", HouseNumberClickRiskRegressionTests::testAddressSelectionNormalization);
+            run("HouseNumberService normalizes and sanitizes step", HouseNumberClickRiskRegressionTests::testHouseNumberNormalizationAndStepSanitizing);
+            run("HouseNumberService apply increment keeps existing behavior", HouseNumberClickRiskRegressionTests::testHouseNumberIncrementAfterApplyRules);
+            run("HouseNumberService number and letter part updates", HouseNumberClickRiskRegressionTests::testHouseNumberPartUpdateRules);
+            run("AddressReadbackService reads address tags from building", HouseNumberClickRiskRegressionTests::testAddressReadbackFromBuilding);
+            run("AddressReadbackService street fallback keeps postcode/buildingType", HouseNumberClickRiskRegressionTests::testAddressReadbackStreetFallback);
+            run("AddressReadbackService candidate fallback order", HouseNumberClickRiskRegressionTests::testAddressReadbackCandidateOrderAndMissingTags);
+            run("AddressConflictService detects street and postcode conflicts", HouseNumberClickRiskRegressionTests::testAddressConflictDetection);
+            run("AddressConflictService handles missing tags and partial differences", HouseNumberClickRiskRegressionTests::testAddressConflictEdgeCases);
+            run("ConflictDialogModelBuilder keeps field order and value mapping", HouseNumberClickRiskRegressionTests::testConflictDialogModelBuilderMapping);
+            run("ConflictDialogModelBuilder handles empty analysis", HouseNumberClickRiskRegressionTests::testConflictDialogModelBuilderEmpty);
+            run("HouseNumberOverview duplicate marker ignores mixed variants", HouseNumberClickRiskRegressionTests::testOverviewDuplicateMarkerIgnoresMixedVariants);
+            run("HouseNumberOverview duplicate marker tracks exact repeats", HouseNumberClickRiskRegressionTests::testOverviewDuplicateMarkerTracksExactRepeats);
+            run("HouseNumberOverview duplicate rows expose grouped primitives", HouseNumberClickRiskRegressionTests::testOverviewDuplicateRowCarriesGroupedPrimitives);
+            run("DataSet transition detection is stable", HouseNumberClickRiskRegressionTests::testDataSetChangeDetection);
+            run("Single split fails without dataset", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithoutDataset);
+            run("Single split fails for open way", HouseNumberClickRiskRegressionTests::testSingleSplitFailsForOpenWay);
+            run("Single split fails without building tag", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithoutBuildingTag);
+            run("Single split fails with zero intersections", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithZeroIntersections);
+            run("Single split fails with one intersection", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithOneIntersection);
+            run("Single split fails with more than two intersections", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithMoreThanTwoIntersections);
+            run("Single split succeeds with exactly two intersections", HouseNumberClickRiskRegressionTests::testSingleSplitSucceedsWithTwoIntersections);
+            run("Single split reuses exact corner nodes", HouseNumberClickRiskRegressionTests::testSingleSplitReusesExactCornerNodes);
+            run("Single split reuses one snapped node and inserts one node", HouseNumberClickRiskRegressionTests::testSingleSplitReusesOneNodeAndInsertsOne);
+            run("Single split inserts node when snap is outside tolerance", HouseNumberClickRiskRegressionTests::testSingleSplitOutsideToleranceInsertsNode);
+            run("Single split adjacency protection remains active with snapping", HouseNumberClickRiskRegressionTests::testSingleSplitAdjacencyProtectionWithSnap);
+            run("Terrace split succeeds with parts=2", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithTwoParts);
+            run("Terrace split succeeds with parts=4", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithFourParts);
+            run("Terrace split fails for invalid parts", HouseNumberClickRiskRegressionTests::testTerraceSplitFailsForInvalidParts);
+            run("Terrace split result order is deterministic", HouseNumberClickRiskRegressionTests::testTerraceSplitOrderIsDeterministic);
+            run("Split building button triggers internal flow hook", HouseNumberClickRiskRegressionTests::testSplitBuildingButtonTriggersInternalFlowHook);
+            run("Create row houses button triggers internal flow hook with parts", HouseNumberClickRiskRegressionTests::testCreateRowHousesButtonTriggersInternalFlowHook);
+            run("Dialog split actions fail cleanly without dataset", HouseNumberClickRiskRegressionTests::testDialogSplitActionsFailWithoutDataset);
+            run("New dialog split paths avoid bridge and detector", HouseNumberClickRiskRegressionTests::testDialogSplitPathsAvoidBridgeAndDetector);
+            run("Split flow returns to street mode on success", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnSuccess);
+            run("Split flow returns to street mode on failure", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnFailure);
+            run("Split flow returns to street mode on cancel", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnCancel);
+            run("Split flow keeps mode state signaling consistent", HouseNumberClickRiskRegressionTests::testSplitFlowModeStateSignalingConsistency);
+            run("Scan limit defaults are used when unset", HouseNumberClickRiskRegressionTests::testScanLimitDefaultsWhenUnset);
+            run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
+            run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
+            run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
+            run("Main dialog close cleanup is safe", HouseNumberClickRiskRegressionTests::testMainDialogCloseCleanupIsSafe);
+            run("Rescan refresh entrypoint is safe", HouseNumberClickRiskRegressionTests::testRescanRefreshEntrypointIsSafe);
+            run("Create building overview layer entrypoint is safe", HouseNumberClickRiskRegressionTests::testCreateBuildingOverviewLayerEntrypointIsSafe);
+            run("Table click continue hook is safe", HouseNumberClickRiskRegressionTests::testTableClickContinueHookIsSafe);
+            run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
+            run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
+            run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
+            System.out.println("All HouseNumberClick risk regression tests passed.");
+        } catch (Throwable t) {
+            exitCode = 1;
+            t.printStackTrace(System.err);
+        } finally {
+            // JOSM helper threads can keep the JVM alive after tests complete.
+            System.exit(exitCode);
+        }
     }
 
     private static void testHouseNumberNormalizationAndStepSanitizing() {

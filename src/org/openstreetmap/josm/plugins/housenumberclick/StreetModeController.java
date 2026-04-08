@@ -168,6 +168,21 @@ final class StreetModeController {
         map.selectMapMode(streetMapMode);
     }
 
+    boolean activateBuildingSplitterWithCurrentAddress() {
+        return activateBuildingSplitterWithAddress(currentStreet, currentPostcode);
+    }
+
+    boolean activateBuildingSplitterWithAddress(String street, String postcode) {
+        String normalizedStreet = street == null ? "" : street.trim();
+        String normalizedPostcode = postcode == null ? "" : postcode.trim();
+        boolean activated = BuildingSplitterBridge.activateBuildingSplitter(normalizedStreet, normalizedPostcode);
+        if (!activated) {
+            Logging.info("HouseNumberClick StreetModeController.activateBuildingSplitterWithAddress: activation failed, street={0}, postcode={1}",
+                    normalizedStreet, normalizedPostcode);
+        }
+        return activated;
+    }
+
     void setHouseNumberUpdateListener(HouseNumberUpdateListener listener) {
         this.houseNumberUpdateListener = listener;
     }
