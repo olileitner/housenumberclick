@@ -202,9 +202,9 @@ final class HouseNumberSplitMapMode extends MapMode {
 
         if (dragEnd != null) {
             SingleSplitResult result = controller.executeInternalSingleSplit(splitStart, dragEnd);
-            completeWithOutcome(result.isSuccess()
-                    ? StreetModeController.SplitFlowOutcome.SUCCESS
-                    : StreetModeController.SplitFlowOutcome.FAILED);
+            if (result.isSuccess()) {
+                completeWithOutcome(StreetModeController.SplitFlowOutcome.SUCCESS);
+            }
         } else {
             completeWithOutcome(StreetModeController.SplitFlowOutcome.CANCELLED);
         }
