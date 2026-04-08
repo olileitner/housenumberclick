@@ -13,6 +13,8 @@ import java.awt.KeyboardFocusManager;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.function.BooleanSupplier;
+import java.util.function.IntFunction;
 import java.util.Arrays;
 import java.util.List;
 
@@ -63,8 +65,9 @@ final class StreetSelectionDialog {
     private final JCheckBox showHouseNumberOverviewCheckbox;
     private final JCheckBox showStreetHouseNumberCountsCheckbox;
     private final JCheckBox zoomToSelectedStreetCheckbox;
-    private final JLabel buildingSplitterStatusLabel;
     private final JButton splitBuildingButton;
+    private final JButton createRowHousesButton;
+    private final JTextField rowHousePartsField;
     private int houseNumberIncrementStep = 1;
     private String lastSelectedStreet;
     private String rememberedStreet;
@@ -217,14 +220,35 @@ final class StreetSelectionDialog {
         modeStatePanel.add(modeStateLabel, BorderLayout.WEST);
         modeStatePanel.add(continueWorkingButton, BorderLayout.EAST);
 
-        JPanel buildingSplitterPanel = new JPanel(new BorderLayout(8, 0));
-        this.buildingSplitterStatusLabel = new JLabel();
+        JPanel splitToolsPanel = new JPanel(new GridBagLayout());
         this.splitBuildingButton = new JButton(I18n.tr("Split building"));
-        this.splitBuildingButton.setEnabled(false);
         this.splitBuildingButton.addActionListener(e -> onSplitBuildingRequested());
+        this.createRowHousesButton = new JButton(I18n.tr("Create row houses"));
+        this.createRowHousesButton.addActionListener(e -> onCreateRowHousesRequested());
+        this.rowHousePartsField = new JTextField("4", 4);
         harmonizePrimaryActionButtonWidths();
-        buildingSplitterPanel.add(splitBuildingButton, BorderLayout.WEST);
-        buildingSplitterPanel.add(buildingSplitterStatusLabel, BorderLayout.CENTER);
+
+        GridBagConstraints splitGbc = new GridBagConstraints();
+        splitGbc.gridx = 0;
+        splitGbc.gridy = 0;
+        splitGbc.anchor = GridBagConstraints.WEST;
+        splitGbc.insets = new Insets(0, 0, 4, 8);
+        splitToolsPanel.add(splitBuildingButton, splitGbc);
+
+        splitGbc.gridx = 0;
+        splitGbc.gridy = 1;
+        splitGbc.insets = new Insets(0, 0, 0, 8);
+        splitToolsPanel.add(createRowHousesButton, splitGbc);
+
+        splitGbc.gridx = 1;
+        splitGbc.insets = new Insets(0, 0, 0, 4);
+        splitToolsPanel.add(new JLabel(I18n.tr("Parts:")), splitGbc);
+
+        splitGbc.gridx = 2;
+        splitGbc.weightx = 1.0;
+        splitGbc.fill = GridBagConstraints.HORIZONTAL;
+        splitGbc.insets = new Insets(0, 0, 0, 0);
+        splitToolsPanel.add(rowHousePartsField, splitGbc);
 
         JPanel sectionsPanel = new JPanel(new GridBagLayout());
         GridBagConstraints sectionGbc = new GridBagConstraints();
@@ -251,7 +275,7 @@ final class StreetSelectionDialog {
 
         sectionGbc.gridy = 4;
         sectionGbc.insets = new Insets(6, 0, 0, 0);
-        sectionsPanel.add(createAdvancedToolsSection(buildingSplitterPanel), sectionGbc);
+        sectionsPanel.add(createAdvancedToolsSection(splitToolsPanel), sectionGbc);
 
         sectionGbc.gridy = 5;
         sectionGbc.insets = new Insets(6, 0, 0, 0);
@@ -282,7 +306,6 @@ final class StreetSelectionDialog {
                 closeDialog();
             }
         });
-        refreshBuildingSplitterAvailability();
     }
 
     static void showNoDataSetMessage() {
@@ -347,7 +370,6 @@ final class StreetSelectionDialog {
         notifyStreetHouseNumberCountsChanged();
         notifyZoomToSelectedStreetChanged();
         refreshModeStateUi(streetModeController.isActive());
-        refreshBuildingSplitterAvailability();
         refreshOverviewButtonLabel();
 
         if (!dialog.isVisible()) {
@@ -648,17 +670,6 @@ final class StreetSelectionDialog {
         }
     }
 
-    private void refreshBuildingSplitterAvailability() {
-        if (buildingSplitterStatusLabel == null || splitBuildingButton == null) {
-            return;
-        }
-        boolean buildingSplitterAvailable = BuildingSplitterDetector.isBuildingSplitterAvailable();
-        buildingSplitterStatusLabel.setText(buildingSplitterAvailable ? "" : I18n.tr("Requires Building Splitter plugin"));
-        buildingSplitterStatusLabel.setVisible(!buildingSplitterAvailable);
-        splitBuildingButton.setVisible(buildingSplitterAvailable);
-        splitBuildingButton.setEnabled(buildingSplitterAvailable);
-    }
-
     private JPanel createAddressSection(JPanel incrementButtonsPanel) {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createTitledBorder(I18n.tr("Address")));
@@ -804,10 +815,10 @@ final class StreetSelectionDialog {
         return panel;
     }
 
-    private JPanel createAdvancedToolsSection(JPanel buildingSplitterPanel) {
+    private JPanel createAdvancedToolsSection(JPanel splitToolsPanel) {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createTitledBorder(I18n.tr("Extra tools")));
-        panel.add(buildingSplitterPanel, BorderLayout.CENTER);
+        panel.add(splitToolsPanel, BorderLayout.CENTER);
         return panel;
     }
 
@@ -829,14 +840,46 @@ final class StreetSelectionDialog {
     }
 
     private void onSplitBuildingRequested() {
-        if (streetModeController.activateBuildingSplitterWithAddress(resolveStreetForSplitter(), postcodeField.getText())) {
-            refreshBuildingSplitterAvailability();
-            return;
+        runSplitBuildingAction(streetModeController::startInternalSingleSplitFlowFromDialog);
+    }
+
+    private void onCreateRowHousesRequested() {
+        TerraceSplitResult result = runCreateRowHousesAction(
+                rowHousePartsField.getText(),
+                streetModeController::executeInternalTerraceSplitFromDialog
+        );
+        if (!result.isSuccess()) {
+            new Notification(I18n.tr(result.getMessage()))
+                    .setDuration(Notification.TIME_SHORT)
+                    .show();
         }
-        refreshBuildingSplitterAvailability();
-        new Notification(I18n.tr("Could not activate Building Splitter."))
-                .setDuration(Notification.TIME_SHORT)
-                .show();
+    }
+
+    static boolean runSplitBuildingAction(BooleanSupplier action) {
+        return action != null && action.getAsBoolean();
+    }
+
+    static TerraceSplitResult runCreateRowHousesAction(String rawParts, IntFunction<TerraceSplitResult> action) {
+        int parts = parseTerraceParts(rawParts);
+        if (parts < 2) {
+            return TerraceSplitResult.failure("Create row houses requires parts >= 2.");
+        }
+        if (action == null) {
+            return TerraceSplitResult.failure("Create row houses action is unavailable.");
+        }
+        return action.apply(parts);
+    }
+
+    static int parseTerraceParts(String rawParts) {
+        String normalized = normalizeStatic(rawParts);
+        if (normalized.isEmpty()) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(normalized);
+        } catch (NumberFormatException ex) {
+            return -1;
+        }
     }
 
     private void onCreateOverviewRequested() {
@@ -868,19 +911,15 @@ final class StreetSelectionDialog {
     }
 
     private void harmonizePrimaryActionButtonWidths() {
-        if (createOverviewButton == null || splitBuildingButton == null) {
+        if (createOverviewButton == null || splitBuildingButton == null || createRowHousesButton == null) {
             return;
         }
         int width = Math.max(createOverviewButton.getPreferredSize().width, splitBuildingButton.getPreferredSize().width);
+        width = Math.max(width, createRowHousesButton.getPreferredSize().width);
         width += 10;
         createOverviewButton.setPreferredSize(new Dimension(width, createOverviewButton.getPreferredSize().height));
         splitBuildingButton.setPreferredSize(new Dimension(width, splitBuildingButton.getPreferredSize().height));
-    }
-
-    private String resolveStreetForSplitter() {
-        Object editorValue = streetCombo.getEditor() != null ? streetCombo.getEditor().getItem() : null;
-        String editorStreet = editorValue == null ? "" : normalize(editorValue.toString());
-        return firstNonEmpty(getSelectedStreet(), firstNonEmpty(editorStreet, rememberedStreet));
+        createRowHousesButton.setPreferredSize(new Dimension(width, createRowHousesButton.getPreferredSize().height));
     }
 
     private void applyIncrementStep(int incrementStep) {
@@ -1017,6 +1056,10 @@ final class StreetSelectionDialog {
     }
 
     private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static String normalizeStatic(String value) {
         return value == null ? "" : value.trim();
     }
 

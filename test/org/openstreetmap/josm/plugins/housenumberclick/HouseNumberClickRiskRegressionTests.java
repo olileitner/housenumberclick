@@ -2,6 +2,8 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.awt.Component;
 import java.awt.event.MouseEvent;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,12 +17,6 @@ import org.openstreetmap.josm.spi.preferences.Config;
 
 public final class HouseNumberClickRiskRegressionTests {
 
-    private static final String HANDOFF_STREET_KEY = "housenumberclick.buildingsplitter.handoff.street";
-    private static final String HANDOFF_POSTCODE_KEY = "housenumberclick.buildingsplitter.handoff.postcode";
-    private static final String HANDOFF_PENDING_KEY = "housenumberclick.buildingsplitter.handoff.pending";
-    private static final String HANDOFF_TIMESTAMP_KEY = "housenumberclick.buildingsplitter.handoff.timestamp";
-    private static final String HANDOFF_SESSION_KEY = "housenumberclick.buildingsplitter.handoff.session";
-    private static final String FORCE_PREFERENCE_FALLBACK_KEY = "housenumberclick.buildingsplitter.forcePreferenceFallback";
     private static final String RELATION_SCAN_LIMIT_KEY = BuildingResolver.PREF_RELATION_SCAN_LIMIT;
     private static final String WAY_SCAN_LIMIT_KEY = BuildingResolver.PREF_WAY_SCAN_LIMIT;
 
@@ -45,9 +41,29 @@ public final class HouseNumberClickRiskRegressionTests {
         run("HouseNumberOverview duplicate marker tracks exact repeats", HouseNumberClickRiskRegressionTests::testOverviewDuplicateMarkerTracksExactRepeats);
         run("HouseNumberOverview duplicate rows expose grouped primitives", HouseNumberClickRiskRegressionTests::testOverviewDuplicateRowCarriesGroupedPrimitives);
         run("DataSet transition detection is stable", HouseNumberClickRiskRegressionTests::testDataSetChangeDetection);
-        run("BuildingSplitter stale fallback is discarded", HouseNumberClickRiskRegressionTests::testStaleFallbackIsCleared);
-        run("BuildingSplitter fresh fallback is kept", HouseNumberClickRiskRegressionTests::testFreshFallbackIsKept);
-        run("Successful reflection handoff clears fallback", HouseNumberClickRiskRegressionTests::testReflectionHandoffClearsFallback);
+        run("Single split fails without dataset", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithoutDataset);
+        run("Single split fails for open way", HouseNumberClickRiskRegressionTests::testSingleSplitFailsForOpenWay);
+        run("Single split fails without building tag", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithoutBuildingTag);
+        run("Single split fails with zero intersections", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithZeroIntersections);
+        run("Single split fails with one intersection", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithOneIntersection);
+        run("Single split fails with more than two intersections", HouseNumberClickRiskRegressionTests::testSingleSplitFailsWithMoreThanTwoIntersections);
+        run("Single split succeeds with exactly two intersections", HouseNumberClickRiskRegressionTests::testSingleSplitSucceedsWithTwoIntersections);
+        run("Single split reuses exact corner nodes", HouseNumberClickRiskRegressionTests::testSingleSplitReusesExactCornerNodes);
+        run("Single split reuses one snapped node and inserts one node", HouseNumberClickRiskRegressionTests::testSingleSplitReusesOneNodeAndInsertsOne);
+        run("Single split inserts node when snap is outside tolerance", HouseNumberClickRiskRegressionTests::testSingleSplitOutsideToleranceInsertsNode);
+        run("Single split adjacency protection remains active with snapping", HouseNumberClickRiskRegressionTests::testSingleSplitAdjacencyProtectionWithSnap);
+        run("Terrace split succeeds with parts=2", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithTwoParts);
+        run("Terrace split succeeds with parts=4", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithFourParts);
+        run("Terrace split fails for invalid parts", HouseNumberClickRiskRegressionTests::testTerraceSplitFailsForInvalidParts);
+        run("Terrace split result order is deterministic", HouseNumberClickRiskRegressionTests::testTerraceSplitOrderIsDeterministic);
+        run("Split building button triggers internal flow hook", HouseNumberClickRiskRegressionTests::testSplitBuildingButtonTriggersInternalFlowHook);
+        run("Create row houses button triggers internal flow hook with parts", HouseNumberClickRiskRegressionTests::testCreateRowHousesButtonTriggersInternalFlowHook);
+        run("Dialog split actions fail cleanly without dataset", HouseNumberClickRiskRegressionTests::testDialogSplitActionsFailWithoutDataset);
+        run("New dialog split paths avoid bridge and detector", HouseNumberClickRiskRegressionTests::testDialogSplitPathsAvoidBridgeAndDetector);
+        run("Split flow returns to street mode on success", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnSuccess);
+        run("Split flow returns to street mode on failure", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnFailure);
+        run("Split flow returns to street mode on cancel", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnCancel);
+        run("Split flow keeps mode state signaling consistent", HouseNumberClickRiskRegressionTests::testSplitFlowModeStateSignalingConsistency);
         run("Scan limit defaults are used when unset", HouseNumberClickRiskRegressionTests::testScanLimitDefaultsWhenUnset);
         run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
         run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
@@ -336,54 +352,6 @@ public final class HouseNumberClickRiskRegressionTests {
         assertFalse(StreetSelectionDialog.isDataSetChanged(null, null), "both null should be treated as unchanged");
     }
 
-    private static void testStaleFallbackIsCleared() throws Exception {
-        clearHandoffPrefs();
-        Config.getPref().put(HANDOFF_STREET_KEY, "Old Street");
-        Config.getPref().put(HANDOFF_POSTCODE_KEY, "11111");
-        Config.getPref().putBoolean(HANDOFF_PENDING_KEY, true);
-        Config.getPref().put(HANDOFF_TIMESTAMP_KEY, Long.toString(System.currentTimeMillis() - (10L * 60L * 1000L)));
-        Config.getPref().put(HANDOFF_SESSION_KEY, "other-session");
-
-        invokeClearStaleFallback();
-
-        assertEmpty(Config.getPref().get(HANDOFF_STREET_KEY, ""), "stale street should be cleared");
-        assertEmpty(Config.getPref().get(HANDOFF_POSTCODE_KEY, ""), "stale postcode should be cleared");
-        assertFalse(Config.getPref().getBoolean(HANDOFF_PENDING_KEY, false), "stale pending flag should be cleared");
-    }
-
-    private static void testFreshFallbackIsKept() throws Exception {
-        clearHandoffPrefs();
-        Config.getPref().put(HANDOFF_STREET_KEY, "Fresh Street");
-        Config.getPref().put(HANDOFF_POSTCODE_KEY, "22222");
-        Config.getPref().putBoolean(HANDOFF_PENDING_KEY, true);
-        Config.getPref().put(HANDOFF_TIMESTAMP_KEY, Long.toString(System.currentTimeMillis()));
-        Config.getPref().put(HANDOFF_SESSION_KEY, "");
-
-        invokeClearStaleFallback();
-
-        assertEquals("Fresh Street", Config.getPref().get(HANDOFF_STREET_KEY, ""), "fresh street should stay");
-        assertEquals("22222", Config.getPref().get(HANDOFF_POSTCODE_KEY, ""), "fresh postcode should stay");
-        assertTrue(Config.getPref().getBoolean(HANDOFF_PENDING_KEY, false), "fresh pending flag should stay");
-    }
-
-    private static void testReflectionHandoffClearsFallback() throws Exception {
-        clearHandoffPrefs();
-        Config.getPref().put(HANDOFF_STREET_KEY, "Will Be Cleared");
-        Config.getPref().put(HANDOFF_POSTCODE_KEY, "33333");
-        Config.getPref().putBoolean(HANDOFF_PENDING_KEY, true);
-        Config.getPref().put(HANDOFF_TIMESTAMP_KEY, Long.toString(System.currentTimeMillis()));
-        Config.getPref().put(HANDOFF_SESSION_KEY, "session-for-test");
-        Config.getPref().putBoolean(FORCE_PREFERENCE_FALLBACK_KEY, false);
-
-        Method publish = BuildingSplitterBridge.class.getDeclaredMethod("publishAddressContext", String.class, String.class);
-        publish.setAccessible(true);
-        publish.invoke(null, "Live Street", "44444");
-
-        assertEmpty(Config.getPref().get(HANDOFF_STREET_KEY, ""), "fallback street should be cleared on successful reflection handoff");
-        assertEmpty(Config.getPref().get(HANDOFF_POSTCODE_KEY, ""), "fallback postcode should be cleared on successful reflection handoff");
-        assertFalse(Config.getPref().getBoolean(HANDOFF_PENDING_KEY, false), "fallback pending should be cleared on successful reflection handoff");
-    }
-
     private static void testScanLimitDefaultsWhenUnset() {
         Config.getPref().put(RELATION_SCAN_LIMIT_KEY, null);
         Config.getPref().put(WAY_SCAN_LIMIT_KEY, null);
@@ -561,9 +529,7 @@ public final class HouseNumberClickRiskRegressionTests {
         return way;
     }
 
-    private static void clearHandoffPrefs() {
-        BuildingSplitterBridge.clearPreferenceFallback();
-        Config.getPref().put(FORCE_PREFERENCE_FALLBACK_KEY, null);
+    private static void clearTestPrefs() {
         Config.getPref().put(RELATION_SCAN_LIMIT_KEY, null);
         Config.getPref().put(WAY_SCAN_LIMIT_KEY, null);
     }
@@ -575,12 +541,6 @@ public final class HouseNumberClickRiskRegressionTests {
         Preferences preferences = new Preferences();
         preferences.enableSaveOnPut(false);
         Config.setPreferencesInstance(preferences);
-    }
-
-    private static void invokeClearStaleFallback() throws Exception {
-        Method clear = BuildingSplitterBridge.class.getDeclaredMethod("clearStalePreferenceFallback");
-        clear.setAccessible(true);
-        clear.invoke(null);
     }
 
     private static MouseEvent newMouseRelease(long when, int x, int y, int button, int modifiersEx) {
@@ -602,7 +562,7 @@ public final class HouseNumberClickRiskRegressionTests {
             runnable.run();
             System.out.println("[PASS] " + name);
         } finally {
-            clearHandoffPrefs();
+            clearTestPrefs();
         }
     }
 
@@ -622,16 +582,468 @@ public final class HouseNumberClickRiskRegressionTests {
         }
     }
 
-    private static void assertEmpty(String actual, String message) {
-        if (actual != null && !actual.trim().isEmpty()) {
-            throw new AssertionError(message + " actual=<" + actual + ">");
-        }
-    }
-
     @FunctionalInterface
     private interface ThrowingRunnable {
         void run() throws Exception;
     }
+
+    private static void testSingleSplitFailsWithoutDataset() {
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                null,
+                null,
+                new LatLon(0.0, 0.0),
+                new LatLon(1.0, 1.0),
+                SplitContext.empty()
+        );
+        assertFalse(result.isSuccess(), "split should fail when dataset is missing");
+    }
+
+    private static void testSingleSplitFailsForOpenWay() {
+        DataSet dataSet = new DataSet();
+        Way openWay = createOpenStreetWay("Open Way", true);
+        openWay.put("building", "yes");
+        dataSet.addPrimitiveRecursive(openWay);
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                openWay,
+                new LatLon(0.0, 0.0),
+                new LatLon(1.0, 1.0),
+                SplitContext.empty()
+        );
+        assertFalse(result.isSuccess(), "split should fail for open ways");
+    }
+
+    private static void testSingleSplitFailsWithoutBuildingTag() {
+        DataSet dataSet = new DataSet();
+        Way buildingLike = createClosedWay(
+                List.of(
+                        new LatLon(0.0, 0.0),
+                        new LatLon(0.0, 0.0001),
+                        new LatLon(0.0001, 0.0001),
+                        new LatLon(0.0001, 0.0),
+                        new LatLon(0.0, 0.0)
+                ),
+                false
+        );
+        dataSet.addPrimitiveRecursive(buildingLike);
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                buildingLike,
+                new LatLon(-0.0001, -0.0001),
+                new LatLon(0.0002, 0.0002),
+                SplitContext.empty()
+        );
+        assertFalse(result.isSuccess(), "split should fail when building tag is missing");
+    }
+
+    private static void testSingleSplitFailsWithZeroIntersections() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                building,
+                new LatLon(1.0, 1.0),
+                new LatLon(1.1, 1.1),
+                SplitContext.empty()
+        );
+        assertFalse(result.isSuccess(), "split should fail when line does not intersect building");
+    }
+
+    private static void testSingleSplitFailsWithOneIntersection() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                building,
+                new LatLon(-0.0002, -0.0002),
+                new LatLon(0.0, 0.0),
+                SplitContext.empty()
+        );
+        assertFalse(result.isSuccess(), "split should fail when line touches building only once");
+    }
+
+    private static void testSingleSplitFailsWithMoreThanTwoIntersections() {
+        DataSet dataSet = new DataSet();
+        Way building = createConcaveBuildingForMultiIntersection();
+        dataSet.addPrimitiveRecursive(building);
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                building,
+                new LatLon(0.0002, -0.0001),
+                new LatLon(0.0002, 0.0005),
+                SplitContext.empty()
+        );
+        assertFalse(result.isSuccess(), "split should fail when line intersects building more than twice");
+    }
+
+    private static void testSingleSplitSucceedsWithTwoIntersections() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                building,
+                new LatLon(-0.0001, -0.0001),
+                new LatLon(0.0002, 0.0002),
+                SplitContext.empty()
+        );
+
+        assertTrue(result.isSuccess(), "split should succeed for exactly two valid intersections");
+        assertEquals(2, result.getResultWays().size(), "split should expose two result ways");
+        assertEquals(2, dataSet.getSelectedWays().size(), "result ways should be selected");
+    }
+
+    private static void testSingleSplitReusesExactCornerNodes() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+        int nodesBefore = dataSet.getNodes().size();
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                building,
+                new LatLon(-0.0001, -0.0001),
+                new LatLon(0.0002, 0.0002),
+                SplitContext.empty()
+        );
+
+        assertTrue(result.isSuccess(), "split should succeed when line intersects exact corners");
+        assertEquals(nodesBefore, dataSet.getNodes().size(), "exact-corner split should not insert new nodes");
+    }
+
+    private static void testSingleSplitReusesOneNodeAndInsertsOne() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+        int nodesBefore = dataSet.getNodes().size();
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                building,
+                new LatLon(-0.000042, -0.0001),
+                new LatLon(0.000096, 0.0002),
+                SplitContext.empty()
+        );
+
+        assertTrue(result.isSuccess(), "split should succeed for mixed reuse/insert intersections");
+        assertEquals(nodesBefore + 1, dataSet.getNodes().size(), "exactly one new node should be inserted");
+        assertEquals(2, result.getResultWays().size(), "split should still produce two result ways");
+    }
+
+    private static void testSingleSplitOutsideToleranceInsertsNode() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+        int nodesBefore = dataSet.getNodes().size();
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                building,
+                new LatLon(-0.000020, -0.0001),
+                new LatLon(0.000085, 0.0002),
+                SplitContext.empty()
+        );
+
+        assertTrue(result.isSuccess(), "split should still succeed when intersection is outside snap tolerance");
+        assertEquals(nodesBefore + 2, dataSet.getNodes().size(), "both intersections should create new nodes when outside tolerance");
+    }
+
+    private static void testSingleSplitAdjacencyProtectionWithSnap() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+        int nodesBefore = dataSet.getNodes().size();
+
+        SingleBuildingSplitService service = new SingleBuildingSplitService();
+        SingleSplitResult result = service.splitBuilding(
+                dataSet,
+                building,
+                new LatLon(0.000004, -0.0001),
+                new LatLon(0.000004, 0.0002),
+                SplitContext.empty()
+        );
+
+        assertFalse(result.isSuccess(), "split should fail when snapped nodes become adjacent on outline");
+        assertEquals(nodesBefore, dataSet.getNodes().size(), "adjacency rejection should not leave inserted nodes behind");
+    }
+
+    private static void testTerraceSplitSucceedsWithTwoParts() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+
+        TerraceSplitService service = new TerraceSplitService();
+        TerraceSplitResult result = service.splitBuildingIntoTerrace(
+                dataSet,
+                building,
+                new TerraceSplitRequest(2),
+                SplitContext.empty()
+        );
+
+        assertTrue(result.isSuccess(), "terrace split should succeed for parts=2");
+        assertEquals(2, result.getResultWays().size(), "parts=2 should create exactly two result ways");
+    }
+
+    private static void testTerraceSplitSucceedsWithFourParts() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+
+        TerraceSplitService service = new TerraceSplitService();
+        TerraceSplitResult result = service.splitBuildingIntoTerrace(
+                dataSet,
+                building,
+                new TerraceSplitRequest(4),
+                SplitContext.empty()
+        );
+
+        assertTrue(result.isSuccess(), "terrace split should succeed for parts=4");
+        assertEquals(4, result.getResultWays().size(), "parts=4 should create exactly four result ways");
+    }
+
+    private static void testTerraceSplitFailsForInvalidParts() {
+        DataSet dataSet = new DataSet();
+        Way building = createClosedBuilding("Split Street", "1");
+        dataSet.addPrimitiveRecursive(building);
+
+        TerraceSplitService service = new TerraceSplitService();
+        TerraceSplitResult result = service.splitBuildingIntoTerrace(
+                dataSet,
+                building,
+                new TerraceSplitRequest(1),
+                SplitContext.empty()
+        );
+
+        assertFalse(result.isSuccess(), "terrace split should fail for parts < 2");
+    }
+
+    private static void testTerraceSplitOrderIsDeterministic() {
+        DataSet firstDataSet = new DataSet();
+        Way firstBuilding = createClosedBuilding("Split Street", "1");
+        firstDataSet.addPrimitiveRecursive(firstBuilding);
+
+        DataSet secondDataSet = new DataSet();
+        Way secondBuilding = createClosedBuilding("Split Street", "1");
+        secondDataSet.addPrimitiveRecursive(secondBuilding);
+
+        TerraceSplitService service = new TerraceSplitService();
+        TerraceSplitResult firstResult = service.splitBuildingIntoTerrace(
+                firstDataSet,
+                firstBuilding,
+                new TerraceSplitRequest(4),
+                SplitContext.empty()
+        );
+        TerraceSplitResult secondResult = service.splitBuildingIntoTerrace(
+                secondDataSet,
+                secondBuilding,
+                new TerraceSplitRequest(4),
+                SplitContext.empty()
+        );
+
+        assertTrue(firstResult.isSuccess(), "first terrace split should succeed");
+        assertTrue(secondResult.isSuccess(), "second terrace split should succeed");
+        assertEquals(
+                terraceOrderSignature(firstResult.getResultWays()),
+                terraceOrderSignature(secondResult.getResultWays()),
+                "result ordering should remain stable across identical splits"
+        );
+    }
+
+    private static void testSplitBuildingButtonTriggersInternalFlowHook() {
+        boolean[] called = {false};
+        boolean result = StreetSelectionDialog.runSplitBuildingAction(() -> {
+            called[0] = true;
+            return true;
+        });
+
+        assertTrue(called[0], "split building action should invoke internal flow callback");
+        assertTrue(result, "split building action should return callback result");
+    }
+
+    private static void testCreateRowHousesButtonTriggersInternalFlowHook() {
+        int[] partsSeen = {-1};
+        TerraceSplitResult result = StreetSelectionDialog.runCreateRowHousesAction("4", parts -> {
+            partsSeen[0] = parts;
+            return TerraceSplitResult.success("ok", List.of());
+        });
+
+        assertTrue(result.isSuccess(), "create row houses action should forward valid parts");
+        assertEquals(4, partsSeen[0], "create row houses action should pass parsed parts to internal flow");
+    }
+
+    private static void testDialogSplitActionsFailWithoutDataset() {
+        StreetModeController controller = new StreetModeController();
+
+        boolean splitModeActivated = controller.startInternalSingleSplitFlowFromDialog();
+        assertFalse(splitModeActivated, "split building action should fail cleanly without dataset");
+
+        TerraceSplitResult terraceResult = controller.executeInternalTerraceSplitFromDialog(4);
+        assertFalse(terraceResult.isSuccess(), "create row houses action should fail cleanly without dataset");
+        assertEquals("No editable dataset is available.", terraceResult.getMessage(), "missing dataset failure should be explicit");
+    }
+
+    private static void testDialogSplitPathsAvoidBridgeAndDetector() throws Exception {
+        Path dialogPath = Path.of("src", "org", "openstreetmap", "josm", "plugins", "housenumberclick", "StreetSelectionDialog.java");
+        String source = Files.readString(dialogPath);
+
+        assertFalse(source.contains("activateBuildingSplitterWithAddress("), "new split dialog path must not call bridge activation");
+        assertFalse(source.contains("BuildingSplitterDetector"), "new split dialog path must not depend on detector checks");
+        assertTrue(source.contains("startInternalSingleSplitFlowFromDialog"), "split building button should use internal split flow");
+        assertTrue(source.contains("executeInternalTerraceSplitFromDialog"), "create row houses button should use internal terrace flow");
+    }
+
+    private static void testSplitFlowReturnsToStreetModeOnSuccess() {
+        StreetModeController controller = new StreetModeController();
+        controller.activate(new StreetModeController.AddressSelection("Main Street", "12345", "house", "1", 1));
+
+        int[] returnCalls = {0};
+        controller.setSplitFlowReturnHookForTesting(() -> returnCalls[0]++);
+
+        controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.SUCCESS);
+
+        assertEquals(1, returnCalls[0], "split success should trigger one return-to-street-mode attempt");
+        assertEquals(StreetModeController.SplitFlowOutcome.SUCCESS, controller.getLastSplitFlowOutcomeForTesting(),
+                "last split outcome should track success");
+    }
+
+    private static void testSplitFlowReturnsToStreetModeOnFailure() {
+        StreetModeController controller = new StreetModeController();
+        controller.activate(new StreetModeController.AddressSelection("Main Street", "12345", "house", "1", 1));
+
+        int[] returnCalls = {0};
+        controller.setSplitFlowReturnHookForTesting(() -> returnCalls[0]++);
+
+        controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.FAILED);
+
+        assertEquals(1, returnCalls[0], "split failure should still trigger return-to-street-mode attempt");
+        assertEquals(StreetModeController.SplitFlowOutcome.FAILED, controller.getLastSplitFlowOutcomeForTesting(),
+                "last split outcome should track failure");
+    }
+
+    private static void testSplitFlowReturnsToStreetModeOnCancel() {
+        StreetModeController controller = new StreetModeController();
+        controller.activate(new StreetModeController.AddressSelection("Main Street", "12345", "house", "1", 1));
+
+        int[] returnCalls = {0};
+        controller.setSplitFlowReturnHookForTesting(() -> returnCalls[0]++);
+
+        controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.CANCELLED);
+
+        assertEquals(1, returnCalls[0], "split cancel should trigger return-to-street-mode attempt");
+        assertEquals(StreetModeController.SplitFlowOutcome.CANCELLED, controller.getLastSplitFlowOutcomeForTesting(),
+                "last split outcome should track cancel");
+    }
+
+    private static void testSplitFlowModeStateSignalingConsistency() {
+        StreetModeController controller = new StreetModeController();
+        List<Boolean> states = new ArrayList<>();
+        controller.setModeStateListener(states::add);
+        controller.activate(new StreetModeController.AddressSelection("Main Street", "12345", "house", "1", 1));
+
+        controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.FAILED);
+
+        assertFalse(states.isEmpty(), "mode state listener should receive updates");
+        assertEquals(Boolean.FALSE, states.get(states.size() - 1),
+                "after split completion without map context the mode should be signaled as paused");
+    }
+
+    private static String terraceOrderSignature(List<Way> ways) {
+        List<String> signatures = new ArrayList<>();
+        for (Way way : ways) {
+            signatures.add(String.format("%.10f:%.10f", wayCentroidLat(way), wayCentroidLon(way)));
+        }
+        return String.join("|", signatures);
+    }
+
+    private static double wayCentroidLat(Way way) {
+        List<Node> nodes = openRingNodes(way);
+        if (nodes.isEmpty()) {
+            return Double.POSITIVE_INFINITY;
+        }
+        double sum = 0.0;
+        int count = 0;
+        for (Node node : nodes) {
+            if (node == null || node.getCoor() == null) {
+                continue;
+            }
+            sum += node.getCoor().lat();
+            count++;
+        }
+        return count == 0 ? Double.POSITIVE_INFINITY : sum / count;
+    }
+
+    private static double wayCentroidLon(Way way) {
+        List<Node> nodes = openRingNodes(way);
+        if (nodes.isEmpty()) {
+            return Double.POSITIVE_INFINITY;
+        }
+        double sum = 0.0;
+        int count = 0;
+        for (Node node : nodes) {
+            if (node == null || node.getCoor() == null) {
+                continue;
+            }
+            sum += node.getCoor().lon();
+            count++;
+        }
+        return count == 0 ? Double.POSITIVE_INFINITY : sum / count;
+    }
+
+    private static List<Node> openRingNodes(Way way) {
+        List<Node> nodes = new ArrayList<>(way.getNodes());
+        if (nodes.size() > 1 && nodes.get(0).equals(nodes.get(nodes.size() - 1))) {
+            nodes.remove(nodes.size() - 1);
+        }
+        return nodes;
+    }
+
+    private static Way createClosedWay(List<LatLon> coordinates, boolean addBuildingTag) {
+        Way way = new Way();
+        List<Node> nodes = new ArrayList<>();
+        for (LatLon coordinate : coordinates) {
+            nodes.add(new Node(coordinate));
+        }
+        way.setNodes(nodes);
+        if (addBuildingTag) {
+            way.put("building", "yes");
+        }
+        return way;
+    }
+
+    private static Way createConcaveBuildingForMultiIntersection() {
+        return createClosedWay(
+                List.of(
+                        new LatLon(0.0, 0.0),
+                        new LatLon(0.0, 0.0004),
+                        new LatLon(0.0004, 0.0004),
+                        new LatLon(0.0004, 0.0003),
+                        new LatLon(0.0001, 0.0003),
+                        new LatLon(0.0001, 0.0002),
+                        new LatLon(0.0004, 0.0002),
+                        new LatLon(0.0004, 0.0001),
+                        new LatLon(0.0001, 0.0001),
+                        new LatLon(0.0001, 0.0),
+                        new LatLon(0.0, 0.0)
+                ),
+                true
+        );
+    }
 }
-
-

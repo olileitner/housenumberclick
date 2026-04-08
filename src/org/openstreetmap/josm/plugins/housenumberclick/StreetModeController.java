@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 
+import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
@@ -20,6 +21,12 @@ import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
 final class StreetModeController {
+
+    enum SplitFlowOutcome {
+        SUCCESS,
+        FAILED,
+        CANCELLED
+    }
 
     static final class AddressSelection {
         private final String streetName;
@@ -58,6 +65,7 @@ final class StreetModeController {
     }
 
     private HouseNumberClickStreetMapMode streetMapMode;
+    private HouseNumberSplitMapMode splitMapMode;
     private HouseNumberOverlayLayer houseNumberOverlayLayer;
     private BuildingOverviewLayer buildingOverviewLayer;
     private HouseNumberOverviewDialog houseNumberOverviewDialog;
@@ -65,6 +73,8 @@ final class StreetModeController {
     private final HouseNumberOverlayCollector houseNumberOverlayCollector = new HouseNumberOverlayCollector();
     private final HouseNumberOverviewCollector houseNumberOverviewCollector = new HouseNumberOverviewCollector();
     private final StreetHouseNumberCountCollector streetHouseNumberCountCollector = new StreetHouseNumberCountCollector();
+    private final SingleBuildingSplitService singleBuildingSplitService = new SingleBuildingSplitService();
+    private final TerraceSplitService terraceSplitService = new TerraceSplitService();
     private AddressSelection lastSelection = new AddressSelection("", "", "", "", 1);
     private List<String> streetNavigationOrder = List.of();
     private String currentStreet = "";
@@ -79,6 +89,8 @@ final class StreetModeController {
     private AddressValuesReadListener addressValuesReadListener;
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
     private ModeStateListener modeStateListener;
+    private Runnable splitFlowReturnHook;
+    private SplitFlowOutcome lastSplitFlowOutcome = SplitFlowOutcome.CANCELLED;
 
     interface HouseNumberUpdateListener {
         void onHouseNumberUpdated(String houseNumber);
@@ -154,21 +166,6 @@ final class StreetModeController {
         refreshHouseNumberOverview();
         refreshStreetHouseNumberCounts();
         map.selectMapMode(streetMapMode);
-    }
-
-    boolean activateBuildingSplitterWithCurrentAddress() {
-        return activateBuildingSplitterWithAddress(currentStreet, currentPostcode);
-    }
-
-    boolean activateBuildingSplitterWithAddress(String street, String postcode) {
-        String normalizedStreet = street == null ? "" : street.trim();
-        String normalizedPostcode = postcode == null ? "" : postcode.trim();
-        boolean activated = BuildingSplitterBridge.activateBuildingSplitter(normalizedStreet, normalizedPostcode);
-        if (!activated) {
-            Logging.info("HouseNumberClick StreetModeController.activateBuildingSplitterWithAddress: activation failed, street={0}, postcode={1}",
-                    normalizedStreet, normalizedPostcode);
-        }
-        return activated;
     }
 
     void setHouseNumberUpdateListener(HouseNumberUpdateListener listener) {
@@ -584,6 +581,134 @@ final class StreetModeController {
         }
         removeOverlayLayer();
         deactivate();
+    }
+
+    boolean activateInternalSplitMode() {
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null) {
+            return false;
+        }
+
+        if (splitMapMode == null) {
+            splitMapMode = new HouseNumberSplitMapMode(this);
+        }
+        return map.selectMapMode(splitMapMode);
+    }
+
+    boolean startInternalSingleSplitFlowFromDialog() {
+        if (getActiveEditDataSet() == null) {
+            showNoDataSetNotification();
+            return false;
+        }
+        if (activateInternalSplitMode()) {
+            return true;
+        }
+        new Notification(I18n.tr("Split mode could not be started."))
+                .setDuration(Notification.TIME_SHORT)
+                .show();
+        return false;
+    }
+
+    SingleSplitResult executeInternalSingleSplit(LatLon lineStart, LatLon lineEnd) {
+        DataSet dataSet = getActiveEditDataSet();
+        if (dataSet == null) {
+            return SingleSplitResult.failure("No editable dataset is available.");
+        }
+
+        List<Way> selectedWays = new ArrayList<>(dataSet.getSelectedWays());
+        if (selectedWays.size() != 1) {
+            return SingleSplitResult.failure("Select exactly one closed building way before splitting.");
+        }
+
+        SplitContext splitContext = new SplitContext(currentStreet, currentPostcode);
+        SingleSplitResult result = singleBuildingSplitService.splitBuilding(
+                dataSet,
+                selectedWays.get(0),
+                lineStart,
+                lineEnd,
+                splitContext
+        );
+
+        if (!result.isSuccess()) {
+            new Notification(I18n.tr(result.getMessage()))
+                    .setDuration(Notification.TIME_SHORT)
+                    .show();
+        }
+        return result;
+    }
+
+    TerraceSplitResult executeInternalTerraceSplitFromDialog(int parts) {
+        DataSet dataSet = getActiveEditDataSet();
+        if (dataSet == null) {
+            showNoDataSetNotification();
+            TerraceSplitResult failure = TerraceSplitResult.failure("No editable dataset is available.");
+            onInternalSplitFlowFinished(SplitFlowOutcome.FAILED);
+            return failure;
+        }
+
+        List<Way> selectedWays = new ArrayList<>(dataSet.getSelectedWays());
+        if (selectedWays.size() != 1) {
+            TerraceSplitResult failure = TerraceSplitResult.failure("Select exactly one closed building way before creating row houses.");
+            new Notification(I18n.tr(failure.getMessage()))
+                    .setDuration(Notification.TIME_SHORT)
+                    .show();
+            onInternalSplitFlowFinished(SplitFlowOutcome.FAILED);
+            return failure;
+        }
+
+        SplitContext splitContext = new SplitContext(currentStreet, currentPostcode);
+        TerraceSplitResult result = terraceSplitService.splitBuildingIntoTerrace(
+                dataSet,
+                selectedWays.get(0),
+                new TerraceSplitRequest(parts),
+                splitContext
+        );
+        if (!result.isSuccess()) {
+            new Notification(I18n.tr(result.getMessage()))
+                    .setDuration(Notification.TIME_SHORT)
+                    .show();
+            onInternalSplitFlowFinished(SplitFlowOutcome.FAILED);
+            return result;
+        }
+
+        dataSet.setSelected(result.getResultWays());
+        onInternalSplitFlowFinished(SplitFlowOutcome.SUCCESS);
+        return result;
+    }
+
+    void onInternalSplitFlowFinished(SplitFlowOutcome outcome) {
+        lastSplitFlowOutcome = outcome == null ? SplitFlowOutcome.CANCELLED : outcome;
+        returnToStreetModeAfterSplit();
+    }
+
+    void setSplitFlowReturnHookForTesting(Runnable splitFlowReturnHook) {
+        this.splitFlowReturnHook = splitFlowReturnHook;
+    }
+
+    SplitFlowOutcome getLastSplitFlowOutcomeForTesting() {
+        return lastSplitFlowOutcome;
+    }
+
+    private void returnToStreetModeAfterSplit() {
+        notifyModeStateChanged(false);
+        if (splitFlowReturnHook != null) {
+            splitFlowReturnHook.run();
+        }
+        if (lastSelection != null && !lastSelection.getStreetName().isEmpty()) {
+            activate(lastSelection);
+        }
+    }
+
+    private DataSet getActiveEditDataSet() {
+        return MainApplication.getLayerManager() != null
+                ? MainApplication.getLayerManager().getEditDataSet()
+                : null;
+    }
+
+    private void showNoDataSetNotification() {
+        new Notification(I18n.tr("No active dataset available."))
+                .setDuration(Notification.TIME_SHORT)
+                .show();
     }
 
     private static String normalize(String value) {

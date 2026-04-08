@@ -28,13 +28,7 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 - Expected: remembered values from A are invalidated for B.
 - Relevant logs: optional activation logs if map state is unavailable.
 
-### E) BuildingSplitter Handoff
-- Preparation: BuildingSplitter present (or intentionally absent for negative check).
-- Steps: use `Split building` with populated street/postcode.
-- Expected: reflection handoff clears fallback on success; stale fallback is cleaned when pending is old.
-- Relevant logs: `Address context reflection handoff succeeded.` or `Clearing stale BuildingSplitter handoff fallback ...`.
-
-### F) Dense Area / Candidate Limits
+### E) Dense Area / Candidate Limits
 - Preparation: dense city area; debug logs enabled; optionally lower scan limits.
 - Steps: repeated clicks in dense area with default and low limits.
 - Expected: default stays responsive with fewer misses; low limits increase `source=no-hit` and `*LimitReached=true`.
@@ -64,40 +58,7 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 ### Relevant Logs
 - Optional diagnostic around mode activation can appear in JOSM log if map view is unavailable.
 
-## 2) BuildingSplitter Fallback: Stale Pending Is Cleared
-
-### Preparation
-- JOSM closed.
-- In preferences, set (or keep) stale values for:
-  - `housenumberclick.buildingsplitter.handoff.pending=true`
-  - `housenumberclick.buildingsplitter.handoff.timestamp=<very old timestamp>`
-
-### Steps
-1. Start JOSM and open HouseNumberClick dialog.
-2. Trigger `Split building`.
-
-### Expected
-- Stale handoff preference data is cleared before activation.
-
-### Relevant Logs
-- `HouseNumberClick: Clearing stale BuildingSplitter handoff fallback (differentSession=..., expired=...)`
-
-## 3) BuildingSplitter Reflection Handoff Clears Fallback
-
-### Preparation
-- Install a BuildingSplitter version that provides `AddressContextBridge.setAddressContext(String,String)`.
-
-### Steps
-1. Open HouseNumberClick, set street/postcode.
-2. Trigger `Split building`.
-
-### Expected
-- Reflection handoff succeeds and fallback keys are cleared.
-
-### Relevant Logs
-- `HouseNumberClick: Address context reflection handoff succeeded.`
-
-## 4) Click Deduplizierung
+## 2) Click Deduplizierung
 
 ### Preparation
 - Open area with buildings.
@@ -118,7 +79,7 @@ These scenarios focus on the recent hardening changes (state reset, fallback cle
 - Slow click diagnostics (only when threshold exceeded):
   - `...slow click handling (... ms)...`
 
-## 5) Candidate Limit Monitoring
+## 3) Candidate Limit Monitoring
 
 ### Preparation
 - Load a dense urban area with many buildings/relations.
