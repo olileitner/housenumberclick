@@ -2,6 +2,8 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 
 final class TerraceSplitRequest {
 
+    private static final int MIN_PARTS = 2;
+
     private final int parts;
 
     TerraceSplitRequest(int parts) {
@@ -13,7 +15,7 @@ final class TerraceSplitRequest {
     }
 
     boolean hasValidParts() {
-        return parts >= 2;
+        return parts >= MIN_PARTS;
     }
 }
 

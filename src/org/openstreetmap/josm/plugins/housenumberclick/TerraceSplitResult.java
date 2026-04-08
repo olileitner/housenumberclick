@@ -14,7 +14,7 @@ final class TerraceSplitResult {
 
 	private TerraceSplitResult(boolean success, String message, List<Way> resultWays) {
 		this.success = success;
-		this.message = message;
+		this.message = message == null ? "" : message;
 		this.resultWays = Collections.unmodifiableList(new ArrayList<>(resultWays));
 	}
 

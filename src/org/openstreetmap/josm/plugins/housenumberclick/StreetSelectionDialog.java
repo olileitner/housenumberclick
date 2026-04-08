@@ -796,7 +796,7 @@ final class StreetSelectionDialog {
 
     private JPanel createStreetNavigationSection() {
         JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createTitledBorder(I18n.tr("Sellect street")));
+        panel.setBorder(BorderFactory.createTitledBorder(I18n.tr("Select street")));
 
         harmonizeNavigationButtonWidths();
 
@@ -1134,6 +1134,9 @@ final class StreetSelectionDialog {
     }
 
     private boolean handleGlobalStreetNavigationKeyEvent(KeyEvent event) {
+        if (event == null) {
+            return false;
+        }
         if (!dialog.isVisible() || !streetModeController.isActive()) {
             return false;
         }

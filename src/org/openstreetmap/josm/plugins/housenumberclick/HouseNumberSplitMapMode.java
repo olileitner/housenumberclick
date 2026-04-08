@@ -66,7 +66,6 @@ final class HouseNumberSplitMapMode extends MapMode {
             return;
         }
         if (dragStart == null) {
-            dragStart = null;
             return;
         }
 

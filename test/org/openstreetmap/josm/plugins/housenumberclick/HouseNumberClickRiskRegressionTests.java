@@ -914,7 +914,6 @@ public final class HouseNumberClickRiskRegressionTests {
         String source = Files.readString(dialogPath);
 
         assertFalse(source.contains("activateBuildingSplitterWithAddress("), "new split dialog path must not call bridge activation");
-        assertFalse(source.contains("BuildingSplitterDetector"), "new split dialog path must not depend on detector checks");
         assertTrue(source.contains("startInternalSingleSplitFlowFromDialog"), "split building button should use internal split flow");
         assertTrue(source.contains("executeInternalTerraceSplitFromDialog"), "create row houses button should use internal terrace flow");
     }

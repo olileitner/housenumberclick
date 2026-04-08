@@ -50,10 +50,6 @@ HouseNumberClick is a JOSM plugin for fast, street-focused house-number tagging 
   - subtle yellow/ochre = likely misplaced housenumber on multipolygon outer way,
   - dark gray = no housenumber found.
 
-## Optional Integration
-
-- Integrates with [`BuildingSplitter`](https://github.com/olileitner/buildingsplitter) when installed.
-- Build remains valid without `buildingsplitter.jar`; integration is optional.
 
 ## Usage
 
