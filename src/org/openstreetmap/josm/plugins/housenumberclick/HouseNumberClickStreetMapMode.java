@@ -326,6 +326,11 @@ final class HouseNumberClickStreetMapMode extends MapMode {
             updateStatusLine(I18n.tr("No street selected."));
             return;
         }
+        if (!isPostcodeSelected(postcode)) {
+            stats.outcome = "no-postcode-selected";
+            updateStatusLine(I18n.tr("No postcode selected."));
+            return;
+        }
 
         MapFrame map = MainApplication.getMap();
         if (map == null || map.mapView == null) {
@@ -529,6 +534,10 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();
+    }
+
+    static boolean isPostcodeSelected(String postcode) {
+        return postcode != null && !postcode.trim().isEmpty();
     }
 
     private String displayValue(String value) {

@@ -2,6 +2,8 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Set;
 
 import org.openstreetmap.josm.data.Bounds;
@@ -47,6 +49,30 @@ final class PostcodeCollector {
         }
 
         return postcodes.size() == 1 ? postcodes.iterator().next() : "";
+    }
+
+    static java.util.List<String> collectVisiblePostcodes(DataSet dataSet) {
+        if (dataSet == null) {
+            return Collections.emptyList();
+        }
+
+        Set<String> postcodes = new HashSet<>();
+        for (Way way : getWaysFromCurrentView(dataSet)) {
+            if (!way.isUsable() || !way.hasTag("building")) {
+                continue;
+            }
+            addPostcode(postcodes, way.get("addr:postcode"));
+        }
+        for (Relation relation : getRelationsFromCurrentView(dataSet)) {
+            if (!relation.isUsable() || !relation.hasTag("building")) {
+                continue;
+            }
+            addPostcode(postcodes, relation.get("addr:postcode"));
+        }
+
+        ArrayList<String> sorted = new ArrayList<>(postcodes);
+        Collections.sort(sorted);
+        return Collections.unmodifiableList(sorted);
     }
 
     private static Collection<Way> getWaysFromCurrentView(DataSet dataSet) {

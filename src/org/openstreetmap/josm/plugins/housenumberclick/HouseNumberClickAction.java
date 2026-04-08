@@ -28,7 +28,7 @@ public class HouseNumberClickAction extends JosmAction {
         }
 
         List<String> streetNames = StreetNameCollector.collectStreetNames(dataSet);
-        String suggestedPostcode = PostcodeCollector.detectUniformVisiblePostcode(dataSet);
-        streetSelectionDialog.showDialog(dataSet, streetNames, suggestedPostcode);
+        List<String> detectedPostcodes = PostcodeCollector.collectVisiblePostcodes(dataSet);
+        streetSelectionDialog.showDialog(dataSet, streetNames, detectedPostcodes);
     }
 }

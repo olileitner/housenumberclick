@@ -12,6 +12,7 @@ import org.openstreetmap.josm.data.Preferences;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.Node;
+import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.spi.preferences.Config;
 
@@ -35,6 +36,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("AddressReadbackService reads address tags from building", HouseNumberClickRiskRegressionTests::testAddressReadbackFromBuilding);
             run("AddressReadbackService street fallback keeps postcode/buildingType", HouseNumberClickRiskRegressionTests::testAddressReadbackStreetFallback);
             run("AddressReadbackService candidate fallback order", HouseNumberClickRiskRegressionTests::testAddressReadbackCandidateOrderAndMissingTags);
+            run("PostcodeCollector collects sorted visible postcodes", HouseNumberClickRiskRegressionTests::testPostcodeCollectorCollectsSortedVisiblePostcodes);
             run("AddressConflictService detects street and postcode conflicts", HouseNumberClickRiskRegressionTests::testAddressConflictDetection);
             run("AddressConflictService handles missing tags and partial differences", HouseNumberClickRiskRegressionTests::testAddressConflictEdgeCases);
             run("ConflictDialogModelBuilder keeps field order and value mapping", HouseNumberClickRiskRegressionTests::testConflictDialogModelBuilderMapping);
@@ -70,6 +72,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
             run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
             run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
+            run("Street mode blocks apply when postcode is not selected", HouseNumberClickRiskRegressionTests::testPostcodeSelectionGuard);
             run("Main dialog close cleanup is safe", HouseNumberClickRiskRegressionTests::testMainDialogCloseCleanupIsSafe);
             run("Rescan refresh entrypoint is safe", HouseNumberClickRiskRegressionTests::testRescanRefreshEntrypointIsSafe);
             run("Create building overview layer entrypoint is safe", HouseNumberClickRiskRegressionTests::testCreateBuildingOverviewLayerEntrypointIsSafe);
@@ -179,6 +182,33 @@ public final class HouseNumberClickRiskRegressionTests {
         assertEquals("addr:street", analysis.getDifferingFields().get(0).getKey(), "street diff should appear first");
         assertEquals("addr:postcode", analysis.getDifferingFields().get(1).getKey(), "postcode diff should appear second");
         assertEquals("addr:housenumber", analysis.getDifferingFields().get(2).getKey(), "housenumber diff should appear third");
+    }
+
+    private static void testPostcodeCollectorCollectsSortedVisiblePostcodes() {
+        DataSet dataSet = new DataSet();
+
+        Way buildingA = createClosedBuilding("Example Street", "1");
+        buildingA.put("addr:postcode", "20000");
+        Way buildingB = createClosedBuilding("Example Street", "2");
+        buildingB.put("addr:postcode", "10000");
+        Way buildingDuplicate = createClosedBuilding("Example Street", "3");
+        buildingDuplicate.put("addr:postcode", "20000");
+        Way buildingWithoutPostcode = createClosedBuilding("Example Street", "4");
+
+        Relation buildingRelation = new Relation();
+        buildingRelation.put("type", "multipolygon");
+        buildingRelation.put("building", "yes");
+        buildingRelation.put("addr:postcode", "30000");
+
+        dataSet.addPrimitiveRecursive(buildingA);
+        dataSet.addPrimitiveRecursive(buildingB);
+        dataSet.addPrimitiveRecursive(buildingDuplicate);
+        dataSet.addPrimitiveRecursive(buildingWithoutPostcode);
+        dataSet.addPrimitive(buildingRelation);
+
+        List<String> postcodes = PostcodeCollector.collectVisiblePostcodes(dataSet);
+        assertEquals(List.of("10000", "20000", "30000"), postcodes,
+                "postcode collector should return distinct, sorted visible building postcodes");
     }
 
     private static void testAddressConflictEdgeCases() {
@@ -413,6 +443,12 @@ public final class HouseNumberClickRiskRegressionTests {
         assertFalse(invokeDuplicateCheck(mode, first), "first click must not be duplicate");
         assertFalse(invokeDuplicateCheck(mode, differentPosition), "different position should not be duplicate");
         assertFalse(invokeDuplicateCheck(mode, differentModifiers), "different modifiers should not be duplicate");
+    }
+
+    private static void testPostcodeSelectionGuard() {
+        assertFalse(HouseNumberClickStreetMapMode.isPostcodeSelected(null), "null postcode must be rejected");
+        assertFalse(HouseNumberClickStreetMapMode.isPostcodeSelected("   "), "blank postcode must be rejected");
+        assertTrue(HouseNumberClickStreetMapMode.isPostcodeSelected("12345"), "non-empty postcode must be accepted");
     }
 
     private static void testMainDialogCloseCleanupIsSafe() {

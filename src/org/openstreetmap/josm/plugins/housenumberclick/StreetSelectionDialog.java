@@ -47,7 +47,7 @@ final class StreetSelectionDialog {
     private final JDialog dialog;
     private final JComboBox<String> streetCombo;
     private final JComboBox<String> buildingTypeCombo;
-    private final JTextField postcodeField;
+    private final JComboBox<String> postcodeCombo;
     private final JTextField houseNumberField;
     private JToggleButton minusTwoIncrementButton;
     private JToggleButton minusOneIncrementButton;
@@ -112,23 +112,9 @@ final class StreetSelectionDialog {
         this.dialog = new JDialog(owner, I18n.tr("HouseNumberClick"), false);
         this.dialog.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
 
-        this.postcodeField = new JTextField();
-        this.postcodeField.getDocument().addDocumentListener(new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent e) {
-                notifyAddressChanged();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent e) {
-                notifyAddressChanged();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent e) {
-                notifyAddressChanged();
-            }
-        });
+        this.postcodeCombo = new JComboBox<>();
+        this.postcodeCombo.setEditable(true);
+        this.postcodeCombo.addActionListener(e -> notifyAddressChanged());
 
         this.houseNumberField = new JTextField();
         this.houseNumberField.getDocument().addDocumentListener(new DocumentListener() {
@@ -329,7 +315,7 @@ final class StreetSelectionDialog {
         );
     }
 
-    void showDialog(DataSet activeDataSet, List<String> streetNames, String suggestedPostcode) {
+    void showDialog(DataSet activeDataSet, List<String> streetNames, List<String> detectedPostcodes) {
         if (streetNames == null || streetNames.isEmpty()) {
             JOptionPane.showMessageDialog(
                     MainApplication.getMainFrame(),
@@ -360,7 +346,8 @@ final class StreetSelectionDialog {
             streetCombo.setSelectedIndex(0);
         }
 
-        postcodeField.setText(firstNonEmpty(rememberedPostcode, normalize(suggestedPostcode)));
+        populatePostcodeOptions(detectedPostcodes);
+        setSelectedPostcode(rememberedPostcode);
         buildingTypeCombo.getEditor().setItem(firstNonEmpty(rememberedBuildingType, ""));
         houseNumberField.setText(firstNonEmpty(rememberedHouseNumber, DEFAULT_HOUSE_NUMBER));
         applyIncrementStep(rememberedIncrementStep);
@@ -513,7 +500,7 @@ final class StreetSelectionDialog {
     private void updateAddressValuesFromMode(String streetName, String postcode, String buildingType, String houseNumber) {
         updatingInputs = true;
         setStreetSelection(streetName);
-        postcodeField.setText(normalize(postcode));
+        // Keep the user's selected postcode stable; readback should not silently override it.
         buildingTypeCombo.getEditor().setItem(normalize(buildingType));
         houseNumberField.setText(normalize(houseNumber));
         lastSelectedStreet = getSelectedStreet();
@@ -713,7 +700,7 @@ final class StreetSelectionDialog {
         gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(2, 0, 2, 0);
-        panel.add(postcodeField, gbc);
+        panel.add(postcodeCombo, gbc);
 
         gbc.gridx = 0;
         gbc.gridy = 1;
@@ -971,7 +958,7 @@ final class StreetSelectionDialog {
 
     private void rememberCurrentValues() {
         rememberedStreet = getSelectedStreet();
-        rememberedPostcode = normalize(postcodeField.getText());
+        rememberedPostcode = getSelectedPostcode();
         rememberedBuildingType = normalize(getSelectedBuildingType());
         rememberedHouseNumber = normalize(houseNumberField.getText());
         rememberedIncrementStep = houseNumberIncrementStep;
@@ -1055,11 +1042,49 @@ final class StreetSelectionDialog {
     private StreetModeController.AddressSelection buildCurrentSelection() {
         return new StreetModeController.AddressSelection(
                 getSelectedStreet(),
-                postcodeField.getText(),
+                getSelectedPostcode(),
                 getSelectedBuildingType(),
                 houseNumberField.getText(),
                 houseNumberIncrementStep
         );
+    }
+
+    private void populatePostcodeOptions(List<String> postcodes) {
+        postcodeCombo.removeAllItems();
+        postcodeCombo.addItem("");
+        if (postcodes == null) {
+            return;
+        }
+        for (String postcode : postcodes) {
+            String normalized = normalize(postcode);
+            if (!normalized.isEmpty()) {
+                postcodeCombo.addItem(normalized);
+            }
+        }
+    }
+
+    private void setSelectedPostcode(String postcode) {
+        String normalized = normalize(postcode);
+        if (normalized.isEmpty()) {
+            postcodeCombo.setSelectedIndex(0);
+            return;
+        }
+        for (int i = 0; i < postcodeCombo.getItemCount(); i++) {
+            String item = postcodeCombo.getItemAt(i);
+            if (normalized.equals(item)) {
+                postcodeCombo.setSelectedIndex(i);
+                return;
+            }
+        }
+        // Keep manually entered postcodes even when they are not in the detected list.
+        postcodeCombo.setSelectedItem(normalized);
+    }
+
+    private String getSelectedPostcode() {
+        Object selected = postcodeCombo.isEditable()
+                ? postcodeCombo.getEditor().getItem()
+                : postcodeCombo.getSelectedItem();
+        return selected instanceof String ? normalize((String) selected) : "";
     }
 
     static boolean isDataSetChanged(DataSet rememberedDataSet, DataSet activeDataSet) {
