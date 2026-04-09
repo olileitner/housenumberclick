@@ -26,6 +26,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.text.JTextComponent;
 
 import org.openstreetmap.josm.actions.mapmode.MapMode;
@@ -353,7 +354,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         }
 
         AddressConflictService.ConflictAnalysis conflictAnalysis =
-                addressConflictService.analyze(building, streetName, postcode, houseNumber);
+                addressConflictService.analyze(building, streetName, postcode, houseNumber, buildingType);
         String overwrittenStreet = conflictAnalysis.getOverwrittenStreet();
         if (conflictAnalysis.hasConflict() && !isWarningSuppressedForStreet(overwrittenStreet)) {
             if (!confirmOverwrite(conflictAnalysis, overwrittenStreet)) {
@@ -504,6 +505,28 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         comparisonTable.setEnabled(false);
         comparisonTable.setRowSelectionAllowed(false);
         comparisonTable.setFillsViewportHeight(true);
+        comparisonTable.getColumnModel().getColumn(2).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(
+                    JTable table,
+                    Object value,
+                    boolean isSelected,
+                    boolean hasFocus,
+                    int row,
+                    int column
+            ) {
+                Component component = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                String existing = normalize(table.getValueAt(row, 1) == null ? "" : String.valueOf(table.getValueAt(row, 1)));
+                String proposed = normalize(value == null ? "" : String.valueOf(value));
+                boolean hasChangedValue = !proposed.isEmpty() && !proposed.equals(existing);
+                if (!isSelected && hasChangedValue) {
+                    component.setBackground(new java.awt.Color(255, 244, 204));
+                } else {
+                    component.setBackground(table.getBackground());
+                }
+                return component;
+            }
+        });
 
         JScrollPane tableScrollPane = new JScrollPane(comparisonTable);
         tableScrollPane.setPreferredSize(new Dimension(480, 96));

@@ -56,7 +56,13 @@ final class AddressConflictService {
         }
     }
 
-    ConflictAnalysis analyze(OsmPrimitive building, String proposedStreet, String proposedPostcode, String proposedHouseNumber) {
+    ConflictAnalysis analyze(
+            OsmPrimitive building,
+            String proposedStreet,
+            String proposedPostcode,
+            String proposedHouseNumber,
+            String proposedBuildingType
+    ) {
         String normalizedProposedStreet = normalize(proposedStreet);
         if (building == null) {
             return new ConflictAnalysis(false, normalizedProposedStreet, List.of());
@@ -65,9 +71,11 @@ final class AddressConflictService {
         String existingStreet = normalize(building.get("addr:street"));
         String existingPostcode = normalize(building.get("addr:postcode"));
         String existingHouseNumber = normalize(building.get("addr:housenumber"));
+        String existingBuildingType = normalize(building.get("building"));
 
         String normalizedProposedPostcode = normalize(proposedPostcode);
         String normalizedProposedHouseNumber = normalize(proposedHouseNumber);
+        String normalizedProposedBuildingType = normalize(proposedBuildingType);
 
         boolean streetConflict = !existingStreet.isEmpty() && !existingStreet.equals(normalizedProposedStreet);
 
@@ -80,6 +88,11 @@ final class AddressConflictService {
                 && !existingHouseNumber.isEmpty()
                 && !existingHouseNumber.equals(normalizedProposedHouseNumber);
 
+        boolean buildingTypeConflict = !normalizedProposedBuildingType.isEmpty()
+                && !existingBuildingType.isEmpty()
+                && !existingBuildingType.equals(normalizedProposedBuildingType)
+                && !"yes".equalsIgnoreCase(existingBuildingType);
+
         List<ConflictField> differingFields = new ArrayList<>();
         if (streetConflict) {
             differingFields.add(new ConflictField("addr:street", existingStreet, normalizedProposedStreet));
@@ -90,9 +103,12 @@ final class AddressConflictService {
         if (houseNumberDiff) {
             differingFields.add(new ConflictField("addr:housenumber", existingHouseNumber, normalizedProposedHouseNumber));
         }
+        if (buildingTypeConflict) {
+            differingFields.add(new ConflictField("building", existingBuildingType, normalizedProposedBuildingType));
+        }
 
         String overwrittenStreet = existingStreet.isEmpty() ? normalizedProposedStreet : existingStreet;
-        return new ConflictAnalysis(streetConflict || postcodeConflict, overwrittenStreet, differingFields);
+        return new ConflictAnalysis(streetConflict || postcodeConflict || buildingTypeConflict, overwrittenStreet, differingFields);
     }
 
     private static String normalize(String value) {
