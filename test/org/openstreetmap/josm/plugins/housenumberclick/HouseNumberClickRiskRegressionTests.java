@@ -59,6 +59,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Single split adjacency protection remains active with snapping", HouseNumberClickRiskRegressionTests::testSingleSplitAdjacencyProtectionWithSnap);
             run("Terrace split succeeds with parts=2", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithTwoParts);
             run("Terrace split succeeds with parts=4", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithFourParts);
+            run("Terrace split orientation supports non-rectangular outlines", HouseNumberClickRiskRegressionTests::testTerraceSplitOrientationSupportsNonRectangularOutlines);
             run("Terrace split fails for invalid parts", HouseNumberClickRiskRegressionTests::testTerraceSplitFailsForInvalidParts);
             run("Terrace split result order is deterministic", HouseNumberClickRiskRegressionTests::testTerraceSplitOrderIsDeterministic);
             run("Split building button triggers internal flow hook", HouseNumberClickRiskRegressionTests::testSplitBuildingButtonTriggersInternalFlowHook);
@@ -1006,6 +1007,14 @@ public final class HouseNumberClickRiskRegressionTests {
 
         assertTrue(result.isSuccess(), "terrace split should succeed for parts=4");
         assertEquals(4, result.getResultWays().size(), "parts=4 should create exactly four result ways");
+    }
+
+    private static void testTerraceSplitOrientationSupportsNonRectangularOutlines() throws Exception {
+        String source = readPluginSource("TerraceSplitService.java");
+        assertFalse(source.contains("corners.size() != 4"),
+                "terrace split orientation should not be limited to 4-corner buildings");
+        assertTrue(source.contains("findLongestEdgeDirection"),
+                "terrace split orientation should derive axis from longest edge direction");
     }
 
     private static void testTerraceSplitFailsForInvalidParts() {

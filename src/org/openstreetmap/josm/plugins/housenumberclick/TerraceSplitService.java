@@ -211,32 +211,11 @@ final class TerraceSplitService {
 
     private SplitOrientation buildSplitOrientation(Way way) {
         List<Node> corners = getOpenRingNodes(way);
-        if (corners.size() != 4 || corners.stream().distinct().count() != 4) {
+        if (corners.size() < 3 || corners.stream().distinct().count() < 3) {
             return null;
         }
 
-        EastNorth a = toEastNorth(corners.get(0).getCoor());
-        EastNorth b = toEastNorth(corners.get(1).getCoor());
-        EastNorth c = toEastNorth(corners.get(2).getCoor());
-        EastNorth d = toEastNorth(corners.get(3).getCoor());
-        if (a == null || b == null || c == null || d == null) {
-            return null;
-        }
-
-        Vector2D ab = Vector2D.from(a, b);
-        Vector2D bc = Vector2D.from(b, c);
-        Vector2D cd = Vector2D.from(c, d);
-        Vector2D da = Vector2D.from(d, a);
-        if (ab.length() <= EPSILON || bc.length() <= EPSILON || cd.length() <= EPSILON || da.length() <= EPSILON) {
-            return null;
-        }
-
-        double pair1 = (ab.length() + cd.length()) / 2.0;
-        double pair2 = (bc.length() + da.length()) / 2.0;
-        Vector2D first = pair1 >= pair2 ? ab : bc;
-        Vector2D second = pair1 >= pair2 ? cd : da;
-
-        Vector2D mainAxis = alignAndAverage(first.normalize(), second.normalize()).normalize();
+        Vector2D mainAxis = findLongestEdgeDirection(corners);
         if (mainAxis.length() <= EPSILON) {
             return null;
         }
@@ -249,7 +228,7 @@ final class TerraceSplitService {
         double axisMax = Double.NEGATIVE_INFINITY;
         double eastSum = 0.0;
         double northSum = 0.0;
-        double maxEdge = Math.max(Math.max(ab.length(), bc.length()), Math.max(cd.length(), da.length()));
+        double maxEdge = 0.0;
         for (Node corner : corners) {
             EastNorth en = toEastNorth(corner.getCoor());
             if (en == null) {
@@ -262,6 +241,15 @@ final class TerraceSplitService {
             northSum += en.north();
         }
 
+        for (int i = 0; i < corners.size(); i++) {
+            EastNorth from = toEastNorth(corners.get(i).getCoor());
+            EastNorth to = toEastNorth(corners.get((i + 1) % corners.size()).getCoor());
+            if (from == null || to == null) {
+                return null;
+            }
+            maxEdge = Math.max(maxEdge, Vector2D.from(from, to).length());
+        }
+
         if (!Double.isFinite(axisMin) || !Double.isFinite(axisMax) || axisMax - axisMin <= EPSILON) {
             return null;
         }
@@ -272,11 +260,23 @@ final class TerraceSplitService {
         return new SplitOrientation(mainAxis, perpendicular, axisMin, axisMax, centerEast, centerNorth, halfLineLength);
     }
 
-    private Vector2D alignAndAverage(Vector2D first, Vector2D second) {
-        if (first.dot(second) < 0.0) {
-            second = second.multiply(-1.0);
+    private Vector2D findLongestEdgeDirection(List<Node> corners) {
+        Vector2D longest = new Vector2D(0.0, 0.0);
+        double longestLength = 0.0;
+        for (int i = 0; i < corners.size(); i++) {
+            EastNorth from = toEastNorth(corners.get(i).getCoor());
+            EastNorth to = toEastNorth(corners.get((i + 1) % corners.size()).getCoor());
+            if (from == null || to == null) {
+                continue;
+            }
+            Vector2D edge = Vector2D.from(from, to);
+            double edgeLength = edge.length();
+            if (edgeLength > longestLength + EPSILON) {
+                longest = edge;
+                longestLength = edgeLength;
+            }
         }
-        return first.add(second);
+        return longest.normalize();
     }
 
     private EastNorth toEastNorth(LatLon coor) {
