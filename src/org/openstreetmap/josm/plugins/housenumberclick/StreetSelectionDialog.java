@@ -49,6 +49,7 @@ final class StreetSelectionDialog {
     private final JComboBox<String> buildingTypeCombo;
     private final JComboBox<String> postcodeCombo;
     private final JTextField houseNumberField;
+    private final JCheckBox applyTypeToAllCheckbox;
     private JToggleButton minusTwoIncrementButton;
     private JToggleButton minusOneIncrementButton;
     private JToggleButton plusOneIncrementButton;
@@ -89,7 +90,7 @@ final class StreetSelectionDialog {
     private boolean streetNavigationDispatcherRegistered;
 
     private static final int DIALOG_WIDTH = 390;
-    private static final int DIALOG_HEIGHT = 770;
+    private static final int DIALOG_HEIGHT = 820;
     private static final int DIALOG_OFFSET_X = 66;
     private static final int DIALOG_OFFSET_Y = 80;
     private static final String SHOW_OVERVIEW_BUTTON_TEXT = I18n.tr("Show overview");
@@ -142,7 +143,11 @@ final class StreetSelectionDialog {
         this.streetCombo.addActionListener(e -> onStreetSelectionChanged());
 
         this.buildingTypeCombo = createBuildingTypeCombo();
-        this.buildingTypeCombo.setToolTipText(I18n.tr("Building type applies to next successful click only"));
+        this.buildingTypeCombo.setToolTipText(I18n.tr("Set a building type. Use 'Apply type to all' to keep it for multiple clicks."));
+        this.applyTypeToAllCheckbox = new JCheckBox(I18n.tr("Apply type to all"));
+        this.applyTypeToAllCheckbox.setSelected(false);
+        this.applyTypeToAllCheckbox.setToolTipText(I18n.tr("Keep the selected building type after a successful click."));
+        this.applyTypeToAllCheckbox.addActionListener(e -> onApplyTypeToAllSelectionChanged());
         this.streetModeController.setHouseNumberUpdateListener(this::updateHouseNumberFromMode);
         this.streetModeController.setAddressValuesReadListener(this::updateAddressValuesFromMode);
         this.streetModeController.setBuildingTypeConsumedListener(this::consumeBuildingTypeFromMode);
@@ -518,11 +523,31 @@ final class StreetSelectionDialog {
     }
 
     private void consumeBuildingTypeFromMode() {
+        if (applyTypeToAllCheckbox != null && applyTypeToAllCheckbox.isSelected()) {
+            return;
+        }
         updatingInputs = true;
         buildingTypeCombo.getEditor().setItem("");
         updatingInputs = false;
         rememberCurrentValues();
         notifyAddressChanged();
+    }
+
+    private void onApplyTypeToAllSelectionChanged() {
+        if (applyTypeToAllCheckbox == null || !applyTypeToAllCheckbox.isSelected()) {
+            return;
+        }
+
+        int decision = JOptionPane.showConfirmDialog(
+                dialog,
+                I18n.tr("Building type will stay active for subsequent clicks until you turn it off. Do you want to continue?"),
+                I18n.tr("HouseNumberClick"),
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        if (decision != JOptionPane.YES_OPTION) {
+            applyTypeToAllCheckbox.setSelected(false);
+        }
     }
 
     private void onOverlayLayerSelectionChanged() {
@@ -737,8 +762,15 @@ final class StreetSelectionDialog {
         gbc.insets = new Insets(2, 0, 2, 0);
         panel.add(buildingTypeCombo, gbc);
 
-        gbc.gridx = 0;
+        gbc.gridx = 1;
         gbc.gridy = 3;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(2, 0, 2, 0);
+        panel.add(applyTypeToAllCheckbox, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 4;
         gbc.weightx = 0.0;
         gbc.fill = GridBagConstraints.NONE;
         gbc.insets = new Insets(2, 0, 2, 8);
@@ -751,7 +783,7 @@ final class StreetSelectionDialog {
         panel.add(houseNumberField, gbc);
 
         gbc.gridx = 0;
-        gbc.gridy = 4;
+        gbc.gridy = 5;
         gbc.weightx = 0.0;
         gbc.fill = GridBagConstraints.NONE;
         gbc.insets = new Insets(2, 0, 2, 8);
