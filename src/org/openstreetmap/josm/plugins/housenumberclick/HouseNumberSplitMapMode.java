@@ -39,7 +39,7 @@ final class HouseNumberSplitMapMode extends MapMode {
         TERRACE_CLICK
     }
 
-    private static final int CURSOR_HOTSPOT_X = 15;
+    private static final int CURSOR_HOTSPOT_X = 11;
     private static final int CURSOR_HOTSPOT_Y = 29;
     private static final int CLICK_SPLIT_THRESHOLD_PX = 4;
 
@@ -54,11 +54,17 @@ final class HouseNumberSplitMapMode extends MapMode {
     private Point dragStartPoint;
     private boolean flowCompleted;
     private boolean dragOverlayAttached;
+    private boolean temporaryAltHold;
     private Way activeTerraceSourceBuilding;
     private int activeTerraceUndoStart = -1;
     private boolean splitDispatcherRegistered;
 
-    HouseNumberSplitMapMode(StreetModeController controller, InteractionKind interactionKind, int terraceParts) {
+    HouseNumberSplitMapMode(
+            StreetModeController controller,
+            InteractionKind interactionKind,
+            int terraceParts,
+            boolean temporaryAltHold
+    ) {
         super(
                 I18n.tr("HouseNumberClick Split Mode"),
                 "housenumberclick_split",
@@ -70,6 +76,7 @@ final class HouseNumberSplitMapMode extends MapMode {
         this.controller = controller;
         this.interactionKind = interactionKind == null ? InteractionKind.LINE_SPLIT : interactionKind;
         this.terraceParts = terraceParts >= 2 ? terraceParts : 2;
+        this.temporaryAltHold = temporaryAltHold;
         this.splitKeyListener = new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
@@ -79,9 +86,10 @@ final class HouseNumberSplitMapMode extends MapMode {
         this.splitKeyDispatcher = this::handleGlobalKeyEvent;
     }
 
-    void configureFor(InteractionKind nextInteractionKind, int nextTerraceParts) {
+    void configureFor(InteractionKind nextInteractionKind, int nextTerraceParts, boolean nextTemporaryAltHold) {
         this.interactionKind = nextInteractionKind == null ? InteractionKind.LINE_SPLIT : nextInteractionKind;
         this.terraceParts = nextTerraceParts >= 2 ? nextTerraceParts : 2;
+        this.temporaryAltHold = nextTemporaryAltHold;
         dragStart = null;
         dragCurrent = null;
         dragStartPoint = null;
@@ -169,7 +177,7 @@ final class HouseNumberSplitMapMode extends MapMode {
     @Override
     public void mouseReleased(MouseEvent e) {
         if (interactionKind == InteractionKind.TERRACE_CLICK) {
-            if (!isLeftButton(e)) {
+            if (!isRowHouseTriggerButton(e)) {
                 return;
             }
             Way clickedBuilding = resolveClickedBuilding(e);
@@ -178,11 +186,7 @@ final class HouseNumberSplitMapMode extends MapMode {
             if (result.isSuccess()) {
                 activeTerraceSourceBuilding = clickedBuilding;
                 activeTerraceUndoStart = undoBaseline;
-                // Keep terrace mode active; user confirms finish with Enter.
-                MapFrame map = MainApplication.getMap();
-                if (map != null && map.mapView != null) {
-                    map.mapView.requestFocusInWindow();
-                }
+                completeWithOutcome(StreetModeController.SplitFlowOutcome.SUCCESS);
             } else {
                 activeTerraceSourceBuilding = null;
                 activeTerraceUndoStart = -1;
@@ -190,8 +194,8 @@ final class HouseNumberSplitMapMode extends MapMode {
             return;
         }
 
-        // If press was missed during a fast mode switch, still treat release as click split.
-        if (dragStart == null && isLeftButton(e)) {
+        // If press was missed during a fast mode switch, still allow right-click row-house split.
+        if (dragStart == null && isRowHouseTriggerButton(e)) {
             if (executeTerraceSplitAtEvent(e)) {
                 completeWithOutcome(StreetModeController.SplitFlowOutcome.SUCCESS);
             }
@@ -216,10 +220,15 @@ final class HouseNumberSplitMapMode extends MapMode {
         dragStartPoint = null;
         repaintMapView();
 
-        if (clickGesture) {
+        if (isRowHouseTriggerButton(e)) {
             if (executeTerraceSplitAtEvent(e)) {
                 completeWithOutcome(StreetModeController.SplitFlowOutcome.SUCCESS);
             }
+            return;
+        }
+
+        if (clickGesture) {
+            // Left-click without drag should not trigger row-house split.
             return;
         }
 
@@ -245,6 +254,10 @@ final class HouseNumberSplitMapMode extends MapMode {
         return event != null && SwingUtilities.isLeftMouseButton(event);
     }
 
+    private boolean isRowHouseTriggerButton(MouseEvent event) {
+        return event != null && (SwingUtilities.isRightMouseButton(event) || event.isPopupTrigger());
+    }
+
     private boolean executeTerraceSplitAtEvent(MouseEvent event) {
         Way clickedBuilding = resolveClickedBuilding(event);
         TerraceSplitResult terraceResult = controller.executeInternalTerraceSplitAtClick(clickedBuilding, terraceParts);
@@ -261,7 +274,19 @@ final class HouseNumberSplitMapMode extends MapMode {
     }
 
     private boolean handleGlobalKeyEvent(KeyEvent event) {
-        if (!isModeActiveOnMap(MainApplication.getMap()) || interactionKind != InteractionKind.TERRACE_CLICK || event == null) {
+        if (!isModeActiveOnMap(MainApplication.getMap()) || event == null) {
+            return false;
+        }
+        if (interactionKind == InteractionKind.LINE_SPLIT
+                && temporaryAltHold
+                && event.getKeyCode() == KeyEvent.VK_ALT
+                && event.getID() == KeyEvent.KEY_RELEASED
+                && !event.isConsumed()) {
+            completeWithOutcome(StreetModeController.SplitFlowOutcome.CANCELLED);
+            event.consume();
+            return true;
+        }
+        if (interactionKind != InteractionKind.TERRACE_CLICK) {
             return false;
         }
         if (event.getID() != KeyEvent.KEY_PRESSED || event.isConsumed()) {

@@ -87,6 +87,7 @@ final class StreetSelectionDialog {
     private boolean rememberedHouseNumberOverviewEnabled;
     private boolean rememberedStreetHouseNumberCountsEnabled;
     private boolean rememberedZoomToSelectedStreetEnabled;
+    private boolean rememberedSplitMakeRectangular;
     private boolean updatingInputs;
     private DataSet rememberedDataSet;
     private boolean streetNavigationDispatcherRegistered;
@@ -220,6 +221,9 @@ final class StreetSelectionDialog {
         this.splitBuildingButton = new JButton(SPLIT_BUILDING_BUTTON_TEXT);
         this.splitBuildingButton.addActionListener(e -> onSplitBuildingRequested());
         this.splitMakeRectangularCheckbox = new JCheckBox(I18n.tr("Make rectangular"));
+        this.splitMakeRectangularCheckbox.setSelected(rememberedSplitMakeRectangular);
+        this.splitMakeRectangularCheckbox.addActionListener(e -> onSplitMakeRectangularSelectionChanged());
+        this.streetModeController.setRectangularizeAfterLineSplit(this.splitMakeRectangularCheckbox.isSelected());
         this.createRowHousesButton = new JButton(CREATE_ROW_HOUSES_BUTTON_TEXT);
         this.createRowHousesButton.addActionListener(e -> onCreateRowHousesRequested());
         this.rowHousePartsField = new JTextField("2", 4);
@@ -386,6 +390,8 @@ final class StreetSelectionDialog {
         showHouseNumberOverviewCheckbox.setSelected(rememberedHouseNumberOverviewEnabled);
         showStreetHouseNumberCountsCheckbox.setSelected(rememberedStreetHouseNumberCountsEnabled);
         zoomToSelectedStreetCheckbox.setSelected(rememberedZoomToSelectedStreetEnabled);
+        splitMakeRectangularCheckbox.setSelected(rememberedSplitMakeRectangular);
+        streetModeController.setRectangularizeAfterLineSplit(rememberedSplitMakeRectangular);
         lastSelectedStreet = getSelectedStreet();
         updatingInputs = false;
         updateStreetNavigationButtonState();
@@ -912,10 +918,10 @@ final class StreetSelectionDialog {
 
         gbc.gridy = 1;
         gbc.insets = new Insets(2, 0, 0, 0);
-        panel.add(new JLabel(I18n.tr("Hold Alt: temporary split (drag=line split, click=row houses)")), gbc);
+        panel.add(new JLabel(I18n.tr("Hold Alt: temporary line split (drag across building)")), gbc);
 
         gbc.gridy = 2;
-        panel.add(new JLabel(I18n.tr("Row-house parts: set in dialog    + / -: change number    L: toggle letter")), gbc);
+        panel.add(new JLabel(I18n.tr("Right-click building: create row houses (Parts from dialog)    + / -: change number    L: toggle letter")), gbc);
 
         return panel;
     }
@@ -938,6 +944,15 @@ final class StreetSelectionDialog {
                     .show();
         }
         refreshSplitToolButtonState();
+    }
+
+    private void onSplitMakeRectangularSelectionChanged() {
+        if (updatingInputs) {
+            return;
+        }
+        rememberCurrentValues();
+        streetModeController.setRectangularizeAfterLineSplit(splitMakeRectangularCheckbox.isSelected());
+        focusMapViewIfStreetModeActive();
     }
 
     static boolean runSplitBuildingAction(BooleanSupplier action) {
@@ -1051,6 +1066,8 @@ final class StreetSelectionDialog {
                 && showStreetHouseNumberCountsCheckbox.isSelected();
         rememberedZoomToSelectedStreetEnabled = zoomToSelectedStreetCheckbox != null
                 && zoomToSelectedStreetCheckbox.isSelected();
+        rememberedSplitMakeRectangular = splitMakeRectangularCheckbox != null
+                && splitMakeRectangularCheckbox.isSelected();
         if (rememberedHouseNumberLayerEnabled) {
             rememberedConnectionLinesPreference = rememberedConnectionLinesEnabled;
             if (rememberedConnectionLinesEnabled) {
@@ -1188,6 +1205,7 @@ final class StreetSelectionDialog {
         rememberedHouseNumberOverviewEnabled = false;
         rememberedStreetHouseNumberCountsEnabled = false;
         rememberedZoomToSelectedStreetEnabled = false;
+        rememberedSplitMakeRectangular = false;
         lastSelectedStreet = null;
     }
 

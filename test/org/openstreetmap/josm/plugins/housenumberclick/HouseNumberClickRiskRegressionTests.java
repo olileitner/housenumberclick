@@ -73,6 +73,12 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
             run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
             run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
+            run("Ctrl has priority over Alt split activation", HouseNumberClickRiskRegressionTests::testCtrlHasPriorityOverAltActivation);
+            run("Temporary Alt split exits on Alt release", HouseNumberClickRiskRegressionTests::testTemporaryAltSplitExitsOnAltRelease);
+            run("Ctrl cursor uses custom magnifier without arrow asset fallback", HouseNumberClickRiskRegressionTests::testCtrlCursorUsesCustomMagnifier);
+            run("Terrace split flow completes immediately on successful click", HouseNumberClickRiskRegressionTests::testTerraceSplitCompletesImmediatelyOnSuccess);
+            run("Rectangularize option is propagated to temporary line split mode", HouseNumberClickRiskRegressionTests::testRectangularizePreferencePropagation);
+            run("House-number cursor label depends on complete address inputs", HouseNumberClickRiskRegressionTests::testHouseNumberCursorLabelCompletenessGuard);
             run("Street mode blocks apply when postcode is not selected", HouseNumberClickRiskRegressionTests::testPostcodeSelectionGuard);
             run("Main dialog close cleanup is safe", HouseNumberClickRiskRegressionTests::testMainDialogCloseCleanupIsSafe);
             run("Rescan refresh entrypoint is safe", HouseNumberClickRiskRegressionTests::testRescanRefreshEntrypointIsSafe);
@@ -464,6 +470,87 @@ public final class HouseNumberClickRiskRegressionTests {
         assertFalse(invokeDuplicateCheck(mode, first), "first click must not be duplicate");
         assertFalse(invokeDuplicateCheck(mode, differentPosition), "different position should not be duplicate");
         assertFalse(invokeDuplicateCheck(mode, differentModifiers), "different modifiers should not be duplicate");
+    }
+
+    private static void testCtrlHasPriorityOverAltActivation() throws Exception {
+        String source = readPluginSource("HouseNumberClickStreetMapMode.java");
+
+        int altBranchIndex = source.indexOf("e.getKeyCode() == KeyEvent.VK_ALT");
+        assertTrue(altBranchIndex >= 0, "street mode should handle Alt key presses");
+
+        int ctrlGuardIndex = source.indexOf("if (e.isControlDown())", altBranchIndex);
+        assertTrue(ctrlGuardIndex >= 0, "Alt branch should guard Ctrl-first priority");
+
+        int splitActivationIndex = source.indexOf("controller.activateTemporarySplitModeFromAlt()", altBranchIndex);
+        assertTrue(splitActivationIndex >= 0, "Alt branch should still support temporary split activation");
+        assertTrue(ctrlGuardIndex < splitActivationIndex,
+                "Ctrl guard must appear before temporary Alt split activation");
+    }
+
+    private static void testTemporaryAltSplitExitsOnAltRelease() throws Exception {
+        String source = readPluginSource("HouseNumberSplitMapMode.java");
+
+        assertTrue(source.contains("interactionKind == InteractionKind.LINE_SPLIT"),
+                "split mode should include line-split specific keyboard handling");
+        assertTrue(source.contains("temporaryAltHold"),
+                "split mode should track whether activation came from temporary Alt hold");
+        assertTrue(source.contains("event.getKeyCode() == KeyEvent.VK_ALT"),
+                "split mode should react to Alt key events");
+        assertTrue(source.contains("event.getID() == KeyEvent.KEY_RELEASED"),
+                "temporary Alt split should react specifically on key release");
+        assertTrue(source.contains("completeWithOutcome(StreetModeController.SplitFlowOutcome.CANCELLED)"),
+                "Alt release should end temporary split flow and return to street mode");
+    }
+
+    private static void testCtrlCursorUsesCustomMagnifier() throws Exception {
+        String source = readPluginSource("HouseNumberClickStreetMapMode.java");
+
+        int methodStart = source.indexOf("private Cursor createCtrlZoomCursor()");
+        assertTrue(methodStart >= 0, "street mode should provide a Ctrl cursor method");
+
+        int methodEnd = source.indexOf("private Cursor createHouseNumberCursor()", methodStart);
+        assertTrue(methodEnd > methodStart, "Ctrl cursor method should appear before house-number cursor method");
+
+        String methodBody = source.substring(methodStart, methodEnd);
+        assertTrue(methodBody.contains("new BufferedImage"),
+                "Ctrl cursor should be rendered from a custom magnifier image");
+        assertTrue(methodBody.contains("g.drawOval"),
+                "Ctrl cursor should draw a magnifier lens shape");
+        assertFalse(methodBody.contains("ImageProvider.getCursor"),
+                "Ctrl cursor should no longer use arrow-based JOSM zoom cursor assets");
+    }
+
+    private static void testTerraceSplitCompletesImmediatelyOnSuccess() throws Exception {
+        String source = readPluginSource("HouseNumberSplitMapMode.java");
+
+        int terraceBranchStart = source.indexOf("if (interactionKind == InteractionKind.TERRACE_CLICK)");
+        assertTrue(terraceBranchStart >= 0, "split mode should contain dedicated terrace-click handling");
+
+        int branchEnd = source.indexOf("// If press was missed during a fast mode switch", terraceBranchStart);
+        assertTrue(branchEnd > terraceBranchStart, "terrace branch should end before line-split fallback branch");
+
+        String terraceBranch = source.substring(terraceBranchStart, branchEnd);
+        assertTrue(terraceBranch.contains("completeWithOutcome(StreetModeController.SplitFlowOutcome.SUCCESS)"),
+                "successful terrace-click split should complete flow and return to street mode immediately");
+    }
+
+    private static void testRectangularizePreferencePropagation() throws Exception {
+        String dialogSource = readPluginSource("StreetSelectionDialog.java");
+        String controllerSource = readPluginSource("StreetModeController.java");
+
+        assertTrue(dialogSource.contains("streetModeController.setRectangularizeAfterLineSplit"),
+                "dialog should push make-rectangular checkbox state into controller preference");
+        assertTrue(controllerSource.contains("void setRectangularizeAfterLineSplit(boolean makeRectangular)"),
+                "controller should expose a setter for line-split rectangularize preference");
+    }
+
+    private static void testHouseNumberCursorLabelCompletenessGuard() throws Exception {
+        String source = readPluginSource("HouseNumberClickStreetMapMode.java");
+
+        assertTrue(source.contains("private boolean hasCompleteAddressInputForApply()"),
+                "street mode should define a completeness guard for cursor label rendering");
+        assertTrue(source.contains("boolean showHouseNumberLabel = hasCompleteAddressInputForApply()"),
+                "house-number cursor should gate label drawing by complete address inputs");
     }
 
     private static void testPostcodeSelectionGuard() {
@@ -973,6 +1060,11 @@ public final class HouseNumberClickRiskRegressionTests {
         assertFalse(source.contains("activateBuildingSplitterWithAddress("), "new split dialog path must not call bridge activation");
         assertTrue(source.contains("startInternalSingleSplitFlowFromDialog"), "split building button should use internal split flow");
         assertTrue(source.contains("executeInternalTerraceSplitFromDialog"), "create row houses button should use internal terrace flow");
+    }
+
+    private static String readPluginSource(String fileName) throws Exception {
+        Path path = Path.of("src", "org", "openstreetmap", "josm", "plugins", "housenumberclick", fileName);
+        return Files.readString(path);
     }
 
     private static void testSplitFlowReturnsToStreetModeOnSuccess() {

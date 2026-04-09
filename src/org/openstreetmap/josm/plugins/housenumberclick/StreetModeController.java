@@ -80,6 +80,7 @@ final class StreetModeController {
     private final TerraceSplitService terraceSplitService = new TerraceSplitService();
     private final CornerSnapService cornerSnapService = new CornerSnapService();
     private boolean rectangularizeAfterLineSplit;
+    private int configuredTerraceParts = 2;
     private AddressSelection lastSelection = new AddressSelection("", "", "", "", 1);
     private List<String> streetNavigationOrder = List.of();
     private String currentStreet = "";
@@ -606,7 +607,7 @@ final class StreetModeController {
     }
 
     boolean activateInternalSplitMode() {
-        return activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.LINE_SPLIT, 0);
+        return activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.LINE_SPLIT, 0, false);
     }
 
     // Keep this method for runtime compatibility with already compiled map-mode code paths.
@@ -616,19 +617,23 @@ final class StreetModeController {
             showNoDataSetNotification();
             return false;
         }
-        return activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.LINE_SPLIT, 0);
+        return activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.LINE_SPLIT, 0, true);
     }
 
-    private boolean activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind interactionKind, int terraceParts) {
+    private boolean activateInternalSplitMode(
+            HouseNumberSplitMapMode.InteractionKind interactionKind,
+            int terraceParts,
+            boolean temporaryAltHold
+    ) {
         MapFrame map = MainApplication.getMap();
         if (map == null || map.mapView == null) {
             return false;
         }
 
         if (splitMapMode == null) {
-            splitMapMode = new HouseNumberSplitMapMode(this, interactionKind, terraceParts);
+            splitMapMode = new HouseNumberSplitMapMode(this, interactionKind, terraceParts, temporaryAltHold);
         } else {
-            splitMapMode.configureFor(interactionKind, terraceParts);
+            splitMapMode.configureFor(interactionKind, terraceParts, temporaryAltHold);
         }
 
         if (map.mapMode == splitMapMode) {
@@ -647,7 +652,7 @@ final class StreetModeController {
             showNoDataSetNotification();
             return false;
         }
-        rectangularizeAfterLineSplit = makeRectangular;
+        setRectangularizeAfterLineSplit(makeRectangular);
         dataSet.setSelected(Collections.emptyList());
         if (activateInternalSplitMode()) {
             return true;
@@ -656,6 +661,10 @@ final class StreetModeController {
                 .setDuration(Notification.TIME_SHORT)
                 .show();
         return false;
+    }
+
+    void setRectangularizeAfterLineSplit(boolean makeRectangular) {
+        rectangularizeAfterLineSplit = makeRectangular;
     }
 
     SingleSplitResult executeInternalSingleSplit(LatLon lineStart, LatLon lineEnd) {
@@ -715,14 +724,13 @@ final class StreetModeController {
             return TerraceSplitResult.failure("Create row houses requires parts >= 2.");
         }
 
+        configuredTerraceParts = parts;
         dataSet.setSelected(Collections.emptyList());
-        if (!activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.TERRACE_CLICK, parts)) {
-            new Notification(I18n.tr("Split mode could not be started."))
-                    .setDuration(Notification.TIME_SHORT)
-                    .show();
-            return TerraceSplitResult.failure("Split mode could not be started.");
-        }
-        return TerraceSplitResult.success("Click inside one building to create row houses.", List.of());
+        return TerraceSplitResult.success("Row-house parts set. Right-click a building to split.", List.of());
+    }
+
+    int getConfiguredTerraceParts() {
+        return configuredTerraceParts;
     }
 
     TerraceSplitResult executeInternalTerraceSplitAtClick(Way clickedBuilding, int parts) {

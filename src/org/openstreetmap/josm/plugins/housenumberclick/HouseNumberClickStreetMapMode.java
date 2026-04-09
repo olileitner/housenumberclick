@@ -2,6 +2,7 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.awt.Component;
 import java.awt.Cursor;
+import java.awt.BasicStroke;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
@@ -38,7 +39,6 @@ import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.tools.I18n;
-import org.openstreetmap.josm.tools.ImageProvider;
 import org.openstreetmap.josm.tools.Logging;
 
 final class HouseNumberClickStreetMapMode extends MapMode {
@@ -170,6 +170,10 @@ final class HouseNumberClickStreetMapMode extends MapMode {
  
         int id = e.getID();
         if (!e.isConsumed() && id == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_ALT) {
+            if (e.isControlDown()) {
+                // Ctrl readback has priority over temporary Alt split.
+                return false;
+            }
             if (!isTextInputFocused() && controller.activateTemporarySplitModeFromAlt()) {
                 e.consume();
                 return true;
@@ -266,7 +270,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public String getModeHelpText() {
-        return I18n.tr("Left-click applies tags, Ctrl+left-click reads building data or street name, hold Alt for temporary split actions, + / - change number or suffix, L toggles letter suffix.");
+        return I18n.tr("Left-click applies tags, right-click creates row houses, Ctrl+left-click reads building data or street name, hold Alt for temporary line split actions, + / - change number or suffix, L toggles letter suffix.");
     }
 
     private boolean isPlusShortcut(KeyEvent e) {
@@ -287,6 +291,22 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public void mouseReleased(MouseEvent e) {
+        if (e != null && (SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger())) {
+            long startedAtNanos = System.nanoTime();
+            ClickResolutionStats stats = new ClickResolutionStats();
+            try {
+                handleTerraceRightClick(e, stats);
+            } catch (RuntimeException ex) {
+                Logging.warn("HouseNumberClick StreetMapMode.mouseReleased: failure while processing right-click terrace split");
+                Logging.debug(ex);
+                updateStatusLine(I18n.tr("Row-house split failed. See log for details."));
+                stats.outcome = "runtime-error";
+            } finally {
+                logClickDiagnostics(startedAtNanos, e, stats);
+            }
+            return;
+        }
+
         if (!SwingUtilities.isLeftMouseButton(e)) {
             return;
         }
@@ -439,6 +459,55 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         );
         stats.outcome = "address-picked";
         e.consume();
+    }
+
+    private void handleTerraceRightClick(MouseEvent e, ClickResolutionStats stats) {
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null) {
+            stats.outcome = "map-unavailable";
+            return;
+        }
+
+        BuildingResolver.BuildingResolutionResult resolution = buildingResolver.resolveAtClick(map, e);
+        stats.resolution = resolution;
+        OsmPrimitive building = resolution.getBuilding();
+        Way targetWay = resolveTerraceTargetWay(building);
+        if (targetWay == null) {
+            stats.outcome = "no-building-hit";
+            updateStatusLine(I18n.tr("No building detected"));
+            return;
+        }
+
+        TerraceSplitResult result = controller.executeInternalTerraceSplitAtClick(
+                targetWay,
+                controller.getConfiguredTerraceParts()
+        );
+        if (!result.isSuccess()) {
+            stats.outcome = "terrace-split-failed";
+            return;
+        }
+
+        stats.outcome = "terrace-split-applied";
+        updateStatusLine(I18n.tr("Row houses created ({0} parts).", controller.getConfiguredTerraceParts()));
+        e.consume();
+    }
+
+    private Way resolveTerraceTargetWay(OsmPrimitive building) {
+        if (building instanceof Way) {
+            Way way = (Way) building;
+            if (way.isUsable() && way.isClosed() && way.hasKey("building")) {
+                return way;
+            }
+            return null;
+        }
+        OsmPrimitive selectionTarget = getSelectionTarget(building);
+        if (selectionTarget instanceof Way) {
+            Way way = (Way) selectionTarget;
+            if (way.isUsable() && way.isClosed() && way.hasKey("building")) {
+                return way;
+            }
+        }
+        return null;
     }
 
     private OsmPrimitive getSelectionTarget(OsmPrimitive building) {
@@ -619,10 +688,27 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     private Cursor createCtrlZoomCursor() {
         try {
-            Cursor zoomCursor = ImageProvider.getCursor("normal", "zoom");
-            if (zoomCursor != null) {
-                return zoomCursor;
-            }
+            int width = 32;
+            int height = 32;
+            int hotspotX = 12;
+            int hotspotY = 12;
+
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = image.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int lensCenterX = 12;
+            int lensCenterY = 12;
+            int lensRadius = 8;
+            g.setColor(new java.awt.Color(255, 255, 255, 210));
+            g.fillOval(lensCenterX - lensRadius, lensCenterY - lensRadius, lensRadius * 2, lensRadius * 2);
+            g.setColor(new java.awt.Color(30, 30, 30, 240));
+            g.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawOval(lensCenterX - lensRadius, lensCenterY - lensRadius, lensRadius * 2, lensRadius * 2);
+            g.drawLine(18, 18, 26, 26);
+            g.dispose();
+
+            return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(hotspotX, hotspotY), "hnc-magnifier-cursor");
         } catch (RuntimeException ex) {
             Logging.debug(ex);
         }
@@ -632,9 +718,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     private Cursor createHouseNumberCursor() {
         try {
             String label = normalize(houseNumber);
-            if (label.isEmpty()) {
-                label = "?";
-            }
+            boolean showHouseNumberLabel = hasCompleteAddressInputForApply() && !label.isEmpty();
 
             int width = 48;
             int height = 48;
@@ -646,17 +730,19 @@ final class HouseNumberClickStreetMapMode extends MapMode {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
-            FontMetrics metrics = g.getFontMetrics();
-            int textWidth = metrics.stringWidth(label);
-            int textX = Math.max(1, (width - textWidth) / 2);
-            int textY = 14;
+            if (showHouseNumberLabel) {
+                g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 12));
+                FontMetrics metrics = g.getFontMetrics();
+                int textWidth = metrics.stringWidth(label);
+                int textX = Math.max(1, (width - textWidth) / 2);
+                int textY = 14;
 
-            g.setColor(new java.awt.Color(255, 255, 220, 235));
-            g.fillRoundRect(textX - 3, 2, textWidth + 6, 16, 6, 6);
-            g.setColor(java.awt.Color.BLACK);
-            g.drawRoundRect(textX - 3, 2, textWidth + 6, 16, 6, 6);
-            g.drawString(label, textX, textY);
+                g.setColor(new java.awt.Color(255, 255, 220, 235));
+                g.fillRoundRect(textX - 3, 2, textWidth + 6, 16, 6, 6);
+                g.setColor(java.awt.Color.BLACK);
+                g.drawRoundRect(textX - 3, 2, textWidth + 6, 16, 6, 6);
+                g.drawString(label, textX, textY);
+            }
 
             java.awt.Color lightArrowColor = new java.awt.Color(245, 245, 245, 240);
             g.setColor(lightArrowColor);
@@ -673,6 +759,12 @@ final class HouseNumberClickStreetMapMode extends MapMode {
             Logging.debug(ex);
             return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
         }
+    }
+
+    private boolean hasCompleteAddressInputForApply() {
+        return !normalize(streetName).isEmpty()
+                && !normalize(postcode).isEmpty()
+                && !normalize(houseNumber).isEmpty();
     }
 
     private boolean isDuplicateReleaseEvent(MouseEvent e) {
