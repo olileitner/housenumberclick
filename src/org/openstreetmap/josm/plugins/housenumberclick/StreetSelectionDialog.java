@@ -227,6 +227,22 @@ final class StreetSelectionDialog {
         this.createRowHousesButton = new JButton(CREATE_ROW_HOUSES_BUTTON_TEXT);
         this.createRowHousesButton.addActionListener(e -> onCreateRowHousesRequested());
         this.rowHousePartsField = new JTextField("2", 4);
+        this.rowHousePartsField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                onRowHousePartsChanged();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                onRowHousePartsChanged();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                onRowHousePartsChanged();
+            }
+        });
         int rowHousePartsFieldHeight = rowHousePartsField.getPreferredSize().height;
         Dimension rowHousePartsFieldSize = new Dimension(56, rowHousePartsFieldHeight);
         this.rowHousePartsField.setPreferredSize(rowHousePartsFieldSize);
@@ -241,39 +257,34 @@ final class StreetSelectionDialog {
         GridBagConstraints splitGbc = new GridBagConstraints();
         splitGbc.gridx = 0;
         splitGbc.gridy = 0;
-        splitGbc.anchor = GridBagConstraints.WEST;
-        splitGbc.insets = new Insets(0, 0, 4, 8);
-        splitToolsPanel.add(splitBuildingButton, splitGbc);
-
-        splitGbc.gridx = 1;
+        splitGbc.gridwidth = 5;
         splitGbc.weightx = 1.0;
         splitGbc.fill = GridBagConstraints.HORIZONTAL;
+        splitGbc.anchor = GridBagConstraints.WEST;
         splitGbc.insets = new Insets(0, 0, 4, 0);
         splitToolsPanel.add(splitMakeRectangularCheckbox, splitGbc);
 
         splitGbc.gridx = 0;
         splitGbc.gridy = 1;
+        splitGbc.gridwidth = 1;
         splitGbc.weightx = 0.0;
         splitGbc.fill = GridBagConstraints.NONE;
         splitGbc.insets = new Insets(0, 0, 0, 8);
-        splitToolsPanel.add(createRowHousesButton, splitGbc);
-
-        splitGbc.gridx = 1;
-        splitGbc.insets = new Insets(0, 0, 0, 4);
         splitToolsPanel.add(new JLabel(I18n.tr("Parts:")), splitGbc);
 
-        splitGbc.gridx = 2;
+        splitGbc.gridx = 1;
         splitGbc.weightx = 0.0;
         splitGbc.fill = GridBagConstraints.NONE;
+        splitGbc.insets = new Insets(0, 0, 0, 4);
         splitToolsPanel.add(rowHousePartsMinusButton, splitGbc);
 
-        splitGbc.gridx = 3;
+        splitGbc.gridx = 2;
         splitGbc.weightx = 1.0;
         splitGbc.fill = GridBagConstraints.HORIZONTAL;
         splitGbc.insets = new Insets(0, 0, 0, 4);
         splitToolsPanel.add(rowHousePartsField, splitGbc);
 
-        splitGbc.gridx = 4;
+        splitGbc.gridx = 3;
         splitGbc.weightx = 0.0;
         splitGbc.fill = GridBagConstraints.NONE;
         splitGbc.insets = new Insets(0, 0, 0, 0);
@@ -392,6 +403,7 @@ final class StreetSelectionDialog {
         zoomToSelectedStreetCheckbox.setSelected(rememberedZoomToSelectedStreetEnabled);
         splitMakeRectangularCheckbox.setSelected(rememberedSplitMakeRectangular);
         streetModeController.setRectangularizeAfterLineSplit(rememberedSplitMakeRectangular);
+        rowHousePartsField.setText(Integer.toString(streetModeController.getConfiguredTerraceParts()));
         lastSelectedStreet = getSelectedStreet();
         updatingInputs = false;
         updateStreetNavigationButtonState();
@@ -953,6 +965,16 @@ final class StreetSelectionDialog {
         rememberCurrentValues();
         streetModeController.setRectangularizeAfterLineSplit(splitMakeRectangularCheckbox.isSelected());
         focusMapViewIfStreetModeActive();
+    }
+
+    private void onRowHousePartsChanged() {
+        if (updatingInputs || rowHousePartsField == null) {
+            return;
+        }
+        int parts = parseTerraceParts(rowHousePartsField.getText());
+        if (parts >= 2) {
+            streetModeController.setConfiguredTerraceParts(parts);
+        }
     }
 
     static boolean runSplitBuildingAction(BooleanSupplier action) {

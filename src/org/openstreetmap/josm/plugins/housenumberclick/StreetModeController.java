@@ -734,6 +734,12 @@ final class StreetModeController {
         return configuredTerraceParts;
     }
 
+    void setConfiguredTerraceParts(int parts) {
+        if (parts >= 2) {
+            configuredTerraceParts = parts;
+        }
+    }
+
     TerraceSplitResult executeInternalTerraceSplitAtClick(Way clickedBuilding, int parts) {
         DataSet dataSet = getActiveEditDataSet();
         if (dataSet == null) {
