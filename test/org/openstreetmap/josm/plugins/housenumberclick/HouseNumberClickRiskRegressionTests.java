@@ -189,6 +189,7 @@ public final class HouseNumberClickRiskRegressionTests {
         AddressConflictService.ConflictAnalysis analysis = service.analyze(building, "New Street", "54321", "34", "house");
         assertTrue(analysis.hasConflict(), "different street/postcode should trigger overwrite conflict");
         assertEquals("Old Street", analysis.getOverwrittenStreet(), "existing street should be used as overwritten street");
+        assertEquals("12345", analysis.getOverwrittenPostcode(), "existing postcode should be used as overwritten postcode");
         assertEquals(4, analysis.getDifferingFields().size(), "street, postcode, housenumber and building diffs should be listed");
         assertEquals("addr:street", analysis.getDifferingFields().get(0).getKey(), "street diff should appear first");
         assertEquals("addr:postcode", analysis.getDifferingFields().get(1).getKey(), "postcode diff should appear second");
@@ -231,6 +232,7 @@ public final class HouseNumberClickRiskRegressionTests {
         AddressConflictService.ConflictAnalysis noStreetConflict = service.analyze(buildingWithoutStreet, "Any Street", "", "", "");
         assertFalse(noStreetConflict.hasConflict(), "missing existing street should not trigger street conflict");
         assertEquals("Any Street", noStreetConflict.getOverwrittenStreet(), "fallback overwritten street should use proposed street");
+        assertEquals("12345", noStreetConflict.getOverwrittenPostcode(), "existing postcode should remain overwritten postcode fallback");
 
         Way buildingWithOnlyHouseNumber = new Way();
         buildingWithOnlyHouseNumber.put("addr:housenumber", "10");
@@ -246,6 +248,10 @@ public final class HouseNumberClickRiskRegressionTests {
         AddressConflictService.ConflictAnalysis identicalAnalysis = service.analyze(identical, "Same", "11111", "3", "");
         assertFalse(identicalAnalysis.hasConflict(), "identical values should not trigger conflict");
         assertEquals(0, identicalAnalysis.getDifferingFields().size(), "identical values should produce no differing fields");
+
+        AddressConflictService.ConflictAnalysis missingBuilding = service.analyze(null, "Street", "77777", "", "");
+        assertEquals("77777", missingBuilding.getOverwrittenPostcode(),
+                "missing building should expose proposed postcode as overwrite context fallback");
     }
 
     private static void testAddressConflictBuildingTypeYesOverwriteIgnored() {

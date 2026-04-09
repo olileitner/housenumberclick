@@ -35,11 +35,17 @@ final class AddressConflictService {
 	static final class ConflictAnalysis {
 		private final boolean hasConflict;
 		private final String overwrittenStreet;
+		private final String overwrittenPostcode;
 		private final List<ConflictField> differingFields;
 
 		ConflictAnalysis(boolean hasConflict, String overwrittenStreet, List<ConflictField> differingFields) {
+			this(hasConflict, overwrittenStreet, "", differingFields);
+		}
+
+		ConflictAnalysis(boolean hasConflict, String overwrittenStreet, String overwrittenPostcode, List<ConflictField> differingFields) {
 			this.hasConflict = hasConflict;
 			this.overwrittenStreet = normalize(overwrittenStreet);
+			this.overwrittenPostcode = normalize(overwrittenPostcode);
 			this.differingFields = differingFields == null ? List.of() : Collections.unmodifiableList(differingFields);
 		}
 
@@ -49,6 +55,10 @@ final class AddressConflictService {
 
 		String getOverwrittenStreet() {
 			return overwrittenStreet;
+		}
+
+		String getOverwrittenPostcode() {
+			return overwrittenPostcode;
 		}
 
 		List<ConflictField> getDifferingFields() {
@@ -64,8 +74,9 @@ final class AddressConflictService {
 			String proposedBuildingType
 	) {
 		String normalizedProposedStreet = normalize(proposedStreet);
+		String normalizedProposedPostcode = normalize(proposedPostcode);
 		if (building == null) {
-			return new ConflictAnalysis(false, normalizedProposedStreet, List.of());
+			return new ConflictAnalysis(false, normalizedProposedStreet, normalizedProposedPostcode, List.of());
 		}
 
 		String existingStreet = normalize(building.get("addr:street"));
@@ -73,7 +84,6 @@ final class AddressConflictService {
 		String existingHouseNumber = normalize(building.get("addr:housenumber"));
 		String existingBuildingType = normalize(building.get("building"));
 
-		String normalizedProposedPostcode = normalize(proposedPostcode);
 		String normalizedProposedHouseNumber = normalize(proposedHouseNumber);
 		String normalizedProposedBuildingType = normalize(proposedBuildingType);
 
@@ -108,7 +118,13 @@ final class AddressConflictService {
 		}
 
 		String overwrittenStreet = existingStreet.isEmpty() ? normalizedProposedStreet : existingStreet;
-		return new ConflictAnalysis(streetConflict || postcodeConflict || buildingTypeConflict, overwrittenStreet, differingFields);
+		String overwrittenPostcode = existingPostcode.isEmpty() ? normalizedProposedPostcode : existingPostcode;
+		return new ConflictAnalysis(
+				streetConflict || postcodeConflict || buildingTypeConflict,
+				overwrittenStreet,
+				overwrittenPostcode,
+				differingFields
+		);
 	}
 
 	private static String normalize(String value) {

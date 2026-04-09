@@ -64,6 +64,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     private String houseNumber;
     private int houseNumberIncrementStep = 1;
     private String warningSuppressedStreet;
+    private String warningSuppressedPostcode;
     private boolean ctrlDispatcherRegistered;
     private boolean ctrlPressedForCursor;
     private long lastClickWhen;
@@ -106,6 +107,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         String normalizedStreet = normalize(streetName);
         if (!normalizedStreet.equals(this.streetName)) {
             warningSuppressedStreet = null;
+            warningSuppressedPostcode = null;
         }
         this.streetName = normalizedStreet;
         this.postcode = normalize(postcode);
@@ -378,8 +380,9 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         AddressConflictService.ConflictAnalysis conflictAnalysis =
                 addressConflictService.analyze(building, streetName, postcode, houseNumber, buildingType);
         String overwrittenStreet = conflictAnalysis.getOverwrittenStreet();
-        if (conflictAnalysis.hasConflict() && !isWarningSuppressedForStreet(overwrittenStreet)) {
-            if (!confirmOverwrite(conflictAnalysis, overwrittenStreet)) {
+        String overwrittenPostcode = conflictAnalysis.getOverwrittenPostcode();
+        if (conflictAnalysis.hasConflict() && !isWarningSuppressedForAddress(overwrittenStreet, overwrittenPostcode)) {
+            if (!confirmOverwrite(conflictAnalysis, overwrittenStreet, overwrittenPostcode)) {
                 stats.outcome = "overwrite-cancelled";
                 updateStatusLine(I18n.tr("Overwrite cancelled."));
                 e.consume();
@@ -553,7 +556,11 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         return building;
     }
 
-    private boolean confirmOverwrite(AddressConflictService.ConflictAnalysis conflictAnalysis, String overwrittenStreet) {
+    private boolean confirmOverwrite(
+            AddressConflictService.ConflictAnalysis conflictAnalysis,
+            String overwrittenStreet,
+            String overwrittenPostcode
+    ) {
         ConflictDialogModelBuilder.DialogModel dialogModel =
                 conflictDialogModelBuilder.build(conflictAnalysis, this::displayValue);
 
@@ -603,7 +610,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         tableScrollPane.setPreferredSize(new Dimension(480, 96));
 
         JCheckBox suppressCheckbox = new JCheckBox(
-                I18n.tr("Do not warn again for {0}.", displayValue(overwrittenStreet))
+                I18n.tr("Do not warn again for {0} / {1}.", displayValue(overwrittenStreet), displayValue(overwrittenPostcode))
         );
         Object[] content = new Object[] {
                 I18n.tr("<html><b>The following existing values will be overwritten:</b></html>"),
@@ -622,12 +629,15 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
         if (result == JOptionPane.YES_OPTION && suppressCheckbox.isSelected()) {
             warningSuppressedStreet = overwrittenStreet;
+            warningSuppressedPostcode = overwrittenPostcode;
         }
         return result == JOptionPane.YES_OPTION;
     }
 
-    private boolean isWarningSuppressedForStreet(String overwrittenStreet) {
-        return overwrittenStreet != null && overwrittenStreet.equals(warningSuppressedStreet);
+    private boolean isWarningSuppressedForAddress(String overwrittenStreet, String overwrittenPostcode) {
+        return overwrittenStreet != null
+                && overwrittenStreet.equals(warningSuppressedStreet)
+                && normalize(overwrittenPostcode).equals(normalize(warningSuppressedPostcode));
     }
 
 
