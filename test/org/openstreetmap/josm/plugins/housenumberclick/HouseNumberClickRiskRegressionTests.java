@@ -488,6 +488,12 @@ public final class HouseNumberClickRiskRegressionTests {
         assertTrue(splitActivationIndex >= 0, "Alt branch should still support temporary split activation");
         assertTrue(ctrlGuardIndex < splitActivationIndex,
                 "Ctrl guard must appear before temporary Alt split activation");
+
+        int branchEnd = source.indexOf("if (id != KeyEvent.KEY_PRESSED", altBranchIndex);
+        assertTrue(branchEnd > altBranchIndex, "Alt branch should end before generic shortcut branch");
+        String altBranch = source.substring(altBranchIndex, branchEnd);
+        assertFalse(altBranch.contains("isTextInputFocused()"),
+                "Alt activation should not depend on text focus so it works immediately after start");
     }
 
     private static void testTemporaryAltSplitExitsOnAltRelease() throws Exception {

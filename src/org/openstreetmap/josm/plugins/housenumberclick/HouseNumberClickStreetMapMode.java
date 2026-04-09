@@ -174,7 +174,9 @@ final class HouseNumberClickStreetMapMode extends MapMode {
                 // Ctrl readback has priority over temporary Alt split.
                 return false;
             }
-            if (!isTextInputFocused() && controller.activateTemporarySplitModeFromAlt()) {
+            // Alt split should be available immediately after mode activation,
+            // independent of current dialog/text focus.
+            if (controller.activateTemporarySplitModeFromAlt()) {
                 e.consume();
                 return true;
             }
