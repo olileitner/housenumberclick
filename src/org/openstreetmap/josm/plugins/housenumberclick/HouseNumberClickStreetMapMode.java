@@ -3,10 +3,12 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Point;
@@ -20,6 +22,8 @@ import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JComboBox;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
@@ -31,6 +35,8 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.text.JTextComponent;
 
 import org.openstreetmap.josm.actions.mapmode.MapMode;
+import org.openstreetmap.josm.data.Bounds;
+import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Relation;
@@ -38,7 +44,9 @@ import org.openstreetmap.josm.data.osm.RelationMember;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.gui.layer.MapViewPaintable;
 import org.openstreetmap.josm.tools.I18n;
+import org.openstreetmap.josm.tools.ImageProvider;
 import org.openstreetmap.josm.tools.Logging;
 
 final class HouseNumberClickStreetMapMode extends MapMode {
@@ -49,6 +57,9 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     static final int DEFAULT_RELATION_SCAN_CANDIDATES = BuildingResolver.DEFAULT_RELATION_SCAN_CANDIDATES;
     static final int DEFAULT_WAY_SCAN_CANDIDATES = BuildingResolver.DEFAULT_WAY_SCAN_CANDIDATES;
     private static final long SLOW_CLICK_LOG_THRESHOLD_MILLIS = 40L;
+    private static final int SPLIT_CURSOR_HOTSPOT_X = 7;
+    private static final int SPLIT_CURSOR_HOTSPOT_Y = 29;
+    private static final int SPLIT_DRAG_THRESHOLD_PX = 4;
 
     private final StreetModeController controller;
     private final BuildingResolver buildingResolver;
@@ -72,6 +83,12 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     private int lastClickY = Integer.MIN_VALUE;
     private int lastClickModifiers;
     private int lastClickButton;
+    private boolean altPressedForSplit;
+    private LatLon splitDragStart;
+    private LatLon splitDragCurrent;
+    private Point splitDragStartPoint;
+    private boolean splitOverlayAttached;
+    private final DragLineOverlay splitDragOverlay = new DragLineOverlay();
 
     private static final class ClickResolutionStats {
         private String outcome = "unknown";
@@ -127,11 +144,15 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     public void enterMode() {
         super.enterMode();
         ctrlPressedForCursor = false;
+        altPressedForSplit = false;
+        clearSplitDragState();
         registerCtrlKeyDispatcher();
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.addKeyListener(escListener);
             map.mapView.addMouseListener(this);
+            map.mapView.addMouseMotionListener(this);
+            splitOverlayAttached = map.mapView.addTemporaryLayer(splitDragOverlay);
             map.mapView.requestFocusInWindow();
         }
         controller.notifyModeStateChanged(true);
@@ -141,11 +162,18 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     @Override
     public void exitMode() {
         ctrlPressedForCursor = false;
+        altPressedForSplit = false;
+        clearSplitDragState();
         unregisterCtrlKeyDispatcher();
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.removeKeyListener(escListener);
             map.mapView.removeMouseListener(this);
+            map.mapView.removeMouseMotionListener(this);
+            if (splitOverlayAttached) {
+                map.mapView.removeTemporaryLayer(splitDragOverlay);
+                splitOverlayAttached = false;
+            }
             map.mapView.setCursor(Cursor.getDefaultCursor());
         }
         if (map != null && map.statusLine != null) {
@@ -173,18 +201,26 @@ final class HouseNumberClickStreetMapMode extends MapMode {
             }
             return false;
         }
- 
+
         int id = e.getID();
-        if (!e.isConsumed() && id == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_ALT) {
-            if (e.isControlDown()) {
-                // Ctrl readback has priority over temporary Alt split.
+        if (!e.isConsumed() && e.getKeyCode() == KeyEvent.VK_ALT) {
+            if (id == KeyEvent.KEY_PRESSED) {
+                if (e.isControlDown()) {
+                    // Ctrl readback has priority over Alt split affordance.
+                    return false;
+                }
+                altPressedForSplit = true;
+                updateHouseNumberCursor();
                 return false;
             }
-            // Alt split should be available immediately after mode activation,
-            // independent of current dialog/text focus.
-            if (controller.activateTemporarySplitModeFromAlt()) {
-                e.consume();
-                return true;
+            if (id == KeyEvent.KEY_RELEASED) {
+                altPressedForSplit = false;
+                if (splitDragStart != null) {
+                    clearSplitDragState();
+                    repaintMapView();
+                    updateStatusLine(I18n.tr("Line split cancelled."));
+                }
+                updateHouseNumberCursor();
             }
             return false;
         }
@@ -278,7 +314,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public String getModeHelpText() {
-        return I18n.tr("Left-click applies tags, right-click creates row houses, Ctrl+left-click reads building data or street name, hold Alt for temporary line split actions, + / - change number or suffix, L toggles letter suffix.");
+        return I18n.tr("Left-click applies tags, right-click creates row houses, Ctrl+left-click reads building data or street name, hold Alt and drag for temporary line split, + / - change number or suffix, L toggles letter suffix.");
     }
 
     private boolean isPlusShortcut(KeyEvent e) {
@@ -299,6 +335,11 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public void mouseReleased(MouseEvent e) {
+        if (isSplitDragInProgress()) {
+            handleSplitDragRelease(e);
+            return;
+        }
+
         if (e != null && (SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger())) {
             long startedAtNanos = System.nanoTime();
             ClickResolutionStats stats = new ClickResolutionStats();
@@ -351,7 +392,34 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public void mousePressed(MouseEvent e) {
-        // Intentionally handled on mouseReleased only to avoid duplicate apply/increment per click.
+        if (!isAltLeftSplitPress(e)) {
+            return;
+        }
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null || e == null) {
+            return;
+        }
+        splitDragStart = map.mapView.getLatLon(e.getX(), e.getY());
+        splitDragCurrent = splitDragStart;
+        splitDragStartPoint = e.getPoint();
+        repaintMapView();
+    }
+
+    @Override
+    public void mouseDragged(MouseEvent e) {
+        if (splitDragStart == null) {
+            return;
+        }
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null || e == null) {
+            return;
+        }
+        LatLon next = map.mapView.getLatLon(e.getX(), e.getY());
+        if (next == null) {
+            return;
+        }
+        splitDragCurrent = next;
+        repaintMapView();
     }
 
     private void handlePrimaryClick(MouseEvent e, ClickResolutionStats stats) {
@@ -744,7 +812,34 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         if (map == null || map.mapView == null || !isModeActiveOnMap(map)) {
             return;
         }
-        map.mapView.setCursor(ctrlPressedForCursor ? createCtrlZoomCursor() : createHouseNumberCursor());
+        if (ctrlPressedForCursor) {
+            map.mapView.setCursor(createCtrlZoomCursor());
+            return;
+        }
+        if (altPressedForSplit || splitDragStart != null) {
+            map.mapView.setCursor(createSplitCursor());
+            return;
+        }
+        map.mapView.setCursor(createHouseNumberCursor());
+    }
+
+    private Cursor createSplitCursor() {
+        try {
+            Icon icon = ImageProvider.get("mapmode", "housenumberclick_split");
+            if (icon instanceof ImageIcon) {
+                Image image = ((ImageIcon) icon).getImage();
+                if (image != null) {
+                    return Toolkit.getDefaultToolkit().createCustomCursor(
+                            image,
+                            new Point(SPLIT_CURSOR_HOTSPOT_X, SPLIT_CURSOR_HOTSPOT_Y),
+                            "hnc-split-cursor"
+                    );
+                }
+            }
+        } catch (RuntimeException ex) {
+            Logging.debug(ex);
+        }
+        return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
     }
 
     private Cursor createCtrlZoomCursor() {
@@ -870,6 +965,76 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         return duplicate;
     }
 
+    private boolean isAltLeftSplitPress(MouseEvent e) {
+        return e != null
+                && SwingUtilities.isLeftMouseButton(e)
+                && e.isAltDown()
+                && !e.isControlDown()
+                && !e.isMetaDown();
+    }
+
+    private boolean isSplitDragInProgress() {
+        return splitDragStart != null;
+    }
+
+    private void handleSplitDragRelease(MouseEvent e) {
+        LatLon splitStart = splitDragStart;
+        LatLon splitEnd = splitDragCurrent;
+        Point pressPoint = splitDragStartPoint;
+        Point releasePoint = e != null ? e.getPoint() : null;
+        if (e != null) {
+            MapFrame map = MainApplication.getMap();
+            if (map != null && map.mapView != null) {
+                LatLon atRelease = map.mapView.getLatLon(e.getX(), e.getY());
+                if (atRelease != null) {
+                    splitEnd = atRelease;
+                }
+            }
+        }
+
+        clearSplitDragState();
+        repaintMapView();
+        updateHouseNumberCursor();
+
+        if (isClickGesture(pressPoint, releasePoint) || splitStart == null || splitEnd == null) {
+            updateStatusLine(I18n.tr("Line split cancelled."));
+            if (e != null) {
+                e.consume();
+            }
+            return;
+        }
+
+        SingleSplitResult result = controller.executeInternalSingleSplit(splitStart, splitEnd);
+        if (result.isSuccess()) {
+            updateStatusLine(I18n.tr("Building split completed."));
+        }
+        if (e != null) {
+            e.consume();
+        }
+    }
+
+    private boolean isClickGesture(Point start, Point end) {
+        if (start == null || end == null) {
+            return false;
+        }
+        int dx = start.x - end.x;
+        int dy = start.y - end.y;
+        return (dx * dx) + (dy * dy) <= (SPLIT_DRAG_THRESHOLD_PX * SPLIT_DRAG_THRESHOLD_PX);
+    }
+
+    private void clearSplitDragState() {
+        splitDragStart = null;
+        splitDragCurrent = null;
+        splitDragStartPoint = null;
+    }
+
+    private void repaintMapView() {
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.repaint();
+        }
+    }
+
     private void logClickDiagnostics(long startedAtNanos, MouseEvent e, ClickResolutionStats stats) {
         long elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000L;
         if (Logging.isDebugEnabled()) {
@@ -944,5 +1109,33 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         houseNumber = next;
         controller.updateHouseNumber(next);
         return true;
+    }
+
+    private final class DragLineOverlay implements MapViewPaintable {
+        @Override
+        public void paint(Graphics2D graphics, org.openstreetmap.josm.gui.MapView mapView, Bounds bounds) {
+            if (splitDragStart == null || splitDragCurrent == null || graphics == null || mapView == null) {
+                return;
+            }
+
+            Point from = mapView.getPoint(splitDragStart);
+            Point to = mapView.getPoint(splitDragCurrent);
+            if (from == null || to == null) {
+                return;
+            }
+
+            Graphics2D g = (Graphics2D) graphics.create();
+            try {
+                g.setColor(new Color(0, 0, 0, 190));
+                g.setStroke(new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.drawLine(from.x, from.y, to.x, to.y);
+
+                g.setColor(new Color(255, 255, 255, 230));
+                g.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.drawLine(from.x, from.y, to.x, to.y);
+            } finally {
+                g.dispose();
+            }
+        }
     }
 }

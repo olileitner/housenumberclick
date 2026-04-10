@@ -26,12 +26,6 @@ import org.openstreetmap.josm.tools.Logging;
 
 final class StreetModeController {
 
-    enum SplitFlowOutcome {
-        SUCCESS,
-        FAILED,
-        CANCELLED
-    }
-
     static final class AddressSelection {
         private final String streetName;
         private final String postcode;
@@ -69,7 +63,6 @@ final class StreetModeController {
     }
 
     private HouseNumberClickStreetMapMode streetMapMode;
-    private HouseNumberSplitMapMode splitMapMode;
     private HouseNumberOverlayLayer houseNumberOverlayLayer;
     private BuildingOverviewLayer buildingOverviewLayer;
     private HouseNumberOverviewDialog houseNumberOverviewDialog;
@@ -96,8 +89,6 @@ final class StreetModeController {
     private AddressValuesReadListener addressValuesReadListener;
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
     private ModeStateListener modeStateListener;
-    private Runnable splitFlowReturnHook;
-    private SplitFlowOutcome lastSplitFlowOutcome = SplitFlowOutcome.CANCELLED;
 
     interface HouseNumberUpdateListener {
         void onHouseNumberUpdated(String houseNumber);
@@ -118,22 +109,6 @@ final class StreetModeController {
     boolean isActive() {
         MapFrame map = MainApplication.getMap();
         return map != null && streetMapMode != null && map.mapMode == streetMapMode;
-    }
-
-    boolean isLineSplitModeActive() {
-        MapFrame map = MainApplication.getMap();
-        return map != null
-                && splitMapMode != null
-                && map.mapMode == splitMapMode
-                && splitMapMode.getInteractionKind() == HouseNumberSplitMapMode.InteractionKind.LINE_SPLIT;
-    }
-
-    boolean isTerraceSplitModeActive() {
-        MapFrame map = MainApplication.getMap();
-        return map != null
-                && splitMapMode != null
-                && map.mapMode == splitMapMode
-                && splitMapMode.getInteractionKind() == HouseNumberSplitMapMode.InteractionKind.TERRACE_CLICK;
     }
 
     void activate(String streetName, String postcode, String buildingType, String houseNumber, int houseNumberIncrementStep) {
@@ -607,63 +582,6 @@ final class StreetModeController {
         deactivate();
     }
 
-    boolean activateInternalSplitMode() {
-        return activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.LINE_SPLIT, 0, false);
-    }
-
-    // Keep this method for runtime compatibility with already compiled map-mode code paths.
-    boolean activateTemporarySplitModeFromAlt() {
-        DataSet dataSet = getActiveEditDataSet();
-        if (dataSet == null) {
-            showNoDataSetNotification();
-            return false;
-        }
-        return activateInternalSplitMode(HouseNumberSplitMapMode.InteractionKind.LINE_SPLIT, 0, true);
-    }
-
-    private boolean activateInternalSplitMode(
-            HouseNumberSplitMapMode.InteractionKind interactionKind,
-            int terraceParts,
-            boolean temporaryAltHold
-    ) {
-        MapFrame map = MainApplication.getMap();
-        if (map == null || map.mapView == null) {
-            return false;
-        }
-
-        if (splitMapMode == null) {
-            splitMapMode = new HouseNumberSplitMapMode(this, interactionKind, terraceParts, temporaryAltHold);
-        } else {
-            splitMapMode.configureFor(interactionKind, terraceParts, temporaryAltHold);
-        }
-
-        if (map.mapMode == splitMapMode) {
-            return true;
-        }
-        return map.selectMapMode(splitMapMode);
-    }
-
-    boolean startInternalSingleSplitFlowFromDialog() {
-        return startInternalSingleSplitFlowFromDialog(false);
-    }
-
-    boolean startInternalSingleSplitFlowFromDialog(boolean makeRectangular) {
-        DataSet dataSet = getActiveEditDataSet();
-        if (dataSet == null) {
-            showNoDataSetNotification();
-            return false;
-        }
-        setRectangularizeAfterLineSplit(makeRectangular);
-        dataSet.setSelected(Collections.emptyList());
-        if (activateInternalSplitMode()) {
-            return true;
-        }
-        new Notification(I18n.tr("Split mode could not be started."))
-                .setDuration(Notification.TIME_SHORT)
-                .show();
-        return false;
-    }
-
     void setRectangularizeAfterLineSplit(boolean makeRectangular) {
         rectangularizeAfterLineSplit = makeRectangular;
     }
@@ -715,20 +633,6 @@ final class StreetModeController {
         return failure;
     }
 
-    TerraceSplitResult executeInternalTerraceSplitFromDialog(int parts) {
-        DataSet dataSet = getActiveEditDataSet();
-        if (dataSet == null) {
-            showNoDataSetNotification();
-            return TerraceSplitResult.failure("No editable dataset is available.");
-        }
-        if (!new TerraceSplitRequest(parts).hasValidParts()) {
-            return TerraceSplitResult.failure("Create row houses requires parts >= 2.");
-        }
-
-        configuredTerraceParts = parts;
-        dataSet.setSelected(Collections.emptyList());
-        return TerraceSplitResult.success("Row-house parts set. Right-click a building to split.", List.of());
-    }
 
     int getConfiguredTerraceParts() {
         return configuredTerraceParts;
@@ -873,40 +777,12 @@ final class StreetModeController {
         }
     }
 
-    void onInternalSplitFlowFinished(SplitFlowOutcome outcome) {
-        lastSplitFlowOutcome = outcome == null ? SplitFlowOutcome.CANCELLED : outcome;
-        returnToStreetModeAfterSplit();
-    }
-
-    void setSplitFlowReturnHookForTesting(Runnable splitFlowReturnHook) {
-        this.splitFlowReturnHook = splitFlowReturnHook;
-    }
-
-    SplitFlowOutcome getLastSplitFlowOutcomeForTesting() {
-        return lastSplitFlowOutcome;
-    }
-
-    private void returnToStreetModeAfterSplit() {
-        if (splitFlowReturnHook != null) {
-            splitFlowReturnHook.run();
-        }
-        // Keep return semantics centralized here so the normal street-mode activation path restores UI state.
-        if (lastSelection != null && !lastSelection.getStreetName().isEmpty()) {
-            activate(lastSelection);
-        }
-    }
-
     private DataSet getActiveEditDataSet() {
         return MainApplication.getLayerManager() != null
                 ? MainApplication.getLayerManager().getEditDataSet()
                 : null;
     }
 
-    private void showNoDataSetNotification() {
-        new Notification(I18n.tr("No active dataset available."))
-                .setDuration(Notification.TIME_SHORT)
-                .show();
-    }
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim();

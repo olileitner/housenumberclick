@@ -35,28 +35,24 @@ HouseNumberClick is a JOSM plugin for fast, street-focused house-number tagging 
 
 ## Split and Row-House Tools
 
-- `Split building`: activate line split mode and drag a line across one building.
-- `Create row houses`: activate click mode and click inside a building to split into `Parts`.
-- No preselection is required for either flow; the target building is resolved from the drawn line/click.
+- Hold `Alt`, then drag a line across one building to run a temporary line split.
+- Right-click a building to split it into row-house `Parts` configured in the dialog.
+- No preselection is required; the target building is resolved from the drag/click.
 - `Make rectangular` can orthogonalize line-split results after a successful split.
-- Split mode buttons show current state (`ON`) while active.
-- Line split remains active after failed attempts and exits only after a successful split (or explicit cancel).
+- After split success or cancellation, control returns to normal Street Mode.
 
 ## Map Mode Shortcuts
 
 - `+` / `-`: change current house-number component.
 - `L`: toggle suffix (`12 <-> 12a`).
 - `Esc`: leave/pause Street Mode.
-- `S`: start `Split building`.
-- `C`: start `Create row houses`.
 - Left/right street navigation is disabled while typing in text fields.
 
 ## Split Mode Controls
 
-- **Line split mode:** press left mouse button, drag, and release to attempt split.
-- **Terrace (row-house) mode:** click inside building to split into current `Parts`.
-- In terrace mode, number keys (`0-9`/numpad) set parts directly (minimum is `2`) and rerun split on the current building.
-- In terrace mode, `Esc` exits back to normal Street Mode.
+- **Temporary line split:** hold `Alt`, press left mouse button, drag, and release to attempt split.
+- Releasing `Alt` cancels the temporary split and returns to normal Street Mode.
+- **Row-house split:** right-click inside a building in Street Mode; split uses dialog `Parts` value.
 
 ## Optional Visual Tools
 
@@ -76,7 +72,7 @@ HouseNumberClick is a JOSM plugin for fast, street-focused house-number tagging 
 1. Start <img src="images/housenumberclick.svg" alt="HouseNumberClick icon" width="18" /> `HouseNumberClick` in JOSM.
 2. Select street and set postcode (from list or manual input), then optional building type/house number.
 3. Click buildings to apply addresses. House number increments automatically after each successful click.
-4. Optional: use split tools (`Split building`, `Create row houses`) for geometry workflows.
+4. Optional: use split interactions (`Alt+Drag` line split, right-click row-house split) for geometry workflows.
 5. Use shortcuts and optional overview windows as needed.
 
 ![HouseNumberClick dialog](docs/images/housenumberclick-dialog.png)

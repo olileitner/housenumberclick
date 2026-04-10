@@ -9,7 +9,7 @@
 - Dialog -> controller -> map mode path: `StreetSelectionDialog.notifyAddressChanged()` builds `AddressSelection`, then `StreetModeController.activate(...)` pushes values into `HouseNumberClickStreetMapMode`.
 - Left-click apply path in `HouseNumberClickStreetMapMode`: resolve building (`BuildingResolver`) -> conflict analysis (`AddressConflictService`) -> write tags (`BuildingTagApplier` via `ChangePropertyCommand`) -> auto-increment (`HouseNumberService`) -> controller refresh.
 - Ctrl+click readback path: `AddressReadbackService.readFromBuilding(...)` or street fallback (`resolveStreetNameAtClick` on named highways).
-- Split flow is separate map mode (`HouseNumberSplitMapMode`): line split uses `SingleBuildingSplitService`; right-click row-house split uses `TerraceSplitService`.
+- Split flow is integrated into `HouseNumberClickStreetMapMode`: `Alt+drag` line split uses `SingleBuildingSplitService`; right-click row-house split uses `TerraceSplitService`.
 - Collector/layer pattern: data shaping in collectors (`HouseNumberOverlayCollector`, `HouseNumberOverviewCollector`, `StreetHouseNumberCountCollector`, `BuildingOverviewCollector`), rendering in `Layer`/dialog classes.
 
 ## Build, test, and release workflow
@@ -29,7 +29,7 @@
 - User-facing text is translated with `I18n.tr(...)`; keep new strings translatable.
 
 ## Integration points and risk hotspots
-- Map-mode lifecycle + global key dispatchers are fragile: `HouseNumberClickStreetMapMode` and `HouseNumberSplitMapMode` must register/unregister listeners correctly in `enterMode/exitMode`.
+- Map-mode lifecycle + global key dispatchers are fragile: `HouseNumberClickStreetMapMode` must register/unregister listeners correctly in `enterMode/exitMode`.
 - Multipolygon behavior is intentional: `BuildingResolver` prefers multipolygon building relations over ways; `resolveWriteTargetForApply(...)` writes to relation when appropriate.
 - Split operations require rollback-safe behavior (`SingleBuildingSplitService.rollbackCommandsAddedSince(...)`) to avoid leaving partial edits.
 - Overlay ordering is deliberate (`StreetModeController.ensureOverlayLayerAboveBuildingOverview(...)`); do not change layer index logic casually.
@@ -38,6 +38,6 @@
 ## Practical editing guidance for agents
 - When changing click behavior, update both runtime code and regression harness assertions in `HouseNumberClickRiskRegressionTests`.
 - For new collector rules, check all collector consumers (overlay, overview table, street counts) so street/address matching stays aligned.
-- For split changes, verify both flows: line drag (`startInternalSingleSplitFlowFromDialog`) and row-house actions (`executeInternalTerraceSplitFromDialog` + right-click path).
+- For split changes, verify both flows: temporary line split via `Alt+drag` (`activateTemporarySplitModeFromAlt` -> `executeInternalSingleSplit`) and row-house split via street-mode right-click (`executeInternalTerraceSplitAtClick`).
 - If you add UI strings or help text, keep `README.md` shortcuts/behavior sections in sync with actual key handling.
 
