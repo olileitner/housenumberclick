@@ -180,6 +180,11 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             return false;
         }
 
+        if (isAltModifierChordActive(e)) {
+            // Global shortcuts like Ctrl+Alt+Shift+P must not leave split readiness active.
+            resetTemporarySplitState();
+        }
+
         if (e.getKeyCode() == KeyEvent.VK_CONTROL) {
             if (e.getID() == KeyEvent.KEY_PRESSED) {
                 ctrlPressedForCursor = true;
@@ -194,15 +199,14 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
         int id = e.getID();
         if (e.getKeyCode() == KeyEvent.VK_ALT) {
             if (id == KeyEvent.KEY_PRESSED) {
-                altPressed = true;
-                updateHouseNumberCursor();
-            } else if (id == KeyEvent.KEY_RELEASED) {
-                altPressed = false;
-                if (draggingSplit) {
-                    clearSplitDragState();
-                    repaintMapView();
+                if (isPlainAltSplitGesture(e)) {
+                    altPressed = true;
+                    updateHouseNumberCursor();
+                } else {
+                    resetTemporarySplitState();
                 }
-                updateHouseNumberCursor();
+            } else if (id == KeyEvent.KEY_RELEASED) {
+                resetTemporarySplitState();
             }
             return false;
         }
@@ -504,6 +508,30 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
         splitDragCurrent = null;
         splitDragStartPoint = null;
         splitDragCurrentPoint = null;
+    }
+
+    private boolean isPlainAltSplitGesture(KeyEvent e) {
+        return e != null
+                && e.getKeyCode() == KeyEvent.VK_ALT
+                && e.getID() == KeyEvent.KEY_PRESSED
+                && !e.isControlDown()
+                && !e.isShiftDown()
+                && !e.isMetaDown();
+    }
+
+    private boolean isAltModifierChordActive(KeyEvent e) {
+        return e != null
+                && e.isAltDown()
+                && (e.isControlDown() || e.isShiftDown() || e.isMetaDown());
+    }
+
+    private void resetTemporarySplitState() {
+        altPressed = false;
+        if (draggingSplit) {
+            clearSplitDragState();
+            repaintMapView();
+        }
+        updateHouseNumberCursor();
     }
 
     private void repaintMapView() {
