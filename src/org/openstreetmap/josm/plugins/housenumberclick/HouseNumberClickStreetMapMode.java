@@ -30,12 +30,16 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.text.JTextComponent;
 
 import org.openstreetmap.josm.actions.mapmode.MapMode;
+import org.openstreetmap.josm.data.Bounds;
+import org.openstreetmap.josm.data.coor.LatLon;
+import org.openstreetmap.josm.gui.MapView;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.gui.layer.MapViewPaintable;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
-final class HouseNumberClickStreetMapMode extends MapMode {
+final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPaintable {
 
     private static final long DUPLICATE_CLICK_WINDOW_MILLIS = 120L;
     static final String PREF_RELATION_SCAN_LIMIT = BuildingResolver.PREF_RELATION_SCAN_LIMIT;
@@ -43,6 +47,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     static final int DEFAULT_RELATION_SCAN_CANDIDATES = BuildingResolver.DEFAULT_RELATION_SCAN_CANDIDATES;
     static final int DEFAULT_WAY_SCAN_CANDIDATES = BuildingResolver.DEFAULT_WAY_SCAN_CANDIDATES;
     private static final long SLOW_CLICK_LOG_THRESHOLD_MILLIS = 40L;
+    private static final int SPLIT_DRAG_THRESHOLD_PIXELS = 6;
 
     private final StreetModeController controller;
     private final ClickHandlerService clickHandlerService;
@@ -60,6 +65,12 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     private String warningSuppressedPostcode;
     private boolean ctrlDispatcherRegistered;
     private boolean ctrlPressedForCursor;
+    private boolean altPressed;
+    private boolean draggingSplit;
+    private Point splitDragStartPoint;
+    private Point splitDragCurrentPoint;
+    private LatLon splitDragStart;
+    private LatLon splitDragCurrent;
     private long lastClickWhen;
     private int lastClickX = Integer.MIN_VALUE;
     private int lastClickY = Integer.MIN_VALUE;
@@ -124,11 +135,15 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     public void enterMode() {
         super.enterMode();
         ctrlPressedForCursor = false;
+        altPressed = false;
+        clearSplitDragState();
         registerCtrlKeyDispatcher();
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.addKeyListener(escListener);
             map.mapView.addMouseListener(this);
+            map.mapView.addMouseMotionListener(this);
+            map.mapView.addTemporaryLayer(this);
             map.mapView.requestFocusInWindow();
         }
         controller.notifyModeStateChanged(true);
@@ -138,11 +153,15 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     @Override
     public void exitMode() {
         ctrlPressedForCursor = false;
+        altPressed = false;
+        clearSplitDragState();
         unregisterCtrlKeyDispatcher();
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.removeKeyListener(escListener);
             map.mapView.removeMouseListener(this);
+            map.mapView.removeMouseMotionListener(this);
+            map.mapView.removeTemporaryLayer(this);
             map.mapView.setCursor(Cursor.getDefaultCursor());
         }
         if (map != null && map.statusLine != null) {
@@ -172,16 +191,17 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         }
 
         int id = e.getID();
-        if (!e.isConsumed() && id == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_ALT) {
-            if (e.isControlDown()) {
-                // Ctrl readback has priority over temporary Alt split.
-                return false;
-            }
-            // Alt split should be available immediately after mode activation,
-            // independent of current dialog/text focus.
-            if (controller.activateTemporarySplitModeFromAlt()) {
-                e.consume();
-                return true;
+        if (e.getKeyCode() == KeyEvent.VK_ALT) {
+            if (id == KeyEvent.KEY_PRESSED) {
+                altPressed = true;
+                updateHouseNumberCursor();
+            } else if (id == KeyEvent.KEY_RELEASED) {
+                altPressed = false;
+                if (draggingSplit) {
+                    clearSplitDragState();
+                    repaintMapView();
+                }
+                updateHouseNumberCursor();
             }
             return false;
         }
@@ -296,6 +316,11 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public void mouseReleased(MouseEvent e) {
+        if (isSplitReleaseEvent(e)) {
+            handleInlineSplitRelease(e);
+            return;
+        }
+
         if (e != null && (SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger())) {
             long startedAtNanos = System.nanoTime();
             ClickResolutionStats stats = new ClickResolutionStats();
@@ -348,7 +373,121 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public void mousePressed(MouseEvent e) {
-        // Intentionally handled on mouseReleased only to avoid duplicate apply/increment per click.
+        if (e == null || !SwingUtilities.isLeftMouseButton(e)) {
+            return;
+        }
+        if (!altPressed || e.isControlDown()) {
+            return;
+        }
+
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null) {
+            return;
+        }
+
+        splitDragStartPoint = e.getPoint();
+        splitDragCurrentPoint = e.getPoint();
+        splitDragStart = map.mapView.getLatLon(e.getX(), e.getY());
+        splitDragCurrent = splitDragStart;
+        draggingSplit = splitDragStart != null;
+        if (draggingSplit) {
+            e.consume();
+            repaintMapView();
+            updateHouseNumberCursor();
+        }
+    }
+
+    @Override
+    public void mouseDragged(MouseEvent e) {
+        if (!draggingSplit || e == null) {
+            return;
+        }
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null) {
+            clearSplitDragState();
+            return;
+        }
+
+        splitDragCurrentPoint = e.getPoint();
+        splitDragCurrent = map.mapView.getLatLon(e.getX(), e.getY());
+        e.consume();
+        repaintMapView();
+    }
+
+    public void paint(Graphics2D g, MapView mv, Bounds bbox) {
+        if (!draggingSplit || splitDragStartPoint == null || splitDragCurrentPoint == null) {
+            return;
+        }
+
+        g.setColor(new java.awt.Color(255, 200, 60, 220));
+        g.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        g.drawLine(
+                splitDragStartPoint.x,
+                splitDragStartPoint.y,
+                splitDragCurrentPoint.x,
+                splitDragCurrentPoint.y
+        );
+    }
+
+    private boolean isSplitReleaseEvent(MouseEvent e) {
+        return e != null && draggingSplit && SwingUtilities.isLeftMouseButton(e);
+    }
+
+    private void handleInlineSplitRelease(MouseEvent e) {
+        try {
+            if (!isValidSplitDrag()) {
+                clearSplitDragState();
+                repaintMapView();
+                updateHouseNumberCursor();
+                return;
+            }
+
+            splitDragCurrentPoint = e.getPoint();
+            MapFrame map = MainApplication.getMap();
+            if (map != null && map.mapView != null) {
+                splitDragCurrent = map.mapView.getLatLon(e.getX(), e.getY());
+            }
+            if (splitDragStart == null || splitDragCurrent == null) {
+                clearSplitDragState();
+                repaintMapView();
+                updateHouseNumberCursor();
+                return;
+            }
+
+            SingleSplitResult result = controller.executeInternalSingleSplit(splitDragStart, splitDragCurrent);
+            if (result != null && result.isSuccess()) {
+                updateStatusLine(I18n.tr("Line split applied."));
+            }
+        } finally {
+            clearSplitDragState();
+            repaintMapView();
+            updateHouseNumberCursor();
+            if (e != null) {
+                e.consume();
+            }
+        }
+    }
+
+    private boolean isValidSplitDrag() {
+        if (!draggingSplit || splitDragStartPoint == null || splitDragCurrentPoint == null) {
+            return false;
+        }
+        return splitDragStartPoint.distance(splitDragCurrentPoint) >= SPLIT_DRAG_THRESHOLD_PIXELS;
+    }
+
+    private void clearSplitDragState() {
+        draggingSplit = false;
+        splitDragStart = null;
+        splitDragCurrent = null;
+        splitDragStartPoint = null;
+        splitDragCurrentPoint = null;
+    }
+
+    private void repaintMapView() {
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.repaint();
+        }
     }
 
     private void handlePrimaryClick(MouseEvent e, ClickResolutionStats stats) {
@@ -639,7 +778,34 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         if (map == null || map.mapView == null || !isModeActiveOnMap(map)) {
             return;
         }
+        if (draggingSplit || altPressed) {
+            map.mapView.setCursor(createSplitCursor());
+            return;
+        }
         map.mapView.setCursor(ctrlPressedForCursor ? createCtrlZoomCursor() : createHouseNumberCursor());
+    }
+
+    private Cursor createSplitCursor() {
+        try {
+            Toolkit toolkit = Toolkit.getDefaultToolkit();
+            int width = 32;
+            int height = 32;
+            int hotspotX = 7;
+            int hotspotY = 16;
+
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = image.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new java.awt.Color(255, 210, 90, 230));
+            g.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawLine(4, 16, 28, 16);
+            g.drawLine(7, 12, 7, 20);
+            g.dispose();
+            return toolkit.createCustomCursor(image, new Point(hotspotX, hotspotY), "hnc-split-cursor");
+        } catch (RuntimeException ex) {
+            Logging.debug(ex);
+            return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
+        }
     }
 
     private Cursor createCtrlZoomCursor() {

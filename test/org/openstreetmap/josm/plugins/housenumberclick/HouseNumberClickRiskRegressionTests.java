@@ -64,10 +64,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Terrace split fails for invalid parts", HouseNumberClickRiskRegressionTests::testTerraceSplitFailsForInvalidParts);
             run("Terrace split result order is deterministic", HouseNumberClickRiskRegressionTests::testTerraceSplitOrderIsDeterministic);
             run("Dialog no longer exposes split-start button entrypoints", HouseNumberClickRiskRegressionTests::testDialogSplitStartEntrypointsRemoved);
-            run("Split flow returns to street mode on success", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnSuccess);
-            run("Split flow returns to street mode on failure", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnFailure);
-            run("Split flow returns to street mode on cancel", HouseNumberClickRiskRegressionTests::testSplitFlowReturnsToStreetModeOnCancel);
-            run("Split flow keeps mode state signaling consistent", HouseNumberClickRiskRegressionTests::testSplitFlowModeStateSignalingConsistency);
+            run("Controller no longer exposes split mode activation entrypoints", HouseNumberClickRiskRegressionTests::testSplitModeControllerEntrypointsRemoved);
             run("Scan limit defaults are used when unset", HouseNumberClickRiskRegressionTests::testScanLimitDefaultsWhenUnset);
             run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
             run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
@@ -500,9 +497,7 @@ public final class HouseNumberClickRiskRegressionTests {
         assertTrue(ctrlGuardIndex >= 0, "Alt branch should guard Ctrl-first priority");
 
         int splitActivationIndex = source.indexOf("controller.activateTemporarySplitModeFromAlt()", altBranchIndex);
-        assertTrue(splitActivationIndex >= 0, "Alt branch should still support temporary split activation");
-        assertTrue(ctrlGuardIndex < splitActivationIndex,
-                "Ctrl guard must appear before temporary Alt split activation");
+        assertTrue(splitActivationIndex < 0, "Alt branch must not trigger controller split-mode activation anymore");
 
         int branchEnd = source.indexOf("if (id != KeyEvent.KEY_PRESSED", altBranchIndex);
         assertTrue(branchEnd > altBranchIndex, "Alt branch should end before generic shortcut branch");
@@ -512,25 +507,15 @@ public final class HouseNumberClickRiskRegressionTests {
     }
 
     private static void testTemporaryAltSplitExitsOnAltRelease() throws Exception {
-        Path splitModePath = Path.of(
-                "src", "org", "openstreetmap", "josm", "plugins", "housenumberclick", "HouseNumberSplitMapMode.java"
-        );
-        if (Files.exists(splitModePath)) {
-            String source = Files.readString(splitModePath);
-            assertTrue(source.contains("temporaryAltHold"),
-                    "split mode should track whether activation came from temporary Alt hold");
-            assertTrue(source.contains("event.getKeyCode() == KeyEvent.VK_ALT"),
-                    "split mode should react to Alt key events");
-            assertTrue(source.contains("event.getID() == KeyEvent.KEY_RELEASED"),
-                    "temporary Alt split should react specifically on key release");
-            assertTrue(source.contains("completeWithOutcome(StreetModeController.SplitFlowOutcome.CANCELLED)"),
-                    "Alt release should end temporary split flow and return to street mode");
-            return;
-        }
-
         String streetModeSource = readPluginSource("HouseNumberClickStreetMapMode.java");
         assertTrue(streetModeSource.contains("e.getKeyCode() == KeyEvent.VK_ALT"),
                 "without split map mode source, Alt handling must still exist in street mode");
+        assertTrue(streetModeSource.contains("id == KeyEvent.KEY_RELEASED"),
+                "Alt handling should react on key release to cancel inline split-drag state");
+        assertTrue(streetModeSource.contains("clearSplitDragState()"),
+                "Alt release should clear active inline split-drag state");
+        assertTrue(streetModeSource.contains("mouseDragged"),
+                "single-mapmode model should handle split drag updates in street mode directly");
     }
 
     private static void testCtrlCursorUsesCustomMagnifier() throws Exception {
@@ -1131,59 +1116,16 @@ public final class HouseNumberClickRiskRegressionTests {
         return Files.readString(path);
     }
 
-    private static void testSplitFlowReturnsToStreetModeOnSuccess() {
-        StreetModeController controller = new StreetModeController();
-        controller.activate(new StreetModeController.AddressSelection("Main Street", "12345", "house", "1", 1));
-
-        int[] returnCalls = {0};
-        controller.setSplitFlowReturnHookForTesting(() -> returnCalls[0]++);
-
-        controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.SUCCESS);
-
-        assertEquals(1, returnCalls[0], "split success should trigger one return-to-street-mode attempt");
-        assertEquals(StreetModeController.SplitFlowOutcome.SUCCESS, controller.getLastSplitFlowOutcomeForTesting(),
-                "last split outcome should track success");
-    }
-
-    private static void testSplitFlowReturnsToStreetModeOnFailure() {
-        StreetModeController controller = new StreetModeController();
-        controller.activate(new StreetModeController.AddressSelection("Main Street", "12345", "house", "1", 1));
-
-        int[] returnCalls = {0};
-        controller.setSplitFlowReturnHookForTesting(() -> returnCalls[0]++);
-
-        controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.FAILED);
-
-        assertEquals(1, returnCalls[0], "split failure should still trigger return-to-street-mode attempt");
-        assertEquals(StreetModeController.SplitFlowOutcome.FAILED, controller.getLastSplitFlowOutcomeForTesting(),
-                "last split outcome should track failure");
-    }
-
-    private static void testSplitFlowReturnsToStreetModeOnCancel() {
-        StreetModeController controller = new StreetModeController();
-        controller.activate(new StreetModeController.AddressSelection("Main Street", "12345", "house", "1", 1));
-
-        int[] returnCalls = {0};
-        controller.setSplitFlowReturnHookForTesting(() -> returnCalls[0]++);
-
-        controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.CANCELLED);
-
-        assertEquals(1, returnCalls[0], "split cancel should trigger return-to-street-mode attempt");
-        assertEquals(StreetModeController.SplitFlowOutcome.CANCELLED, controller.getLastSplitFlowOutcomeForTesting(),
-                "last split outcome should track cancel");
-    }
-
-    private static void testSplitFlowModeStateSignalingConsistency() {
-        StreetModeController controller = new StreetModeController();
-        List<Boolean> states = new ArrayList<>();
-        controller.setModeStateListener(states::add);
-        controller.activate(new StreetModeController.AddressSelection("Main Street", "12345", "house", "1", 1));
-
-        controller.onInternalSplitFlowFinished(StreetModeController.SplitFlowOutcome.FAILED);
-
-        assertFalse(states.isEmpty(), "mode state listener should receive updates");
-        assertEquals(Boolean.FALSE, states.get(states.size() - 1),
-                "after split completion without map context the mode should be signaled as paused");
+    private static void testSplitModeControllerEntrypointsRemoved() throws Exception {
+        String controllerSource = readPluginSource("StreetModeController.java");
+        assertFalse(controllerSource.contains("activateTemporarySplitModeFromAlt("),
+                "controller should no longer expose Alt-triggered split mode activation");
+        assertFalse(controllerSource.contains("activateInternalSplitMode("),
+                "controller should no longer expose split mode activation helpers");
+        assertFalse(controllerSource.contains("SplitFlowOutcome"),
+                "controller should no longer carry split flow mode-switch outcomes");
+        assertFalse(controllerSource.contains("onInternalSplitFlowFinished("),
+                "controller should no longer model return flow from a separate split mode");
     }
 
     private static String terraceOrderSignature(List<Way> ways) {
