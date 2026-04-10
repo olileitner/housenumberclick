@@ -239,13 +239,23 @@ final class StreetSelectionDialog {
         this.rowHousePartsField.setMinimumSize(rowHousePartsFieldSize);
         this.rowHousePartsMinusButton = createRowHousePartsAdjustButton(-1);
         this.rowHousePartsPlusButton = createRowHousePartsAdjustButton(1);
-        int partsButtonWidth = Math.max(28, rowHousePartsFieldHeight + 8);
-        int partsButtonHeight = Math.max(22, rowHousePartsFieldHeight + 2);
+        this.rowHousePartsMinusButton.setMargin(new Insets(1, 10, 1, 10));
+        this.rowHousePartsPlusButton.setMargin(new Insets(1, 10, 1, 10));
+        int partsButtonWidth = Math.max(
+                40,
+                Math.max(rowHousePartsMinusButton.getPreferredSize().width, rowHousePartsPlusButton.getPreferredSize().width)
+        );
+        int partsButtonHeight = Math.max(
+                rowHousePartsFieldHeight + 4,
+                Math.max(rowHousePartsMinusButton.getPreferredSize().height, rowHousePartsPlusButton.getPreferredSize().height)
+        );
         Dimension squarePartsButtonSize = new Dimension(partsButtonWidth, partsButtonHeight);
         this.rowHousePartsMinusButton.setPreferredSize(squarePartsButtonSize);
         this.rowHousePartsMinusButton.setMinimumSize(squarePartsButtonSize);
+        this.rowHousePartsMinusButton.setMaximumSize(squarePartsButtonSize);
         this.rowHousePartsPlusButton.setPreferredSize(squarePartsButtonSize);
         this.rowHousePartsPlusButton.setMinimumSize(squarePartsButtonSize);
+        this.rowHousePartsPlusButton.setMaximumSize(squarePartsButtonSize);
         this.streetModeController.setTerracePartsUpdateListener(this::updateRowHousePartsFromMode);
 
         JPanel sectionsPanel = new JPanel(new GridBagLayout());
