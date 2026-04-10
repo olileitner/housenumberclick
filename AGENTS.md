@@ -1,43 +1,240 @@
 # AGENTS.md
 
-## Project snapshot
-- This is a JOSM plugin (`HouseNumberClick`) for high-speed address tagging + split/overview tooling on building geometries.
-- Runtime entry is `src/org/openstreetmap/josm/plugins/housenumberclick/HouseNumberClickPlugin.java`; UI action is `HouseNumberClickAction`.
-- Core orchestration is centralized in `StreetModeController` (map modes, overlays, split flows, dialogs, lifecycle).
+## Project Snapshot
 
-## Architecture and data flow (read this first)
-- Dialog -> controller -> map mode path: `StreetSelectionDialog.notifyAddressChanged()` builds `AddressSelection`, then `StreetModeController.activate(...)` pushes values into `HouseNumberClickStreetMapMode`.
-- Left-click apply path in `HouseNumberClickStreetMapMode`: resolve building (`BuildingResolver`) -> conflict analysis (`AddressConflictService`) -> write tags (`BuildingTagApplier` via `ChangePropertyCommand`) -> auto-increment (`HouseNumberService`) -> controller refresh.
-- Ctrl+click readback path: `AddressReadbackService.readFromBuilding(...)` or street fallback (`resolveStreetNameAtClick` on named highways).
-- Split flow is separate map mode (`HouseNumberSplitMapMode`): line split uses `SingleBuildingSplitService`; right-click row-house split uses `TerraceSplitService`.
-- Collector/layer pattern: data shaping in collectors (`HouseNumberOverlayCollector`, `HouseNumberOverviewCollector`, `StreetHouseNumberCountCollector`, `BuildingOverviewCollector`), rendering in `Layer`/dialog classes.
+* This is a JOSM plugin (`HouseNumberClick`) for high-speed address tagging and building split workflows.
+* Runtime entry: `HouseNumberClickPlugin`
+* Main UI action: `HouseNumberClickAction`
+* Core orchestration: `StreetModeController`
+* Main interaction logic: `HouseNumberClickStreetMapMode`
 
-## Build, test, and release workflow
-- Local build/test uses Ant + Java 17 (`build.xml`). Main commands:
-  - `ant clean test`
-  - `ant dist`
-  - `ant release-artifact`
-- CI runs `ant -q clean test` and uploads `dist/HouseNumberClick.jar` + `dist/HouseNumberClick-*.jar` (`.github/workflows/ci.yml`).
-- Regression tests are a single executable harness (`test/.../HouseNumberClickRiskRegressionTests.java`) launched by Ant `test` target (not JUnit).
-- `dist` also packages generated translations from `i18n/lang/` into `data/HouseNumberClick/lang/` when present.
+---
 
-## Codebase-specific conventions
-- Most implementation classes are package-private `final class`; preserve that style unless a concrete extension point is needed.
-- Normalization is explicit and repeated (`normalize(...)` helpers); trim inputs before comparisons/writes.
-- Editing OSM data should go through JOSM commands (`UndoRedoHandler`, `ChangePropertyCommand`, `SplitWayCommand`, `SequenceCommand`) rather than mutating primitives directly.
-- Building/address eligibility logic is centralized in `AddressedBuildingMatcher`; collectors rely on it for consistency.
-- User-facing text is translated with `I18n.tr(...)`; keep new strings translatable.
+## Core Interaction Model (CRITICAL)
 
-## Integration points and risk hotspots
-- Map-mode lifecycle + global key dispatchers are fragile: `HouseNumberClickStreetMapMode` and `HouseNumberSplitMapMode` must register/unregister listeners correctly in `enterMode/exitMode`.
-- Multipolygon behavior is intentional: `BuildingResolver` prefers multipolygon building relations over ways; `resolveWriteTargetForApply(...)` writes to relation when appropriate.
-- Split operations require rollback-safe behavior (`SingleBuildingSplitService.rollbackCommandsAddedSince(...)`) to avoid leaving partial edits.
-- Overlay ordering is deliberate (`StreetModeController.ensureOverlayLayerAboveBuildingOverview(...)`); do not change layer index logic casually.
-- Preference keys are part of runtime behavior (`BuildingResolver.PREF_RELATION_SCAN_LIMIT`, `PREF_WAY_SCAN_LIMIT`, toolbar migration pref in `HouseNumberClickPlugin`).
+This plugin uses a **single-mode interaction model**.
 
-## Practical editing guidance for agents
-- When changing click behavior, update both runtime code and regression harness assertions in `HouseNumberClickRiskRegressionTests`.
-- For new collector rules, check all collector consumers (overlay, overview table, street counts) so street/address matching stays aligned.
-- For split changes, verify both flows: temporary line split via `Alt+drag` (`activateTemporarySplitModeFromAlt` -> `executeInternalSingleSplit`) and row-house split via street-mode right-click (`executeInternalTerraceSplitAtClick`).
-- If you add UI strings or help text, keep `README.md` shortcuts/behavior sections in sync with actual key handling.
+There is exactly one active map mode:
 
+* `HouseNumberClickStreetMapMode`
+
+There are **no secondary modes** (e.g. no split mode).
+
+All interactions happen directly within this mode:
+
+| Input        | Action                |
+| ------------ | --------------------- |
+| Left Click   | Apply address         |
+| Ctrl + Click | Read address / street |
+| Right Click  | Row-house split       |
+| Alt + Drag   | Line split            |
+
+Important:
+
+* Split is **not a mode**
+* Split is a **temporary gesture**
+* The user never leaves Street Mode
+
+❗ Agents must NOT reintroduce:
+
+* `HouseNumberSplitMapMode`
+* mode switching for split
+* temporary split modes
+* controller-driven mode transitions
+
+---
+
+## Architecture and Data Flow
+
+### Dialog → Controller → MapMode
+
+* `StreetSelectionDialog.notifyAddressChanged()`
+* builds `AddressSelection`
+* passed to `StreetModeController.activate(...)`
+* pushed into `HouseNumberClickStreetMapMode`
+
+### Left Click (Apply)
+
+* resolve building (`BuildingResolver`)
+* conflict detection (`AddressConflictService`)
+* apply tags (`BuildingTagApplier`, `ChangePropertyCommand`)
+* auto-increment (`HouseNumberService`)
+* controller refresh
+
+### Ctrl + Click (Readback)
+
+* `AddressReadbackService.readFromBuilding(...)`
+* fallback: street detection via highways
+
+### Line Split (Alt + Drag)
+
+* handled entirely inside `HouseNumberClickStreetMapMode`
+* no mode switching
+* uses `SingleBuildingSplitService`
+
+### Row-House Split (Right Click)
+
+* triggered from map mode
+* executed via `StreetModeController.executeInternalTerraceSplitAtClick(...)`
+* uses `TerraceSplitService`
+* uses `configuredTerraceParts` from controller
+
+---
+
+## Split System (IMPORTANT)
+
+Split behavior is fully inline:
+
+### Line Split
+
+* Trigger: `Alt + Drag`
+* Scope: exactly one building
+* Validation:
+
+  * exactly two intersection points
+  * adjacency constraints
+* Execution:
+
+  * `SingleBuildingSplitService`
+
+### Row-House Split
+
+* Trigger: right-click
+* Parts:
+
+  * controlled via dialog (`Parts`)
+  * stored in controller (`configuredTerraceParts`)
+* Execution:
+
+  * `TerraceSplitService`
+
+❗ Never:
+
+* introduce a split-specific map mode
+* move split logic into UI classes
+* bypass command system
+
+---
+
+## Build, Test, and Release
+
+* Build: Ant + Java 17
+
+* Commands:
+
+  * `ant clean test`
+  * `ant dist`
+  * `ant release-artifact`
+
+* Tests:
+
+  * single regression harness
+  * `HouseNumberClickRiskRegressionTests`
+  * NOT JUnit
+
+---
+
+## Codebase Conventions
+
+* Prefer `final` package-private classes
+* Normalize strings (`normalize(...)`)
+* Use JOSM command system:
+
+  * `ChangePropertyCommand`
+  * `SplitWayCommand`
+  * `SequenceCommand`
+* Do NOT mutate primitives directly
+
+---
+
+## Critical Integration Points
+
+### MapMode lifecycle
+
+* `enterMode` / `exitMode` must correctly register/unregister:
+
+  * key listeners
+  * mouse listeners
+  * cursors
+
+### Multipolygon behavior
+
+* `BuildingResolver` prefers relations
+* tagging must respect relation vs way
+
+### Split safety
+
+* must be rollback-safe
+* never leave partial commands
+
+### Overlay ordering
+
+* controlled by `StreetModeController`
+* do not change layer order casually
+
+---
+
+## Known Risk Areas
+
+Agents must be careful with:
+
+* global key handling (Alt / Ctrl conflicts)
+* cursor handling (must match interaction state)
+* split detection edge cases
+* regression harness expectations
+
+---
+
+## Practical Editing Guidance
+
+### When changing click behavior
+
+* update:
+
+  * `HouseNumberClickStreetMapMode`
+  * `ClickHandlerService`
+  * regression tests
+
+---
+
+### When changing split behavior
+
+Verify BOTH:
+
+1. Line split (`Alt + Drag`)
+2. Row-house split (Right Click)
+
+Do NOT:
+
+* introduce new modes
+* split logic across multiple UI layers
+
+---
+
+### When changing dialog behavior
+
+* keep dialog as configuration only
+* do NOT move logic into UI
+* controller remains source of truth
+
+---
+
+### When adding UI strings
+
+* always use `I18n.tr(...)`
+* keep README in sync
+
+---
+
+## Golden Rules
+
+1. **Single MapMode only**
+2. **No mode switching for split**
+3. **Split is always a temporary gesture**
+4. **Controller owns state**
+5. **MapMode handles interaction**
+6. **Services handle logic**
+
+If unsure:
+→ prefer simpler, stateless interaction
+→ avoid introducing new global state
