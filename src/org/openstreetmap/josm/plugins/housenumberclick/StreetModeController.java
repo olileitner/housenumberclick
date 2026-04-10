@@ -18,13 +18,17 @@ import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.data.osm.visitor.OsmPrimitiveVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
-import org.openstreetmap.josm.gui.layer.Layer;
-import org.openstreetmap.josm.gui.layer.LayerManager;
 import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
 final class StreetModeController {
+
+    enum SplitFlowOutcome {
+        SUCCESS,
+        FAILED,
+        CANCELLED
+    }
 
     static final class AddressSelection {
         private final String streetName;
@@ -63,22 +67,17 @@ final class StreetModeController {
     }
 
     private HouseNumberClickStreetMapMode streetMapMode;
-    private HouseNumberOverlayLayer houseNumberOverlayLayer;
-    private BuildingOverviewLayer buildingOverviewLayer;
-    private HouseNumberOverviewDialog houseNumberOverviewDialog;
-    private StreetHouseNumberCountDialog streetHouseNumberCountDialog;
+    private HouseNumberSplitMapMode splitMapMode;
+    private final OverlayManager overlayManager = new OverlayManager();
+    private final OverviewManager overviewManager = new OverviewManager();
+    private final NavigationService navigationService = new NavigationService();
     private final HouseNumberOverlayCollector houseNumberOverlayCollector = new HouseNumberOverlayCollector();
-    private final HouseNumberOverviewCollector houseNumberOverviewCollector = new HouseNumberOverviewCollector();
-    private final StreetHouseNumberCountCollector streetHouseNumberCountCollector = new StreetHouseNumberCountCollector();
     private final SingleBuildingSplitService singleBuildingSplitService = new SingleBuildingSplitService();
     private final TerraceSplitService terraceSplitService = new TerraceSplitService();
     private final CornerSnapService cornerSnapService = new CornerSnapService();
     private boolean rectangularizeAfterLineSplit;
     private int configuredTerraceParts = 2;
     private AddressSelection lastSelection = new AddressSelection("", "", "", "", 1);
-    private List<String> streetNavigationOrder = List.of();
-    private String currentStreet = "";
-    private String currentPostcode = "";
     private boolean houseNumberOverlayEnabled;
     private boolean connectionLinesEnabled;
     private boolean separateEvenOddConnectionLinesEnabled;
@@ -89,6 +88,8 @@ final class StreetModeController {
     private AddressValuesReadListener addressValuesReadListener;
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
     private ModeStateListener modeStateListener;
+    private Runnable splitFlowReturnHook;
+    private SplitFlowOutcome lastSplitFlowOutcome = SplitFlowOutcome.CANCELLED;
 
     interface HouseNumberUpdateListener {
         void onHouseNumberUpdated(String houseNumber);
@@ -121,10 +122,9 @@ final class StreetModeController {
             return;
         }
 
-        currentStreet = selection.getStreetName();
-        currentPostcode = selection.getPostcode();
+        navigationService.updateFromSelection(selection);
         lastSelection = selection;
-        if (currentStreet.isEmpty()) {
+        if (navigationService.getCurrentStreet().isEmpty()) {
             refreshOverlayLayer();
             refreshHouseNumberOverview();
             refreshStreetHouseNumberCounts();
@@ -135,7 +135,7 @@ final class StreetModeController {
         MapFrame map = MainApplication.getMap();
         if (map == null || map.mapView == null) {
             Logging.info("HouseNumberClick StreetModeController.activate: map/mapView unavailable, street={0}, postcode={1}",
-                    currentStreet, currentPostcode);
+                    navigationService.getCurrentStreet(), navigationService.getCurrentPostcode());
             return;
         }
 
@@ -144,7 +144,7 @@ final class StreetModeController {
                 streetMapMode = new HouseNumberClickStreetMapMode(this);
             } catch (RuntimeException ex) {
                 Logging.warn("HouseNumberClick StreetModeController.activate: failed to create map mode, street={0}, postcode={1}",
-                        currentStreet, currentPostcode);
+                        navigationService.getCurrentStreet(), navigationService.getCurrentPostcode());
                 Logging.debug(ex);
                 new Notification(I18n.tr("Street Mode could not be started."))
                         .setDuration(Notification.TIME_SHORT)
@@ -231,15 +231,15 @@ final class StreetModeController {
     }
 
     List<String> getStreetNavigationOrder() {
-        return new ArrayList<>(streetNavigationOrder);
+        return navigationService.getStreetNavigationOrder();
     }
 
     void zoomToCurrentStreet() {
-        if (!zoomToSelectedStreetEnabled || normalize(currentStreet).isEmpty()) {
+        if (!zoomToSelectedStreetEnabled || normalize(navigationService.getCurrentStreet()).isEmpty()) {
             return;
         }
 
-        zoomToStreetInternal(currentStreet, false);
+        zoomToStreetInternal(navigationService.getCurrentStreet(), false);
     }
 
     void zoomToStreet(String streetName) {
@@ -257,7 +257,9 @@ final class StreetModeController {
             return;
         }
 
-        DataSet editDataSet = getActiveEditDataSet();
+        DataSet editDataSet = MainApplication.getLayerManager() != null
+                ? MainApplication.getLayerManager().getEditDataSet()
+                : null;
         if (editDataSet == null) {
             return;
         }
@@ -324,10 +326,10 @@ final class StreetModeController {
         }
 
         // Keep optional street-based overlays in sync with the row the user clicked.
-        currentStreet = normalizedStreet;
+        navigationService.setCurrentStreet(normalizedStreet);
         lastSelection = new AddressSelection(
-                currentStreet,
-                lastSelection.getPostcode(),
+                navigationService.getCurrentStreet(),
+                navigationService.getCurrentPostcode(),
                 lastSelection.getBuildingType(),
                 lastSelection.getHouseNumber(),
                 lastSelection.getHouseNumberIncrementStep()
@@ -340,10 +342,7 @@ final class StreetModeController {
     }
 
     private void highlightCurrentStreetInStreetCountDialog() {
-        if (streetHouseNumberCountDialog == null) {
-            return;
-        }
-        streetHouseNumberCountDialog.highlightStreet(currentStreet);
+        overviewManager.highlightStreetInStreetCountDialog(navigationService.getCurrentStreet());
     }
 
     void rescanPluginData() {
@@ -361,196 +360,61 @@ final class StreetModeController {
     }
 
     void onAddressApplied() {
-        if (houseNumberOverlayLayer != null) {
-            houseNumberOverlayLayer.invalidateDataCache();
-        }
+        overlayManager.invalidateOverlayDataCache();
         refreshOverlayLayer();
     }
 
     void createBuildingOverviewLayer() {
-        LayerManager layerManager = MainApplication.getLayerManager();
-        if (layerManager == null) {
-            return;
-        }
-
-        DataSet editDataSet = getActiveEditDataSet();
-        if (editDataSet == null) {
-            new Notification(I18n.tr("No active dataset available."))
-                    .setDuration(Notification.TIME_SHORT)
-                    .show();
-            return;
-        }
-
-        new Notification(I18n.tr("Please wait, this takes a moment."))
-                .setDuration(Notification.TIME_SHORT)
-                .show();
-
-        removeBuildingOverviewLayer();
-        buildingOverviewLayer = new BuildingOverviewLayer(editDataSet);
-        layerManager.addLayer(buildingOverviewLayer, false);
-        ensureOverlayLayerAboveBuildingOverview(layerManager);
-
-        MapFrame map = MainApplication.getMap();
-        if (map != null && map.mapView != null) {
-            map.mapView.repaint();
-        }
+        overlayManager.createBuildingOverviewLayer();
     }
 
     void toggleBuildingOverviewLayer() {
-        if (isBuildingOverviewLayerVisible()) {
-            removeBuildingOverviewLayer();
-            MapFrame map = MainApplication.getMap();
-            if (map != null && map.mapView != null) {
-                map.mapView.repaint();
-            }
-            return;
-        }
-        createBuildingOverviewLayer();
+        overlayManager.toggleBuildingOverviewLayer();
     }
 
     boolean isBuildingOverviewLayerVisible() {
-        LayerManager layerManager = MainApplication.getLayerManager();
-        return layerManager != null
-                && buildingOverviewLayer != null
-                && layerManager.containsLayer(buildingOverviewLayer);
+        return overlayManager.isBuildingOverviewLayerVisible();
     }
 
     private void refreshOverlayLayer() {
-        if (normalize(currentStreet).isEmpty()) {
-            removeOverlayLayer();
-            return;
-        }
-
-        LayerManager layerManager = MainApplication.getLayerManager();
-        MapFrame map = MainApplication.getMap();
-        if (layerManager == null || map == null || map.mapView == null) {
-            return;
-        }
-
-        if (houseNumberOverlayLayer == null || !layerManager.containsLayer(houseNumberOverlayLayer)) {
-            houseNumberOverlayLayer = new HouseNumberOverlayLayer();
-            layerManager.addLayer(houseNumberOverlayLayer, false);
-        }
-
-        houseNumberOverlayLayer.updateSettings(
-                currentStreet,
+        overlayManager.refreshOverlayLayer(
+                navigationService.getCurrentStreet(),
                 houseNumberOverlayEnabled,
                 connectionLinesEnabled,
                 separateEvenOddConnectionLinesEnabled
         );
-        ensureOverlayLayerAboveBuildingOverview(layerManager);
-        map.mapView.repaint();
-    }
-
-    private void ensureOverlayLayerAboveBuildingOverview(LayerManager layerManager) {
-        if (layerManager == null || houseNumberOverlayLayer == null || buildingOverviewLayer == null) {
-            return;
-        }
-        if (!layerManager.containsLayer(houseNumberOverlayLayer) || !layerManager.containsLayer(buildingOverviewLayer)) {
-            return;
-        }
-
-        List<Layer> layers = layerManager.getLayers();
-        int overlayIndex = layers.indexOf(houseNumberOverlayLayer);
-        int overviewIndex = layers.indexOf(buildingOverviewLayer);
-        if (overlayIndex < 0 || overviewIndex < 0 || overlayIndex < overviewIndex) {
-            return;
-        }
-
-        // In JOSM layer index ordering, lower index means visually above.
-        layerManager.moveLayer(houseNumberOverlayLayer, Math.max(overviewIndex - 1, 0));
-    }
-
-    private void removeOverlayLayer() {
-        LayerManager layerManager = MainApplication.getLayerManager();
-        if (houseNumberOverlayLayer == null || layerManager == null) {
-            return;
-        }
-        if (layerManager.containsLayer(houseNumberOverlayLayer)) {
-            layerManager.removeLayer(houseNumberOverlayLayer);
-        }
-        houseNumberOverlayLayer = null;
-    }
-
-    private void removeBuildingOverviewLayer() {
-        LayerManager layerManager = MainApplication.getLayerManager();
-        if (layerManager == null) {
-            buildingOverviewLayer = null;
-            return;
-        }
-
-        List<Layer> layers = new ArrayList<>(layerManager.getLayers());
-        for (Layer layer : layers) {
-            if (layer instanceof BuildingOverviewLayer && layerManager.containsLayer(layer)) {
-                layerManager.removeLayer(layer);
-            }
-        }
-        buildingOverviewLayer = null;
     }
 
     private void refreshHouseNumberOverview() {
-        if (!houseNumberOverviewEnabled || normalize(currentStreet).isEmpty()) {
-            hideHouseNumberOverview();
-            return;
-        }
-
-        if (MainApplication.getLayerManager() == null) {
-            hideHouseNumberOverview();
-            return;
-        }
-
-        if (houseNumberOverviewDialog == null) {
-            houseNumberOverviewDialog = new HouseNumberOverviewDialog(this::continueWorkingFromTableInteraction);
-        }
-
         DataSet editDataSet = getActiveEditDataSet();
-        houseNumberOverviewDialog.updateData(
-                currentStreet,
-                houseNumberOverviewCollector.collectRows(editDataSet, currentStreet)
+        overviewManager.refreshHouseNumberOverview(
+                houseNumberOverviewEnabled,
+                navigationService.getCurrentStreet(),
+                editDataSet,
+                this::continueWorkingFromTableInteraction
         );
-        houseNumberOverviewDialog.showDialog();
     }
 
     private void refreshStreetHouseNumberCounts() {
-        if (!streetHouseNumberCountsEnabled) {
-            streetNavigationOrder = List.of();
-            hideStreetHouseNumberCounts();
-            return;
-        }
-
-        if (MainApplication.getLayerManager() == null) {
-            streetNavigationOrder = List.of();
-            hideStreetHouseNumberCounts();
-            return;
-        }
-
-        if (streetHouseNumberCountDialog == null) {
-            streetHouseNumberCountDialog = new StreetHouseNumberCountDialog(
-                    this::onStreetHouseNumberCountSelected,
-                    this::rescanPluginData
-            );
-        }
-
         DataSet editDataSet = getActiveEditDataSet();
-        List<StreetHouseNumberCountRow> rows = streetHouseNumberCountCollector.collectRows(editDataSet);
-        streetNavigationOrder = Collections.unmodifiableList(
-                StreetHouseNumberCountDialog.buildStreetNavigationOrder(rows)
+        navigationService.setStreetNavigationOrder(
+                overviewManager.refreshStreetHouseNumberCounts(
+                        streetHouseNumberCountsEnabled,
+                        editDataSet,
+                        this::onStreetHouseNumberCountSelected,
+                        this::rescanPluginData,
+                        navigationService.getCurrentStreet()
+                )
         );
-        streetHouseNumberCountDialog.updateData(rows);
-        streetHouseNumberCountDialog.showDialog();
         highlightCurrentStreetInStreetCountDialog();
     }
 
     private void hideHouseNumberOverview() {
-        if (houseNumberOverviewDialog != null) {
-            houseNumberOverviewDialog.hideDialog();
-        }
+        overviewManager.hideHouseNumberOverview();
     }
 
     private void hideStreetHouseNumberCounts() {
-        if (streetHouseNumberCountDialog != null) {
-            streetHouseNumberCountDialog.hideDialog();
-        }
+        overviewManager.hideStreetHouseNumberCounts();
     }
 
     void deactivate() {
@@ -564,14 +428,41 @@ final class StreetModeController {
         // Closing the main dialog should also close dependent views and clear visual overlays.
         hideHouseNumberOverview();
         hideStreetHouseNumberCounts();
-        if (houseNumberOverviewDialog != null) {
-            houseNumberOverviewDialog.resetSessionPositioningState();
-        }
-        if (streetHouseNumberCountDialog != null) {
-            streetHouseNumberCountDialog.resetSessionPositioningState();
-        }
-        removeOverlayLayer();
+        overviewManager.resetSessionPositioningState();
+        overlayManager.removeOverlayLayer();
         deactivate();
+    }
+
+    boolean activateInternalSplitMode() {
+        return activateInternalSplitMode(false);
+    }
+
+    // Keep this method for runtime compatibility with already compiled map-mode code paths.
+    boolean activateTemporarySplitModeFromAlt() {
+        DataSet dataSet = getActiveEditDataSet();
+        if (dataSet == null) {
+            showNoDataSetNotification();
+            return false;
+        }
+        return activateInternalSplitMode(true);
+    }
+
+    private boolean activateInternalSplitMode(boolean temporaryAltHold) {
+        MapFrame map = MainApplication.getMap();
+        if (map == null || map.mapView == null) {
+            return false;
+        }
+
+        if (splitMapMode == null) {
+            splitMapMode = new HouseNumberSplitMapMode(this, temporaryAltHold);
+        } else {
+            splitMapMode.configureFor(temporaryAltHold);
+        }
+
+        if (map.mapMode == splitMapMode) {
+            return true;
+        }
+        return map.selectMapMode(splitMapMode);
     }
 
     void setRectangularizeAfterLineSplit(boolean makeRectangular) {
@@ -583,7 +474,7 @@ final class StreetModeController {
         if (dataSet == null) {
             return failSingleSplit("No editable dataset is available.");
         }
-        dataSet.setSelected(Collections.emptyList());
+        clearDataSetSelection(dataSet);
 
         SplitTargetScan splitTargetScan = findSingleSplitTargetWay(dataSet, lineStart, lineEnd);
         if (splitTargetScan.ambiguous) {
@@ -595,7 +486,10 @@ final class StreetModeController {
                     : "Split line does not intersect a building.");
         }
 
-        SplitContext splitContext = new SplitContext(currentStreet, currentPostcode);
+        SplitContext splitContext = new SplitContext(
+                navigationService.getCurrentStreet(),
+                navigationService.getCurrentPostcode()
+        );
         SingleSplitResult result = singleBuildingSplitService.splitBuilding(
                 dataSet,
                 splitTargetScan.targetWay,
@@ -612,16 +506,14 @@ final class StreetModeController {
             if (rectangularizeAfterLineSplit) {
                 applyRectangularizeOnWays(result.getResultWays());
             }
-            dataSet.setSelected(Collections.emptyList());
+            clearDataSetSelection(dataSet);
         }
         return result;
     }
 
     private SingleSplitResult failSingleSplit(String message) {
         SingleSplitResult failure = SingleSplitResult.failure(message);
-        new Notification(I18n.tr(failure.getMessage()))
-                .setDuration(Notification.TIME_SHORT)
-                .show();
+        showShortNotification(failure.getMessage());
         return failure;
     }
 
@@ -640,22 +532,21 @@ final class StreetModeController {
         DataSet dataSet = getActiveEditDataSet();
         if (dataSet == null) {
             TerraceSplitResult failure = TerraceSplitResult.failure("No editable dataset is available.");
-            new Notification(I18n.tr(failure.getMessage()))
-                    .setDuration(Notification.TIME_SHORT)
-                    .show();
+            showShortNotification(failure.getMessage());
             return failure;
         }
         if (clickedBuilding == null) {
             TerraceSplitResult failure = TerraceSplitResult.failure("Click inside one closed building to create row houses.");
-            new Notification(I18n.tr(failure.getMessage()))
-                    .setDuration(Notification.TIME_SHORT)
-                    .show();
+            showShortNotification(failure.getMessage());
             return failure;
         }
 
-        dataSet.setSelected(Collections.emptyList());
+        clearDataSetSelection(dataSet);
 
-        SplitContext splitContext = new SplitContext(currentStreet, currentPostcode);
+        SplitContext splitContext = new SplitContext(
+                navigationService.getCurrentStreet(),
+                navigationService.getCurrentPostcode()
+        );
         TerraceSplitResult result = terraceSplitService.splitBuildingIntoTerrace(
                 dataSet,
                 clickedBuilding,
@@ -663,9 +554,7 @@ final class StreetModeController {
                 splitContext
         );
         if (!result.isSuccess()) {
-            new Notification(I18n.tr(result.getMessage()))
-                    .setDuration(Notification.TIME_SHORT)
-                    .show();
+            showShortNotification(result.getMessage());
             return result;
         }
 
@@ -694,9 +583,7 @@ final class StreetModeController {
             }
         } catch (OrthogonalizeAction.InvalidUserInputException ex) {
             Logging.debug(ex);
-            new Notification(I18n.tr("Rectangularize failed for the split result."))
-                    .setDuration(Notification.TIME_SHORT)
-                    .show();
+            showShortNotification("Rectangularize failed for the split result.");
         }
     }
 
@@ -769,12 +656,52 @@ final class StreetModeController {
         }
     }
 
+    void onInternalSplitFlowFinished(SplitFlowOutcome outcome) {
+        lastSplitFlowOutcome = outcome == null ? SplitFlowOutcome.CANCELLED : outcome;
+        returnToStreetModeAfterSplit();
+    }
+
+    void setSplitFlowReturnHookForTesting(Runnable splitFlowReturnHook) {
+        this.splitFlowReturnHook = splitFlowReturnHook;
+    }
+
+    SplitFlowOutcome getLastSplitFlowOutcomeForTesting() {
+        return lastSplitFlowOutcome;
+    }
+
+    private void returnToStreetModeAfterSplit() {
+        if (splitFlowReturnHook != null) {
+            splitFlowReturnHook.run();
+        }
+        // Keep return semantics centralized here so the normal street-mode activation path restores UI state.
+        if (lastSelection != null && !lastSelection.getStreetName().isEmpty()) {
+            activate(lastSelection);
+        }
+    }
+
     private DataSet getActiveEditDataSet() {
         return MainApplication.getLayerManager() != null
                 ? MainApplication.getLayerManager().getEditDataSet()
                 : null;
     }
 
+    private void clearDataSetSelection(DataSet dataSet) {
+        if (dataSet != null) {
+            dataSet.setSelected(Collections.emptyList());
+        }
+    }
+
+    private void showShortNotification(String message) {
+        new Notification(I18n.tr(message))
+                .setDuration(Notification.TIME_SHORT)
+                .show();
+    }
+
+    private void showNoDataSetNotification() {
+        new Notification(I18n.tr("No active dataset available."))
+                .setDuration(Notification.TIME_SHORT)
+                .show();
+    }
 
     private static String normalize(String value) {
         return value == null ? "" : value.trim();

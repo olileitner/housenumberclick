@@ -9,7 +9,7 @@
 - Dialog -> controller -> map mode path: `StreetSelectionDialog.notifyAddressChanged()` builds `AddressSelection`, then `StreetModeController.activate(...)` pushes values into `HouseNumberClickStreetMapMode`.
 - Left-click apply path in `HouseNumberClickStreetMapMode`: resolve building (`BuildingResolver`) -> conflict analysis (`AddressConflictService`) -> write tags (`BuildingTagApplier` via `ChangePropertyCommand`) -> auto-increment (`HouseNumberService`) -> controller refresh.
 - Ctrl+click readback path: `AddressReadbackService.readFromBuilding(...)` or street fallback (`resolveStreetNameAtClick` on named highways).
-- Split flow is integrated into `HouseNumberClickStreetMapMode`: `Alt+drag` line split uses `SingleBuildingSplitService`; right-click row-house split uses `TerraceSplitService`.
+- Split flow is separate map mode (`HouseNumberSplitMapMode`): line split uses `SingleBuildingSplitService`; right-click row-house split uses `TerraceSplitService`.
 - Collector/layer pattern: data shaping in collectors (`HouseNumberOverlayCollector`, `HouseNumberOverviewCollector`, `StreetHouseNumberCountCollector`, `BuildingOverviewCollector`), rendering in `Layer`/dialog classes.
 
 ## Build, test, and release workflow
@@ -29,7 +29,7 @@
 - User-facing text is translated with `I18n.tr(...)`; keep new strings translatable.
 
 ## Integration points and risk hotspots
-- Map-mode lifecycle + global key dispatchers are fragile: `HouseNumberClickStreetMapMode` must register/unregister listeners correctly in `enterMode/exitMode`.
+- Map-mode lifecycle + global key dispatchers are fragile: `HouseNumberClickStreetMapMode` and `HouseNumberSplitMapMode` must register/unregister listeners correctly in `enterMode/exitMode`.
 - Multipolygon behavior is intentional: `BuildingResolver` prefers multipolygon building relations over ways; `resolveWriteTargetForApply(...)` writes to relation when appropriate.
 - Split operations require rollback-safe behavior (`SingleBuildingSplitService.rollbackCommandsAddedSince(...)`) to avoid leaving partial edits.
 - Overlay ordering is deliberate (`StreetModeController.ensureOverlayLayerAboveBuildingOverview(...)`); do not change layer index logic casually.

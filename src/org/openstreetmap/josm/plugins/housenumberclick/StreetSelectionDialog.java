@@ -42,6 +42,7 @@ final class StreetSelectionDialog {
     private static final String DEFAULT_HOUSE_NUMBER = "1";
 
     private final StreetModeController streetModeController;
+    private final DialogController dialogController = new DialogController();
     private final JDialog dialog;
     private final JComboBox<String> streetCombo;
     private final JComboBox<String> buildingTypeCombo;
@@ -503,14 +504,15 @@ final class StreetSelectionDialog {
     }
 
     private void enforcePlusOneForLetterHouseNumbers() {
-        if (!containsLetter(houseNumberField.getText())) {
-            return;
-        }
-        if (houseNumberIncrementStep == 1) {
+        int enforcedStep = dialogController.enforcePlusOneForLetterHouseNumbers(
+                houseNumberField.getText(),
+                houseNumberIncrementStep
+        );
+        if (enforcedStep == houseNumberIncrementStep) {
             return;
         }
 
-        houseNumberIncrementStep = 1;
+        houseNumberIncrementStep = enforcedStep;
         if (plusOneIncrementButton != null) {
             boolean wasUpdatingInputs = updatingInputs;
             updatingInputs = true;
@@ -521,7 +523,7 @@ final class StreetSelectionDialog {
     }
 
     private boolean containsLetter(String value) {
-        return value != null && value.matches(".*[A-Za-z].*");
+        return dialogController.containsLetter(value);
     }
 
     private void updateHouseNumberFromMode(String houseNumber) {
@@ -899,17 +901,17 @@ final class StreetSelectionDialog {
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.anchor = GridBagConstraints.WEST;
-        panel.add(new JLabel(I18n.tr("Click: apply address")), gbc);
+        panel.add(new JLabel(I18n.tr("Click: apply address    Ctrl+Click: read")), gbc);
 
         gbc.gridy = 1;
         gbc.insets = new Insets(2, 0, 0, 0);
-        panel.add(new JLabel(I18n.tr("Ctrl+Click: read street/address")), gbc);
+        panel.add(new JLabel(I18n.tr("Hold Alt: temporary line split (drag across building)")), gbc);
 
         gbc.gridy = 2;
-        panel.add(new JLabel(I18n.tr("Alt+Drag: line split")), gbc);
+        panel.add(new JLabel(I18n.tr("Right-click building: create row houses (Parts from dialog)    + / -: change number    L: toggle letter")), gbc);
 
         gbc.gridy = 3;
-        panel.add(new JLabel(I18n.tr("Right-click: row houses (Parts from dialog)")), gbc);
+        panel.add(new JLabel(I18n.tr("Split triggers: hold Alt and drag for line split; right-click building for row houses.")), gbc);
 
         return panel;
     }
@@ -1084,7 +1086,7 @@ final class StreetSelectionDialog {
     }
 
     private int normalizeIncrementStep(int step) {
-        return step == -2 || step == -1 || step == 1 || step == 2 ? step : 1;
+        return dialogController.normalizeIncrementStep(step);
     }
 
     private StreetModeController.AddressSelection buildCurrentSelection() {

@@ -3,12 +3,10 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.BasicStroke;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.Image;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Point;
@@ -20,10 +18,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
 import javax.swing.JComboBox;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
@@ -35,18 +30,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.text.JTextComponent;
 
 import org.openstreetmap.josm.actions.mapmode.MapMode;
-import org.openstreetmap.josm.data.Bounds;
-import org.openstreetmap.josm.data.coor.LatLon;
-import org.openstreetmap.josm.data.osm.DataSet;
-import org.openstreetmap.josm.data.osm.OsmPrimitive;
-import org.openstreetmap.josm.data.osm.Relation;
-import org.openstreetmap.josm.data.osm.RelationMember;
-import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
-import org.openstreetmap.josm.gui.layer.MapViewPaintable;
 import org.openstreetmap.josm.tools.I18n;
-import org.openstreetmap.josm.tools.ImageProvider;
 import org.openstreetmap.josm.tools.Logging;
 
 final class HouseNumberClickStreetMapMode extends MapMode {
@@ -57,15 +43,11 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     static final int DEFAULT_RELATION_SCAN_CANDIDATES = BuildingResolver.DEFAULT_RELATION_SCAN_CANDIDATES;
     static final int DEFAULT_WAY_SCAN_CANDIDATES = BuildingResolver.DEFAULT_WAY_SCAN_CANDIDATES;
     private static final long SLOW_CLICK_LOG_THRESHOLD_MILLIS = 40L;
-    private static final int SPLIT_CURSOR_HOTSPOT_X = 7;
-    private static final int SPLIT_CURSOR_HOTSPOT_Y = 29;
-    private static final int SPLIT_DRAG_THRESHOLD_PX = 4;
 
     private final StreetModeController controller;
-    private final BuildingResolver buildingResolver;
+    private final ClickHandlerService clickHandlerService;
+    private final ClickHandlerService.InteractionPort interactionPort;
     private final HouseNumberService houseNumberService;
-    private final AddressReadbackService addressReadbackService;
-    private final AddressConflictService addressConflictService;
     private final ConflictDialogModelBuilder conflictDialogModelBuilder;
     private final KeyAdapter escListener;
     private final KeyEventDispatcher ctrlKeyDispatcher;
@@ -83,12 +65,6 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     private int lastClickY = Integer.MIN_VALUE;
     private int lastClickModifiers;
     private int lastClickButton;
-    private boolean altPressedForSplit;
-    private LatLon splitDragStart;
-    private LatLon splitDragCurrent;
-    private Point splitDragStartPoint;
-    private boolean splitOverlayAttached;
-    private final DragLineOverlay splitDragOverlay = new DragLineOverlay();
 
     private static final class ClickResolutionStats {
         private String outcome = "unknown";
@@ -103,10 +79,14 @@ final class HouseNumberClickStreetMapMode extends MapMode {
                 Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR)
         );
         this.controller = controller;
-        this.buildingResolver = new BuildingResolver();
+        this.clickHandlerService = new ClickHandlerService(
+                controller,
+                new BuildingResolver(),
+                new AddressReadbackService(),
+                new AddressConflictService()
+        );
+        this.interactionPort = createInteractionPort();
         this.houseNumberService = new HouseNumberService();
-        this.addressReadbackService = new AddressReadbackService();
-        this.addressConflictService = new AddressConflictService();
         this.conflictDialogModelBuilder = new ConflictDialogModelBuilder();
         this.ctrlKeyDispatcher = this::handleGlobalKeyEvent;
         this.escListener = new KeyAdapter() {
@@ -144,15 +124,11 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     public void enterMode() {
         super.enterMode();
         ctrlPressedForCursor = false;
-        altPressedForSplit = false;
-        clearSplitDragState();
         registerCtrlKeyDispatcher();
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.addKeyListener(escListener);
             map.mapView.addMouseListener(this);
-            map.mapView.addMouseMotionListener(this);
-            splitOverlayAttached = map.mapView.addTemporaryLayer(splitDragOverlay);
             map.mapView.requestFocusInWindow();
         }
         controller.notifyModeStateChanged(true);
@@ -162,18 +138,11 @@ final class HouseNumberClickStreetMapMode extends MapMode {
     @Override
     public void exitMode() {
         ctrlPressedForCursor = false;
-        altPressedForSplit = false;
-        clearSplitDragState();
         unregisterCtrlKeyDispatcher();
         MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.removeKeyListener(escListener);
             map.mapView.removeMouseListener(this);
-            map.mapView.removeMouseMotionListener(this);
-            if (splitOverlayAttached) {
-                map.mapView.removeTemporaryLayer(splitDragOverlay);
-                splitOverlayAttached = false;
-            }
             map.mapView.setCursor(Cursor.getDefaultCursor());
         }
         if (map != null && map.statusLine != null) {
@@ -203,24 +172,16 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         }
 
         int id = e.getID();
-        if (!e.isConsumed() && e.getKeyCode() == KeyEvent.VK_ALT) {
-            if (id == KeyEvent.KEY_PRESSED) {
-                if (e.isControlDown()) {
-                    // Ctrl readback has priority over Alt split affordance.
-                    return false;
-                }
-                altPressedForSplit = true;
-                updateHouseNumberCursor();
+        if (!e.isConsumed() && id == KeyEvent.KEY_PRESSED && e.getKeyCode() == KeyEvent.VK_ALT) {
+            if (e.isControlDown()) {
+                // Ctrl readback has priority over temporary Alt split.
                 return false;
             }
-            if (id == KeyEvent.KEY_RELEASED) {
-                altPressedForSplit = false;
-                if (splitDragStart != null) {
-                    clearSplitDragState();
-                    repaintMapView();
-                    updateStatusLine(I18n.tr("Line split cancelled."));
-                }
-                updateHouseNumberCursor();
+            // Alt split should be available immediately after mode activation,
+            // independent of current dialog/text focus.
+            if (controller.activateTemporarySplitModeFromAlt()) {
+                e.consume();
+                return true;
             }
             return false;
         }
@@ -335,14 +296,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public void mouseReleased(MouseEvent e) {
-        // 1) Alt+drag split finalization has top priority while a split drag is active.
-        if (isSplitDragInProgress()) {
-            handleSplitDragRelease(e);
-            return;
-        }
-
-        // 2) Right-click always means terrace split.
-        if (isTerraceTriggerRelease(e)) {
+        if (e != null && (SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger())) {
             long startedAtNanos = System.nanoTime();
             ClickResolutionStats stats = new ClickResolutionStats();
             try {
@@ -358,8 +312,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
             return;
         }
 
-        // 3) Only left-click paths remain: Ctrl+left readback, plain left apply.
-        if (!isLeftButtonRelease(e)) {
+        if (!SwingUtilities.isLeftMouseButton(e)) {
             return;
         }
 
@@ -372,7 +325,11 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         long startedAtNanos = System.nanoTime();
         ClickResolutionStats stats = new ClickResolutionStats();
         try {
-            handleLeftReleaseByModifier(e, stats);
+            if (e.isControlDown()) {
+                handleSecondaryClick(e, stats);
+            } else {
+                handlePrimaryClick(e, stats);
+            }
         } catch (RuntimeException ex) {
             Logging.warn(
                     "HouseNumberClick StreetMapMode.mouseReleased: failure while processing click, control={0}, street={1}, postcode={2}, houseNumber={3}",
@@ -391,241 +348,111 @@ final class HouseNumberClickStreetMapMode extends MapMode {
 
     @Override
     public void mousePressed(MouseEvent e) {
-        // Alt alone means split-ready cursor; actual split starts only when drag begins.
-        if (!isAltLeftSplitPress(e)) {
-            return;
-        }
-        MapFrame map = MainApplication.getMap();
-        if (map == null || map.mapView == null || e == null) {
-            return;
-        }
-        splitDragStart = map.mapView.getLatLon(e.getX(), e.getY());
-        splitDragCurrent = splitDragStart;
-        splitDragStartPoint = e.getPoint();
-        repaintMapView();
-    }
-
-    @Override
-    public void mouseDragged(MouseEvent e) {
-        if (splitDragStart == null) {
-            return;
-        }
-        MapFrame map = MainApplication.getMap();
-        if (map == null || map.mapView == null || e == null) {
-            return;
-        }
-        LatLon next = map.mapView.getLatLon(e.getX(), e.getY());
-        if (next == null) {
-            return;
-        }
-        splitDragCurrent = next;
-        repaintMapView();
+        // Intentionally handled on mouseReleased only to avoid duplicate apply/increment per click.
     }
 
     private void handlePrimaryClick(MouseEvent e, ClickResolutionStats stats) {
-        if (streetName == null || streetName.isBlank()) {
-            stats.outcome = "no-street-selected";
-            updateStatusLine(I18n.tr("No street selected."));
+        ClickHandlerService.PrimaryClickResult result = clickHandlerService.handlePrimaryClick(
+                MainApplication.getMap(),
+                e,
+                streetName,
+                postcode,
+                buildingType,
+                houseNumber,
+                interactionPort
+        );
+        stats.outcome = result.getOutcome();
+        stats.resolution = result.getResolution();
+        if (!result.isApplied()) {
             return;
         }
-        if (!isPostcodeSelected(postcode)) {
-            stats.outcome = "no-postcode-selected";
-            updateStatusLine(I18n.tr("No postcode selected."));
-            return;
-        }
-
-        MapFrame map = MainApplication.getMap();
-        if (map == null || map.mapView == null) {
-            stats.outcome = "map-unavailable";
-            return;
-        }
-
-        BuildingResolver.BuildingResolutionResult resolution = buildingResolver.resolveAtClick(map, e);
-        stats.resolution = resolution;
-        OsmPrimitive building = resolution.getBuilding();
-        if (building == null) {
-            stats.outcome = "no-building-hit";
-            updateStatusLine(I18n.tr("No building detected"));
-            return;
-        }
-
-        AddressConflictService.ConflictAnalysis conflictAnalysis =
-                addressConflictService.analyze(building, streetName, postcode, houseNumber, buildingType);
-        String overwrittenStreet = conflictAnalysis.getOverwrittenStreet();
-        String overwrittenPostcode = conflictAnalysis.getOverwrittenPostcode();
-        if (conflictAnalysis.hasConflict() && shouldShowOverwriteWarning(conflictAnalysis, overwrittenStreet, overwrittenPostcode)) {
-            if (!confirmOverwrite(conflictAnalysis, overwrittenStreet, overwrittenPostcode)) {
-                stats.outcome = "overwrite-cancelled";
-                updateStatusLine(I18n.tr("Overwrite cancelled."));
-                e.consume();
-                return;
-            }
-        }
-
-        String appliedStreet = normalize(streetName);
-        String appliedHouseNumber = normalize(houseNumber);
-        boolean buildingTypeWasUsed = !normalize(buildingType).isEmpty();
-        OsmPrimitive writeTarget = resolveWriteTargetForApply(building);
-        BuildingTagApplier.applyAddress(writeTarget, streetName, postcode, buildingType, houseNumber);
-        controller.onAddressApplied();
-        DataSet dataSet = MainApplication.getLayerManager().getEditDataSet();
-        if (dataSet != null) {
-            dataSet.setSelected(Collections.emptyList());
-        }
-
-        if (buildingTypeWasUsed) {
-            buildingType = "";
-            controller.notifyBuildingTypeConsumed();
-        }
+        buildingType = result.getNextBuildingType();
 
         incrementHouseNumberAfterSuccessfulApply();
 
-        String appliedMessage = I18n.tr("Applied: {0}, {1}", displayValue(appliedStreet), displayValue(appliedHouseNumber));
+        String appliedMessage = I18n.tr(
+                "Applied: {0}, {1}",
+                displayValue(result.getAppliedStreet()),
+                displayValue(result.getAppliedHouseNumber())
+        );
         refreshModePresentation(appliedMessage);
-        stats.outcome = "applied";
-        e.consume();
     }
 
     private void handleSecondaryClick(MouseEvent e, ClickResolutionStats stats) {
-        MapFrame map = MainApplication.getMap();
-        if (map == null || map.mapView == null) {
-            stats.outcome = "map-unavailable";
-            return;
-        }
-
-        BuildingResolver.BuildingResolutionResult resolution = buildingResolver.resolveAtClick(map, e);
-        stats.resolution = resolution;
-        OsmPrimitive building = resolution.getBuilding();
-        if (building == null) {
-            AddressReadbackService.AddressReadbackResult readback = addressReadbackService.readFromStreetFallback(
-                    addressReadbackService.resolveStreetNameAtClick(map, e),
-                    postcode,
-                    buildingType
-            );
-            if (readback != null) {
-                stats.outcome = "street-picked";
-                controller.updateAddressValues(
-                        readback.getStreet(),
-                        readback.getPostcode(),
-                        readback.getBuildingType(),
-                        readback.getHouseNumber()
-                );
-                updateStatusLine(I18n.tr("Street name loaded from map: {0}", displayValue(readback.getStreet())));
-            } else {
-                stats.outcome = "no-building-hit";
-                updateStatusLine(I18n.tr("No building detected"));
-            }
-            return;
-        }
-
-        AddressReadbackService.AddressReadbackResult readback = addressReadbackService.readFromBuilding(building, buildingType);
-        controller.updateAddressValues(
-                readback.getStreet(),
-                readback.getPostcode(),
-                readback.getBuildingType(),
-                readback.getHouseNumber()
+        ClickHandlerService.ClickResult result = clickHandlerService.handleSecondaryClick(
+                MainApplication.getMap(),
+                e,
+                postcode,
+                buildingType,
+                interactionPort
         );
-
-        updateStatusLine(
-                I18n.tr(
-                        "Address data loaded: street={0}, postcode={1}, house number={2}",
-                        displayValue(readback.getStreet()),
-                        displayValue(readback.getPostcode()),
-                        displayValue(readback.getHouseNumber())
-                )
-        );
-        stats.outcome = "address-picked";
-        e.consume();
+        stats.outcome = result.getOutcome();
+        stats.resolution = result.getResolution();
     }
 
     private void handleTerraceRightClick(MouseEvent e, ClickResolutionStats stats) {
-        MapFrame map = MainApplication.getMap();
-        if (map == null || map.mapView == null) {
-            stats.outcome = "map-unavailable";
-            return;
-        }
-
-        BuildingResolver.BuildingResolutionResult resolution = buildingResolver.resolveAtClick(map, e);
-        stats.resolution = resolution;
-        OsmPrimitive building = resolution.getBuilding();
-        Way targetWay = resolveTerraceTargetWay(building);
-        if (targetWay == null) {
-            stats.outcome = "no-building-hit";
-            updateStatusLine(I18n.tr("No building detected"));
-            return;
-        }
-
-        TerraceSplitResult result = controller.executeInternalTerraceSplitAtClick(
-                targetWay,
-                controller.getConfiguredTerraceParts()
+        ClickHandlerService.ClickResult result = clickHandlerService.handleTerraceRightClick(
+                MainApplication.getMap(),
+                e,
+                interactionPort
         );
-        if (!result.isSuccess()) {
-            stats.outcome = "terrace-split-failed";
-            return;
-        }
-
-        stats.outcome = "terrace-split-applied";
-        updateStatusLine(I18n.tr("Row houses created ({0} parts).", controller.getConfiguredTerraceParts()));
-        e.consume();
+        stats.outcome = result.getOutcome();
+        stats.resolution = result.getResolution();
     }
 
-    private Way resolveTerraceTargetWay(OsmPrimitive building) {
-        if (building instanceof Way) {
-            Way way = (Way) building;
-            if (way.isUsable() && way.isClosed() && way.hasKey("building")) {
-                return way;
+    private ClickHandlerService.InteractionPort createInteractionPort() {
+        return new ClickHandlerService.InteractionPort() {
+            @Override
+            public boolean shouldShowOverwriteWarning(
+                    AddressConflictService.ConflictAnalysis conflictAnalysis,
+                    String overwrittenStreet,
+                    String overwrittenPostcode
+            ) {
+                return HouseNumberClickStreetMapMode.this.shouldShowOverwriteWarning(
+                        conflictAnalysis,
+                        overwrittenStreet,
+                        overwrittenPostcode
+                );
             }
-            return null;
-        }
-        OsmPrimitive selectionTarget = getSelectionTarget(building);
-        if (selectionTarget instanceof Way) {
-            Way way = (Way) selectionTarget;
-            if (way.isUsable() && way.isClosed() && way.hasKey("building")) {
-                return way;
-            }
-        }
-        return null;
-    }
 
-    private OsmPrimitive getSelectionTarget(OsmPrimitive building) {
-        if (!(building instanceof Relation)) {
-            return building;
-        }
-
-        Relation relation = (Relation) building;
-        List<Way> outers = new ArrayList<>();
-        for (RelationMember member : relation.getMembers()) {
-            String role = member.getRole();
-            if (member.isWay() && (role == null || role.isEmpty() || "outer".equals(role))) {
-                outers.add(member.getWay());
+            @Override
+            public boolean confirmOverwrite(
+                    AddressConflictService.ConflictAnalysis conflictAnalysis,
+                    String overwrittenStreet,
+                    String overwrittenPostcode
+            ) {
+                return HouseNumberClickStreetMapMode.this.confirmOverwrite(
+                        conflictAnalysis,
+                        overwrittenStreet,
+                        overwrittenPostcode
+                );
             }
-        }
 
-        if (!outers.isEmpty()) {
-            return outers.get(0);
-        }
-        return building;
-    }
+            @Override
+            public void updateStatusLine(String message) {
+                HouseNumberClickStreetMapMode.this.updateStatusLine(message);
+            }
 
-    private OsmPrimitive resolveWriteTargetForApply(OsmPrimitive building) {
-        if (!(building instanceof Way) || !building.isUsable()) {
-            return building;
-        }
+            @Override
+            public String displayValue(String value) {
+                return HouseNumberClickStreetMapMode.this.displayValue(value);
+            }
 
-        Way way = (Way) building;
-        for (OsmPrimitive referrer : way.getReferrers()) {
-            if (!(referrer instanceof Relation)) {
-                continue;
+            @Override
+            public void notifyAddressApplied() {
+                controller.onAddressApplied();
             }
-            Relation relation = (Relation) referrer;
-            if (!relation.isUsable()) {
-                continue;
+
+            @Override
+            public void notifyBuildingTypeConsumed() {
+                controller.notifyBuildingTypeConsumed();
             }
-            if (relation.hasTag("type", "multipolygon") && relation.hasTag("building")) {
-                return relation;
+
+            @Override
+            public void updateAddressValues(String streetName, String postcode, String buildingType, String houseNumber) {
+                controller.updateAddressValues(streetName, postcode, buildingType, houseNumber);
             }
-        }
-        return building;
+        };
     }
 
     private boolean confirmOverwrite(
@@ -812,34 +639,7 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         if (map == null || map.mapView == null || !isModeActiveOnMap(map)) {
             return;
         }
-        if (ctrlPressedForCursor) {
-            map.mapView.setCursor(createCtrlZoomCursor());
-            return;
-        }
-        if (altPressedForSplit || splitDragStart != null) {
-            map.mapView.setCursor(createSplitCursor());
-            return;
-        }
-        map.mapView.setCursor(createHouseNumberCursor());
-    }
-
-    private Cursor createSplitCursor() {
-        try {
-            Icon icon = ImageProvider.get("mapmode", "housenumberclick_split");
-            if (icon instanceof ImageIcon) {
-                Image image = ((ImageIcon) icon).getImage();
-                if (image != null) {
-                    return Toolkit.getDefaultToolkit().createCustomCursor(
-                            image,
-                            new Point(SPLIT_CURSOR_HOTSPOT_X, SPLIT_CURSOR_HOTSPOT_Y),
-                            "hnc-split-cursor"
-                    );
-                }
-            }
-        } catch (RuntimeException ex) {
-            Logging.debug(ex);
-        }
-        return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
+        map.mapView.setCursor(ctrlPressedForCursor ? createCtrlZoomCursor() : createHouseNumberCursor());
     }
 
     private Cursor createCtrlZoomCursor() {
@@ -965,98 +765,6 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         return duplicate;
     }
 
-    private boolean isAltLeftSplitPress(MouseEvent e) {
-        return e != null
-                && SwingUtilities.isLeftMouseButton(e)
-                && e.isAltDown()
-                && !e.isControlDown()
-                && !e.isMetaDown();
-    }
-
-    private boolean isTerraceTriggerRelease(MouseEvent e) {
-        return e != null && (SwingUtilities.isRightMouseButton(e) || e.isPopupTrigger());
-    }
-
-    private boolean isLeftButtonRelease(MouseEvent e) {
-        return e != null && SwingUtilities.isLeftMouseButton(e);
-    }
-
-    private void handleLeftReleaseByModifier(MouseEvent e, ClickResolutionStats stats) {
-        if (e.isControlDown()) {
-            handleSecondaryClick(e, stats);
-            return;
-        }
-        handlePrimaryClick(e, stats);
-    }
-
-    private boolean isSplitDragInProgress() {
-        return splitDragStart != null;
-    }
-
-    private void handleSplitDragRelease(MouseEvent e) {
-        LatLon splitStart = splitDragStart;
-        LatLon splitEnd = splitDragCurrent;
-        Point pressPoint = splitDragStartPoint;
-        Point releasePoint = e != null ? e.getPoint() : null;
-        LatLon releaseLatLon = resolveLatLonAtEvent(e);
-        if (releaseLatLon != null) {
-            splitEnd = releaseLatLon;
-        }
-
-        clearSplitDragState();
-        repaintMapView();
-        updateHouseNumberCursor();
-
-        if (isClickGesture(pressPoint, releasePoint) || splitStart == null || splitEnd == null) {
-            updateStatusLine(I18n.tr("Line split cancelled."));
-            if (e != null) {
-                e.consume();
-            }
-            return;
-        }
-
-        SingleSplitResult result = controller.executeInternalSingleSplit(splitStart, splitEnd);
-        if (result.isSuccess()) {
-            updateStatusLine(I18n.tr("Building split completed."));
-        }
-        if (e != null) {
-            e.consume();
-        }
-    }
-
-    private LatLon resolveLatLonAtEvent(MouseEvent e) {
-        if (e == null) {
-            return null;
-        }
-        MapFrame map = MainApplication.getMap();
-        if (map == null || map.mapView == null) {
-            return null;
-        }
-        return map.mapView.getLatLon(e.getX(), e.getY());
-    }
-
-    private boolean isClickGesture(Point start, Point end) {
-        if (start == null || end == null) {
-            return false;
-        }
-        int dx = start.x - end.x;
-        int dy = start.y - end.y;
-        return (dx * dx) + (dy * dy) <= (SPLIT_DRAG_THRESHOLD_PX * SPLIT_DRAG_THRESHOLD_PX);
-    }
-
-    private void clearSplitDragState() {
-        splitDragStart = null;
-        splitDragCurrent = null;
-        splitDragStartPoint = null;
-    }
-
-    private void repaintMapView() {
-        MapFrame map = MainApplication.getMap();
-        if (map != null && map.mapView != null) {
-            map.mapView.repaint();
-        }
-    }
-
     private void logClickDiagnostics(long startedAtNanos, MouseEvent e, ClickResolutionStats stats) {
         long elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000L;
         if (Logging.isDebugEnabled()) {
@@ -1131,33 +839,5 @@ final class HouseNumberClickStreetMapMode extends MapMode {
         houseNumber = next;
         controller.updateHouseNumber(next);
         return true;
-    }
-
-    private final class DragLineOverlay implements MapViewPaintable {
-        @Override
-        public void paint(Graphics2D graphics, org.openstreetmap.josm.gui.MapView mapView, Bounds bounds) {
-            if (splitDragStart == null || splitDragCurrent == null || graphics == null || mapView == null) {
-                return;
-            }
-
-            Point from = mapView.getPoint(splitDragStart);
-            Point to = mapView.getPoint(splitDragCurrent);
-            if (from == null || to == null) {
-                return;
-            }
-
-            Graphics2D g = (Graphics2D) graphics.create();
-            try {
-                g.setColor(new Color(0, 0, 0, 190));
-                g.setStroke(new BasicStroke(3.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g.drawLine(from.x, from.y, to.x, to.y);
-
-                g.setColor(new Color(255, 255, 255, 230));
-                g.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g.drawLine(from.x, from.y, to.x, to.y);
-            } finally {
-                g.dispose();
-            }
-        }
     }
 }
