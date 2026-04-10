@@ -7,6 +7,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Point;
@@ -809,19 +810,9 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
     private Cursor createSplitCursor() {
         try {
             Toolkit toolkit = Toolkit.getDefaultToolkit();
-            int width = 32;
-            int height = 32;
-            int hotspotX = 7;
-            int hotspotY = 16;
-
-            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-            Graphics2D g = image.createGraphics();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(new java.awt.Color(255, 210, 90, 230));
-            g.setStroke(new BasicStroke(2.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g.drawLine(4, 16, 28, 16);
-            g.drawLine(7, 12, 7, 20);
-            g.dispose();
+            Image image = toolkit.getImage(getClass().getResource("/images/scalpel_cursor.png"));
+            int hotspotX = 4;
+            int hotspotY = 28;
             return toolkit.createCustomCursor(image, new Point(hotspotX, hotspotY), "hnc-split-cursor");
         } catch (RuntimeException ex) {
             Logging.debug(ex);
