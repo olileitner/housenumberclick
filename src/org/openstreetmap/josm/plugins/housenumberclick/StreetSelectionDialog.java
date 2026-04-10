@@ -239,9 +239,14 @@ final class StreetSelectionDialog {
         this.rowHousePartsField.setMinimumSize(rowHousePartsFieldSize);
         this.rowHousePartsMinusButton = createRowHousePartsAdjustButton(-1);
         this.rowHousePartsPlusButton = createRowHousePartsAdjustButton(1);
-        Dimension squarePartsButtonSize = new Dimension(rowHousePartsFieldHeight, rowHousePartsFieldHeight);
+        int partsButtonWidth = Math.max(28, rowHousePartsFieldHeight + 8);
+        int partsButtonHeight = Math.max(22, rowHousePartsFieldHeight + 2);
+        Dimension squarePartsButtonSize = new Dimension(partsButtonWidth, partsButtonHeight);
         this.rowHousePartsMinusButton.setPreferredSize(squarePartsButtonSize);
+        this.rowHousePartsMinusButton.setMinimumSize(squarePartsButtonSize);
         this.rowHousePartsPlusButton.setPreferredSize(squarePartsButtonSize);
+        this.rowHousePartsPlusButton.setMinimumSize(squarePartsButtonSize);
+        this.streetModeController.setTerracePartsUpdateListener(this::updateRowHousePartsFromMode);
 
         JPanel sectionsPanel = new JPanel(new GridBagLayout());
         GridBagConstraints sectionGbc = new GridBagConstraints();
@@ -498,6 +503,16 @@ final class StreetSelectionDialog {
         houseNumberField.setText(normalize(houseNumber));
         updatingInputs = false;
         notifyAddressChanged();
+    }
+
+    private void updateRowHousePartsFromMode(int parts) {
+        if (rowHousePartsField == null) {
+            return;
+        }
+        boolean wasUpdatingInputs = updatingInputs;
+        updatingInputs = true;
+        rowHousePartsField.setText(Integer.toString(parts));
+        updatingInputs = wasUpdatingInputs;
     }
 
     private void updateAddressValuesFromMode(String streetName, String postcode, String buildingType, String houseNumber) {

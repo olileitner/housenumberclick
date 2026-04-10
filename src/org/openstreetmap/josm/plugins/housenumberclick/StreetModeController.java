@@ -81,6 +81,7 @@ final class StreetModeController {
     private AddressValuesReadListener addressValuesReadListener;
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
     private ModeStateListener modeStateListener;
+    private TerracePartsUpdateListener terracePartsUpdateListener;
 
     interface HouseNumberUpdateListener {
         void onHouseNumberUpdated(String houseNumber);
@@ -96,6 +97,10 @@ final class StreetModeController {
 
     interface ModeStateListener {
         void onModeStateChanged(boolean active);
+    }
+
+    interface TerracePartsUpdateListener {
+        void onTerracePartsUpdated(int parts);
     }
 
     boolean isActive() {
@@ -197,6 +202,13 @@ final class StreetModeController {
     void notifyModeStateChanged(boolean active) {
         if (modeStateListener != null) {
             modeStateListener.onModeStateChanged(active);
+        }
+    }
+
+    void setTerracePartsUpdateListener(TerracePartsUpdateListener listener) {
+        this.terracePartsUpdateListener = listener;
+        if (terracePartsUpdateListener != null) {
+            terracePartsUpdateListener.onTerracePartsUpdated(configuredTerraceParts);
         }
     }
 
@@ -482,8 +494,11 @@ final class StreetModeController {
     }
 
     void setConfiguredTerraceParts(int parts) {
-        if (parts >= 1) {
+        if (parts >= 1 && configuredTerraceParts != parts) {
             configuredTerraceParts = parts;
+            if (terracePartsUpdateListener != null) {
+                terracePartsUpdateListener.onTerracePartsUpdated(configuredTerraceParts);
+            }
         }
     }
 
