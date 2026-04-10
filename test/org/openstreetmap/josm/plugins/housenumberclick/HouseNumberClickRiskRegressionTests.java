@@ -73,6 +73,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Ctrl has priority over Alt split activation", HouseNumberClickRiskRegressionTests::testCtrlHasPriorityOverAltActivation);
             run("Temporary Alt split exits on Alt release", HouseNumberClickRiskRegressionTests::testTemporaryAltSplitExitsOnAltRelease);
             run("Alt+digit sets row-house parts through controller", HouseNumberClickRiskRegressionTests::testAltDigitSetsTerracePartsShortcut);
+            run("Row-house parts dialog sync avoids document mutation during notifications", HouseNumberClickRiskRegressionTests::testRowHousePartsDialogSyncDefersDocumentMutation);
             run("Ctrl cursor uses custom magnifier without arrow asset fallback", HouseNumberClickRiskRegressionTests::testCtrlCursorUsesCustomMagnifier);
             run("Split cursor hotspot keeps scalp tip shifted left", HouseNumberClickRiskRegressionTests::testSplitCursorHotspotShiftedLeft);
             run("Split map mode is line-split only", HouseNumberClickRiskRegressionTests::testSplitMapModeIsLineSplitOnly);
@@ -536,6 +537,14 @@ public final class HouseNumberClickRiskRegressionTests {
                 "Alt+digit shortcut must set terrace parts in controller as single source of truth");
         assertTrue(source.contains("Row houses parts set to {0}."),
                 "Alt+digit shortcut should provide status feedback for configured parts");
+    }
+
+    private static void testRowHousePartsDialogSyncDefersDocumentMutation() throws Exception {
+        String source = readPluginSource("StreetSelectionDialog.java");
+        assertTrue(source.contains("updateRowHousePartsFromMode"),
+                "dialog should keep a controller-to-field sync path for row-house parts");
+        assertTrue(source.contains("SwingUtilities.invokeLater") || source.contains("javax.swing.SwingUtilities.invokeLater"),
+                "row-house parts sync should defer document writes to avoid nested document mutation");
     }
 
     private static void testCtrlCursorUsesCustomMagnifier() throws Exception {

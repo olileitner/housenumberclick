@@ -509,9 +509,21 @@ final class StreetSelectionDialog {
         if (rowHousePartsField == null) {
             return;
         }
+        String partsText = Integer.toString(parts);
+        if (partsText.equals(rowHousePartsField.getText())) {
+            return;
+        }
+        // Listener callbacks may run while document notifications are active; defer to avoid nested mutations.
+        javax.swing.SwingUtilities.invokeLater(() -> applyRowHousePartsText(partsText));
+    }
+
+    private void applyRowHousePartsText(String partsText) {
+        if (rowHousePartsField == null || partsText == null || partsText.equals(rowHousePartsField.getText())) {
+            return;
+        }
         boolean wasUpdatingInputs = updatingInputs;
         updatingInputs = true;
-        rowHousePartsField.setText(Integer.toString(parts));
+        rowHousePartsField.setText(partsText);
         updatingInputs = wasUpdatingInputs;
     }
 
