@@ -2,11 +2,12 @@
 
 HouseNumberClick is a JOSM plugin for fast, street-focused house-number tagging on buildings.
 
-## What's New in 1.1.4
+## What's New in 1.1.5
 
-- Street dialog wording is now more consistent and clearer across display options.
-- Updated option names in UI and docs (for example `Auto-zoom to selected street`, `Show house number labels`, `Show all street counts`).
-- Improved usage guidance with plugin icon and explicit auto-increment note.
+- Single-mode interaction is finalized (`HouseNumberClickStreetMapMode` only), including inline split gestures.
+- Split workflows stay inline: `Alt+Drag` for line split, right-click for row-house split, and `Alt+1..9` to quick-set `Parts`.
+- Alt-based split readiness is hardened against global modifier shortcuts and missing key-release edge cases.
+- Build/release documentation is aligned with the current Ant + GitHub Releases flow.
 
 ## Who This Is For
 
