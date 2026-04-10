@@ -184,6 +184,9 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             // Global shortcuts like Ctrl+Alt+Shift+P must not leave split readiness active.
             resetTemporarySplitState();
         }
+        if (altPressed && !e.isAltDown()) {
+            resetTemporarySplitState();
+        }
 
         if (e.getKeyCode() == KeyEvent.VK_CONTROL) {
             if (e.getID() == KeyEvent.KEY_PRESSED) {
