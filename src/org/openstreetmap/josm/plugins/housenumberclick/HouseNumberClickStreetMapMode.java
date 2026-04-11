@@ -70,6 +70,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
     private String warningSuppressedPostcode;
     private boolean ctrlDispatcherRegistered;
     private boolean ctrlPressedForCursor;
+    private boolean shiftPressedForCursor;
     private boolean altPressed;
     private boolean draggingSplit;
     private Point splitDragStartPoint;
@@ -153,6 +154,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
     public void enterMode() {
         super.enterMode();
         ctrlPressedForCursor = false;
+        shiftPressedForCursor = false;
         altPressed = false;
         clearSplitDragState();
         registerCtrlKeyDispatcher();
@@ -172,6 +174,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
     @Override
     public void exitMode() {
         ctrlPressedForCursor = false;
+        shiftPressedForCursor = false;
         altPressed = false;
         clearSplitDragState();
         unregisterAppFocusListener();
@@ -213,6 +216,17 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
                 updateHouseNumberCursor();
             } else if (e.getID() == KeyEvent.KEY_RELEASED) {
                 ctrlPressedForCursor = false;
+                updateHouseNumberCursor();
+            }
+            return false;
+        }
+
+        if (e.getKeyCode() == KeyEvent.VK_SHIFT) {
+            if (e.getID() == KeyEvent.KEY_PRESSED) {
+                shiftPressedForCursor = true;
+                updateHouseNumberCursor();
+            } else if (e.getID() == KeyEvent.KEY_RELEASED) {
+                shiftPressedForCursor = false;
                 updateHouseNumberCursor();
             }
             return false;
@@ -902,15 +916,17 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             map.mapView.setCursor(createSplitCursor());
             return;
         }
-        map.mapView.setCursor(ctrlPressedForCursor ? createCtrlZoomCursor() : createHouseNumberCursor());
+        map.mapView.setCursor(ctrlPressedForCursor && !shiftPressedForCursor
+                ? createCtrlZoomCursor()
+                : createHouseNumberCursor());
     }
 
     private Cursor createSplitCursor() {
         try {
             Toolkit toolkit = Toolkit.getDefaultToolkit();
             Image image = toolkit.getImage(getClass().getResource("/images/scalpel_cursor.png"));
-            int hotspotX = 7;
-            int hotspotY = 29;
+            int hotspotX = 4;
+            int hotspotY = 28;
             return toolkit.createCustomCursor(image, new Point(hotspotX, hotspotY), "hnc-split-cursor");
         } catch (RuntimeException ex) {
             Logging.debug(ex);
