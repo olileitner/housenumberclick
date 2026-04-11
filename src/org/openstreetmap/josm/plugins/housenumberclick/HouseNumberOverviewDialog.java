@@ -16,6 +16,7 @@ import java.util.Set;
 import javax.swing.BorderFactory;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
@@ -40,6 +41,7 @@ final class HouseNumberOverviewDialog {
 
     private final JDialog dialog;
     private final JLabel streetLabel;
+    private final JLabel incompleteStreetWarningLabel;
     private final DefaultTableModel tableModel;
     private final List<HouseNumberOverviewRow> currentRows = new ArrayList<>();
     private final Runnable rowClickListener;
@@ -52,6 +54,15 @@ final class HouseNumberOverviewDialog {
         this.dialog.setDefaultCloseOperation(JDialog.HIDE_ON_CLOSE);
 
         this.streetLabel = new JLabel();
+        this.incompleteStreetWarningLabel = new JLabel(I18n.tr("Street may be incomplete in loaded data"));
+        this.incompleteStreetWarningLabel.setVisible(false);
+        this.incompleteStreetWarningLabel.setForeground(new Color(118, 122, 128));
+        this.incompleteStreetWarningLabel.setFont(
+                this.incompleteStreetWarningLabel.getFont().deriveFont(
+                        java.awt.Font.ITALIC,
+                        Math.max(11f, this.incompleteStreetWarningLabel.getFont().getSize2D() - 1f)
+                )
+        );
         this.tableModel = new DefaultTableModel(
                 new Object[] {I18n.tr("Odd"), I18n.tr("Even")},
                 0
@@ -91,9 +102,12 @@ final class HouseNumberOverviewDialog {
 
         JScrollPane scrollPane = new JScrollPane(table);
 
-        javax.swing.JPanel content = new javax.swing.JPanel(new BorderLayout(0, 8));
+        JPanel content = new JPanel(new BorderLayout(0, 8));
         content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        content.add(streetLabel, BorderLayout.NORTH);
+        JPanel headerPanel = new JPanel(new BorderLayout(0, 2));
+        headerPanel.add(streetLabel, BorderLayout.NORTH);
+        headerPanel.add(incompleteStreetWarningLabel, BorderLayout.SOUTH);
+        content.add(headerPanel, BorderLayout.NORTH);
         content.add(scrollPane, BorderLayout.CENTER);
 
         this.dialog.getContentPane().add(content, BorderLayout.CENTER);
@@ -101,9 +115,10 @@ final class HouseNumberOverviewDialog {
         this.dialog.setSize(new Dimension(320, 500));
     }
 
-    void updateData(String streetName, List<HouseNumberOverviewRow> rows) {
+    void updateData(String streetName, List<HouseNumberOverviewRow> rows, boolean streetPossiblyIncomplete) {
         String normalizedStreet = normalize(streetName);
         streetLabel.setText(I18n.tr("Street: {0}", normalizedStreet.isEmpty() ? I18n.tr("(none)") : normalizedStreet));
+        incompleteStreetWarningLabel.setVisible(streetPossiblyIncomplete);
 
         currentRows.clear();
         tableModel.setRowCount(0);

@@ -13,6 +13,7 @@ final class OverviewManager {
     private StreetHouseNumberCountDialog streetHouseNumberCountDialog;
     private final HouseNumberOverviewCollector houseNumberOverviewCollector = new HouseNumberOverviewCollector();
     private final StreetHouseNumberCountCollector streetHouseNumberCountCollector = new StreetHouseNumberCountCollector();
+    private final StreetCompletenessHeuristic streetCompletenessHeuristic = new StreetCompletenessHeuristic();
 
     void refreshHouseNumberOverview(boolean enabled, String currentStreet, DataSet editDataSet, Runnable continueWorkingCallback) {
         if (!enabled || normalize(currentStreet).isEmpty() || editDataSet == null) {
@@ -26,7 +27,8 @@ final class OverviewManager {
 
         houseNumberOverviewDialog.updateData(
                 currentStreet,
-                houseNumberOverviewCollector.collectRows(editDataSet, currentStreet)
+                houseNumberOverviewCollector.collectRows(editDataSet, currentStreet),
+                streetCompletenessHeuristic.isStreetPossiblyIncomplete(editDataSet, currentStreet)
         );
         houseNumberOverviewDialog.showDialog();
     }
