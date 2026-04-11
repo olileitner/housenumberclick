@@ -3,8 +3,13 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.actions.OrthogonalizeAction;
@@ -20,6 +25,7 @@ import org.openstreetmap.josm.data.osm.visitor.OsmPrimitiveVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.gui.Notification;
+import org.openstreetmap.josm.gui.util.GuiHelper;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
@@ -70,6 +76,9 @@ final class StreetModeController {
     private final TerraceSplitService terraceSplitService = new TerraceSplitService();
     private final CornerSnapService cornerSnapService = new CornerSnapService();
     private final ReferenceStreetFetchService referenceStreetFetchService = new ReferenceStreetFetchService();
+    private final StreetCompletenessHeuristic streetCompletenessHeuristic = new StreetCompletenessHeuristic();
+    private final Map<String, DataSet> referenceStreetCache = new HashMap<>();
+    private final Set<String> referenceStreetLoadsInProgress = new HashSet<>();
     private boolean rectangularizeAfterLineSplit;
     private int configuredTerraceParts = 2;
     private AddressSelection lastSelection = new AddressSelection("", "", "", "", 1);
@@ -79,8 +88,8 @@ final class StreetModeController {
     private boolean houseNumberOverviewEnabled;
     private boolean streetHouseNumberCountsEnabled;
     private boolean zoomToSelectedStreetEnabled;
-    private volatile boolean referenceStreetLoadInProgress;
-    private String lastLoadedReferenceStreet = "";
+    private String visibleReferenceStreetKey = "";
+    private String lastReferenceSyncStreetKey = "";
     private HouseNumberUpdateListener houseNumberUpdateListener;
     private AddressValuesReadListener addressValuesReadListener;
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
@@ -163,6 +172,7 @@ final class StreetModeController {
         refreshOverlayLayer();
         refreshHouseNumberOverview();
         refreshStreetHouseNumberCounts();
+        syncReferenceStreetVisibilityForCurrentStreet();
         map.selectMapMode(streetMapMode);
     }
 
@@ -344,6 +354,7 @@ final class StreetModeController {
         highlightCurrentStreetInStreetCountDialog();
         refreshOverlayLayer();
         refreshHouseNumberOverview();
+        syncReferenceStreetVisibilityForCurrentStreet();
         zoomToStreet(normalizedStreet);
         continueWorkingFromTableInteraction();
     }
@@ -357,6 +368,7 @@ final class StreetModeController {
         refreshOverlayLayer();
         refreshHouseNumberOverview();
         refreshStreetHouseNumberCounts();
+        syncReferenceStreetVisibilityForCurrentStreet();
     }
 
     void continueWorkingFromTableInteraction() {
@@ -369,6 +381,7 @@ final class StreetModeController {
     void onAddressApplied() {
         overlayManager.invalidateOverlayDataCache();
         refreshOverlayLayer();
+        syncReferenceStreetVisibilityForCurrentStreet();
     }
 
     void createBuildingOverviewLayer() {
@@ -438,8 +451,14 @@ final class StreetModeController {
         hideStreetHouseNumberCounts();
         overviewManager.resetSessionPositioningState();
         overlayManager.removeOverlayLayer();
-        overlayManager.removeReferenceStreetLayer();
-        lastLoadedReferenceStreet = "";
+        removeVisibleReferenceLayer("main dialog closed");
+        synchronized (referenceStreetCache) {
+            referenceStreetCache.clear();
+        }
+        synchronized (referenceStreetLoadsInProgress) {
+            referenceStreetLoadsInProgress.clear();
+        }
+        lastReferenceSyncStreetKey = "";
         deactivate();
     }
 
@@ -449,34 +468,107 @@ final class StreetModeController {
             showShortNotification("Select a street first.");
             return;
         }
+        requestReferenceStreetLoad(normalizedStreet, true);
+    }
 
-        if (normalizedStreet.equalsIgnoreCase(lastLoadedReferenceStreet)
-                && overlayManager.hasReferenceStreetLoaded(normalizedStreet)) {
+    private void syncReferenceStreetVisibilityForCurrentStreet() {
+        String currentStreet = normalize(navigationService.getCurrentStreet());
+        String currentStreetKey = streetKey(currentStreet);
+        if (!currentStreetKey.equals(lastReferenceSyncStreetKey)) {
+            Logging.debug("HouseNumberClick reference auto: current street changed to='" + currentStreet + "'.");
+            lastReferenceSyncStreetKey = currentStreetKey;
+        }
+
+        if (currentStreetKey.isEmpty()) {
+            removeVisibleReferenceLayer("selection changed");
             return;
         }
 
         DataSet editDataSet = getActiveEditDataSet();
         if (editDataSet == null) {
-            showShortNotification("No editable dataset is available.");
-            return;
-        }
-        if (referenceStreetLoadInProgress) {
+            removeVisibleReferenceLayer("selection changed");
             return;
         }
 
-        referenceStreetLoadInProgress = true;
+        boolean incomplete = streetCompletenessHeuristic.isStreetPossiblyIncomplete(editDataSet, currentStreet);
+        Logging.debug("HouseNumberClick reference auto: street='" + currentStreet + "', incomplete=" + incomplete + ".");
+        if (!incomplete) {
+            removeVisibleReferenceLayer("street is complete");
+            return;
+        }
+
+        DataSet cached;
+        synchronized (referenceStreetCache) {
+            cached = referenceStreetCache.get(currentStreetKey);
+        }
+        if (cached != null) {
+            Logging.debug("HouseNumberClick reference auto: cached reference reused for street='" + currentStreet + "'.");
+            showReferenceForCurrentStreet(currentStreet, currentStreetKey, cached);
+            return;
+        }
+
+        if (isReferenceLoadInProgress(currentStreetKey)) {
+            Logging.debug("HouseNumberClick reference auto: auto-load skipped for street='" + currentStreet + "' (already running).");
+            return;
+        }
+
+        Logging.debug("HouseNumberClick reference auto: auto-load started for street='" + currentStreet + "'.");
+        requestReferenceStreetLoad(currentStreet, false);
+    }
+
+    private void requestReferenceStreetLoad(String normalizedStreet, boolean manualRequest) {
+        String streetKey = streetKey(normalizedStreet);
+        if (streetKey.isEmpty()) {
+            return;
+        }
+
+        DataSet cached;
+        synchronized (referenceStreetCache) {
+            cached = referenceStreetCache.get(streetKey);
+        }
+        if (cached != null) {
+            Logging.debug("HouseNumberClick reference auto: cached reference reused for street='" + normalizedStreet + "'.");
+            showReferenceForCurrentStreet(normalizedStreet, streetKey, cached);
+            if (manualRequest) {
+                String loadedMessage = cached.getWays().isEmpty()
+                        ? I18n.tr("No reference street geometry found for {0}.", normalizedStreet)
+                        : I18n.tr("Street reference loaded for {0}.", normalizedStreet);
+                new Notification(loadedMessage)
+                        .setDuration(Notification.TIME_SHORT)
+                        .show();
+            }
+            return;
+        }
+
+        DataSet editDataSet = getActiveEditDataSet();
+        if (editDataSet == null) {
+            if (manualRequest) {
+                showShortNotification("No editable dataset is available.");
+            }
+            return;
+        }
+
+        if (!tryStartReferenceLoad(streetKey)) {
+            Logging.debug("HouseNumberClick reference auto: auto-load skipped for street='" + normalizedStreet + "' (already running).");
+            return;
+        }
+
         Thread loadThread = new Thread(() -> {
             try {
                 DataSet referenceData = referenceStreetFetchService.loadReferenceStreet(editDataSet, normalizedStreet);
-                javax.swing.SwingUtilities.invokeLater(() -> {
-                    overlayManager.showReferenceStreetLayer(normalizedStreet, referenceData);
-                    lastLoadedReferenceStreet = normalizedStreet;
-                    String loadedMessage = referenceData == null || referenceData.getWays().isEmpty()
-                            ? I18n.tr("No reference street geometry found for {0}.", normalizedStreet)
-                            : I18n.tr("Street reference loaded for {0}.", normalizedStreet);
-                    new Notification(loadedMessage)
-                            .setDuration(Notification.TIME_SHORT)
-                            .show();
+                synchronized (referenceStreetCache) {
+                    referenceStreetCache.put(streetKey, referenceData != null ? referenceData : new DataSet());
+                }
+                GuiHelper.runInEDT(() -> {
+                    showReferenceForCurrentStreet(normalizedStreet, streetKey, referenceData);
+                    if (manualRequest) {
+                        String loadedMessage = referenceData == null || referenceData.getWays().isEmpty()
+                                ? I18n.tr("No reference street geometry found for {0}.", normalizedStreet)
+                                : I18n.tr("Street reference loaded for {0}.", normalizedStreet);
+                        new Notification(loadedMessage)
+                                .setDuration(Notification.TIME_SHORT)
+                                .show();
+                    }
                 });
             } catch (Exception ex) {
                 Logging.warn("HouseNumberClick reference load failed for street={0} | category={1} | diagnostics={2}",
@@ -484,13 +576,70 @@ final class StreetModeController {
                         classifyReferenceLoadIssue(ex),
                         summarizeExceptionChain(ex));
                 Logging.debug(ex);
-                javax.swing.SwingUtilities.invokeLater(() -> showReferenceLoadFailure(normalizedStreet));
+                if (manualRequest) {
+                    GuiHelper.runInEDT(() -> showReferenceLoadFailure(normalizedStreet));
+                }
             } finally {
-                referenceStreetLoadInProgress = false;
+                finishReferenceLoad(streetKey);
             }
-        }, "hnc-reference-street-loader");
+        }, "hnc-reference-street-loader-" + streetKey);
         loadThread.setDaemon(true);
         loadThread.start();
+    }
+
+    private void showReferenceForCurrentStreet(String streetName, String streetKey, DataSet referenceData) {
+        String currentStreetKey = streetKey(navigationService.getCurrentStreet());
+        DataSet editDataSet = getActiveEditDataSet();
+        boolean currentStreetIncomplete = editDataSet != null
+                && !currentStreetKey.isEmpty()
+                && streetCompletenessHeuristic.isStreetPossiblyIncomplete(editDataSet, navigationService.getCurrentStreet());
+        if (!streetKey.equals(currentStreetKey) || !currentStreetIncomplete) {
+            Logging.debug("HouseNumberClick reference auto: auto-load skipped for street='" + streetName
+                    + "' (selection changed before completion).");
+            return;
+        }
+        if (referenceData == null || referenceData.getWays().isEmpty()) {
+            removeVisibleReferenceLayer("selection changed");
+            return;
+        }
+        overlayManager.showReferenceStreetLayer(streetName, referenceData);
+        visibleReferenceStreetKey = streetKey;
+    }
+
+    private void removeVisibleReferenceLayer(String reason) {
+        if (visibleReferenceStreetKey.isEmpty()) {
+            overlayManager.removeReferenceStreetLayer();
+            return;
+        }
+        Logging.debug("HouseNumberClick reference auto: visible reference removed because " + reason + ".");
+        overlayManager.removeReferenceStreetLayer();
+        visibleReferenceStreetKey = "";
+    }
+
+    private boolean tryStartReferenceLoad(String streetKey) {
+        synchronized (referenceStreetLoadsInProgress) {
+            if (referenceStreetLoadsInProgress.contains(streetKey)) {
+                return false;
+            }
+            referenceStreetLoadsInProgress.add(streetKey);
+            return true;
+        }
+    }
+
+    private void finishReferenceLoad(String streetKey) {
+        synchronized (referenceStreetLoadsInProgress) {
+            referenceStreetLoadsInProgress.remove(streetKey);
+        }
+    }
+
+    private boolean isReferenceLoadInProgress(String streetKey) {
+        synchronized (referenceStreetLoadsInProgress) {
+            return referenceStreetLoadsInProgress.contains(streetKey);
+        }
+    }
+
+    private String streetKey(String streetName) {
+        return normalize(streetName).toLowerCase(Locale.ROOT);
     }
 
     private void showReferenceLoadFailure(String streetName) {
@@ -510,7 +659,7 @@ final class StreetModeController {
     }
 
     private String classifyReferenceLoadIssue(Throwable throwable) {
-        String diagnostics = summarizeExceptionChain(throwable).toLowerCase(java.util.Locale.ROOT);
+        String diagnostics = summarizeExceptionChain(throwable).toLowerCase(Locale.ROOT);
         if (diagnostics.contains("malformedurl") || diagnostics.contains("no protocol")
                 || diagnostics.contains("illegalargumentexception")) {
             return "api";
@@ -590,7 +739,6 @@ final class StreetModeController {
         showShortNotification(failure.getMessage());
         return failure;
     }
-
 
     int getConfiguredTerraceParts() {
         return configuredTerraceParts;
