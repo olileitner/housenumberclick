@@ -1,6 +1,5 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -27,12 +26,10 @@ import org.openstreetmap.josm.tools.ImageProvider;
 
 final class BuildingOverviewLayer extends Layer {
 
-    private static final Color ADDRESSED_FILL_COLOR = new Color(80, 170, 110, 155);
-    private static final Color UNADDRESSED_FILL_COLOR = new Color(60, 60, 60, 155);
-    private static final Color MISPLACED_COLOR = new Color(180, 150, 60, 120);
-    private static final Color OUTLINE_COLOR = new Color(20, 20, 20, 170);
+    private static final Color ADDRESSED_FILL_COLOR = new Color(86, 180, 233, 190);
+    private static final Color UNADDRESSED_FILL_COLOR = new Color(230, 159, 0, 190);
+    private static final Color MISPLACED_COLOR = new Color(204, 121, 167, 190);
     private static final Color LEGEND_BACKGROUND_COLOR = new Color(248, 248, 248, 215);
-    private static final Color LEGEND_BORDER_COLOR = new Color(35, 35, 35, 180);
     private static final int LEGEND_PADDING = 8;
     private static final int LEGEND_ROW_HEIGHT = 16;
     private static final int LEGEND_SWATCH_SIZE = 11;
@@ -59,7 +56,6 @@ final class BuildingOverviewLayer extends Layer {
 
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setStroke(new BasicStroke(1.0f));
 
         for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
             drawPrimitive(g, mapView, entry);
@@ -92,8 +88,6 @@ final class BuildingOverviewLayer extends Layer {
 
         g.setColor(LEGEND_BACKGROUND_COLOR);
         g.fillRoundRect(legendX, legendY, legendWidth, legendHeight, 8, 8);
-        g.setColor(LEGEND_BORDER_COLOR);
-        g.drawRoundRect(legendX, legendY, legendWidth, legendHeight, 8, 8);
 
         int textBaseX = legendX + LEGEND_PADDING;
         int rowY = legendY + LEGEND_PADDING + 12;
@@ -114,8 +108,6 @@ final class BuildingOverviewLayer extends Layer {
         int swatchY = rowY - LEGEND_SWATCH_SIZE + 3;
         g.setColor(swatchColor);
         g.fillRect(textBaseX, swatchY, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE);
-        g.setColor(OUTLINE_COLOR);
-        g.drawRect(textBaseX, swatchY, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE);
         g.setColor(Color.BLACK);
         g.drawString(label, textBaseX + LEGEND_SWATCH_SIZE + 6, rowY);
     }
@@ -189,8 +181,6 @@ final class BuildingOverviewLayer extends Layer {
                 hasDuplicateExactAddress
         ));
         g.fill(polygon);
-        g.setColor(OUTLINE_COLOR);
-        g.draw(polygon);
     }
 
     private Color resolveFillColor(
@@ -253,7 +243,7 @@ final class BuildingOverviewLayer extends Layer {
 
     @Override
     public String getToolTipText() {
-        return I18n.tr("Completeness overview (green: address complete, gray: address incomplete, ochre: address problematic)");
+        return I18n.tr("Completeness overview (bright colors: complete, incomplete, problematic)");
     }
 
     @Override

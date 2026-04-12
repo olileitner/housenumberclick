@@ -107,11 +107,11 @@ This significantly reduces friction when mapping long streets or dense residenti
 - `Show overview panel (selected street)`: odd/even table with gap markers (`•` for missing base numbers); table click zooms to target object(s).
 - `Show all street counts`: list of all known streets and current counts; row click zooms to selected street.
 - `Show completeness` / `Hide completeness`: `Completeness overview` layer:
-  - `Address complete` (green),
-  - `Address incomplete` (dark gray),
-  - `Address problematic` (subtle yellow/ochre).
+  - `Address complete` (bright blue),
+  - `Address incomplete` (bright orange),
+  - `Address problematic` (bright magenta).
 - `Show Postcode` / `Hide Postcode`: postcode overview layer:
-  - gray = no postcode,
+  - bright pink = no postcode,
   - same color = same postcode,
   - postcode colors are deterministic (stable across hide/show).
 - Completeness and postcode overview layers are mutually exclusive: enabling one hides the other.

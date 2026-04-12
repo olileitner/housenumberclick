@@ -1,6 +1,5 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Point;
@@ -31,32 +30,30 @@ import org.openstreetmap.josm.tools.ImageProvider;
 
 final class PostcodeOverviewLayer extends Layer {
 
-    private static final Color MISSING_POSTCODE_COLOR = new Color(110, 110, 110, 165);
-    private static final Color OUTLINE_COLOR = new Color(20, 20, 20, 170);
+    private static final Color MISSING_POSTCODE_COLOR = new Color(240, 98, 146, 190);
     private static final Color LEGEND_BACKGROUND_COLOR = new Color(248, 248, 248, 215);
-    private static final Color LEGEND_BORDER_COLOR = new Color(35, 35, 35, 180);
     private static final int LEGEND_PADDING = 8;
     private static final int LEGEND_ROW_HEIGHT = 16;
     private static final int LEGEND_SWATCH_SIZE = 11;
     static final int TOP_POSTCODE_LEGEND_LIMIT = 5;
-    private static final int POSTCODE_FILL_ALPHA = 165;
+    private static final int POSTCODE_FILL_ALPHA = 190;
     private static final Color[] POSTCODE_PALETTE = new Color[] {
-            new Color(214, 39, 40),
-            new Color(31, 119, 180),
-            new Color(44, 160, 44),
-            new Color(255, 127, 14),
-            new Color(148, 103, 189),
-            new Color(140, 86, 75),
-            new Color(227, 119, 194),
-            new Color(23, 190, 207),
-            new Color(188, 189, 34),
-            new Color(57, 59, 121),
-            new Color(140, 162, 82),
-            new Color(132, 60, 57),
-            new Color(123, 65, 115),
-            new Color(99, 121, 57),
-            new Color(82, 84, 163),
-            new Color(165, 81, 148)
+            new Color(86, 180, 233),
+            new Color(230, 159, 0),
+            new Color(204, 121, 167),
+            new Color(0, 158, 115),
+            new Color(0, 114, 178),
+            new Color(213, 94, 0),
+            new Color(240, 228, 66),
+            new Color(152, 78, 163),
+            new Color(255, 127, 0),
+            new Color(77, 175, 74),
+            new Color(55, 126, 184),
+            new Color(228, 26, 28),
+            new Color(166, 86, 40),
+            new Color(247, 129, 191),
+            new Color(102, 194, 165),
+            new Color(27, 158, 119)
     };
 
     private final DataSet dataSet;
@@ -81,7 +78,6 @@ final class PostcodeOverviewLayer extends Layer {
 
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setStroke(new BasicStroke(1.0f));
 
         for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
             drawPrimitive(g, mapView, entry.getPrimitive());
@@ -108,8 +104,6 @@ final class PostcodeOverviewLayer extends Layer {
 
         g.setColor(LEGEND_BACKGROUND_COLOR);
         g.fillRoundRect(legendX, legendY, legendWidth, legendHeight, 8, 8);
-        g.setColor(LEGEND_BORDER_COLOR);
-        g.drawRoundRect(legendX, legendY, legendWidth, legendHeight, 8, 8);
 
         int textBaseX = legendX + LEGEND_PADDING;
         int rowY = legendY + LEGEND_PADDING + 12;
@@ -132,8 +126,6 @@ final class PostcodeOverviewLayer extends Layer {
         int swatchY = rowY - LEGEND_SWATCH_SIZE + 3;
         g.setColor(swatchColor);
         g.fillRect(textBaseX, swatchY, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE);
-        g.setColor(OUTLINE_COLOR);
-        g.drawRect(textBaseX, swatchY, LEGEND_SWATCH_SIZE, LEGEND_SWATCH_SIZE);
         g.setColor(Color.BLACK);
         g.drawString(label, textBaseX + LEGEND_SWATCH_SIZE + 6, rowY);
     }
@@ -235,8 +227,6 @@ final class PostcodeOverviewLayer extends Layer {
 
         g.setColor(fillColor);
         g.fill(polygon);
-        g.setColor(OUTLINE_COLOR);
-        g.draw(polygon);
     }
 
     private Path2D buildScreenPolygon(MapView mapView, Way way) {
@@ -279,7 +269,7 @@ final class PostcodeOverviewLayer extends Layer {
 
     @Override
     public String getToolTipText() {
-        return I18n.tr("Postcode overview (gray: missing postcode, same color: same postcode)");
+        return I18n.tr("Postcode overview (bright colors, same color: same postcode)");
     }
 
     @Override
@@ -302,7 +292,7 @@ final class PostcodeOverviewLayer extends Layer {
 
     @Override
     public Object getInfoComponent() {
-        return I18n.tr("Postcode overview (gray: missing postcode)");
+        return I18n.tr("Postcode overview (bright colors)");
     }
 
     @Override
