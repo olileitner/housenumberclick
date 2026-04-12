@@ -36,6 +36,12 @@ Important:
 * Split is a **temporary gesture**
 * The user never leaves Street Mode
 
+### Input Handling (Critical)
+
+* Never block JOSM core shortcuts (`Ctrl+*`, `Ctrl+Shift+*`).
+* Modifier keys must not be consumed unless strictly required for a plugin gesture.
+* `Ctrl` must not trigger plugin behavior when used together with `Shift` (reserved for JOSM shortcuts).
+
 ❗ Agents must NOT reintroduce:
 
 * `HouseNumberSplitMapMode`
@@ -135,6 +141,33 @@ Split behavior is fully inline:
   * `HouseNumberClickRiskRegressionTests`
   * NOT JUnit
 
+### Non-Interactive Release Rules
+
+* Never open interactive editors during release commands (`git`, `gh`, etc.).
+* Always use non-interactive, reproducible commands.
+
+#### Git Tagging
+
+* Always use annotated tags:
+
+  * `git tag -a <version> -m "Release <version>"`
+
+* Never run lightweight tags:
+
+  * `git tag <version>`
+
+#### GitHub Release
+
+* Always create releases non-interactively:
+
+  * `gh release create <tag> <artifact> --title "HouseNumberClick <tag>" --notes-file RELEASE_NOTES.md`
+
+#### Hard Rule
+
+* If you are about to run a command that opens an editor:
+
+  * STOP and choose a non-interactive alternative with explicit flags.
+
 ---
 
 ## Codebase Conventions
@@ -197,6 +230,10 @@ Agents must be careful with:
   * `HouseNumberClickStreetMapMode`
   * `ClickHandlerService`
   * regression tests
+* verify shortcut safety:
+
+  * `Ctrl+Shift+*` still reaches JOSM core actions
+  * plugin only reacts to intended standalone modifiers
 
 ---
 
