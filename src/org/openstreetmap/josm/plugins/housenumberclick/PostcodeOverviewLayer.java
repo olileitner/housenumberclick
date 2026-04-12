@@ -30,7 +30,7 @@ import org.openstreetmap.josm.tools.ImageProvider;
 
 final class PostcodeOverviewLayer extends Layer {
 
-    private static final Color MISSING_POSTCODE_COLOR = new Color(240, 98, 146, 190);
+    private static final Color MISSING_POSTCODE_COLOR = BuildingOverviewLayer.NO_ADDRESS_DATA_COLOR;
     private static final Color LEGEND_BACKGROUND_COLOR = new Color(248, 248, 248, 215);
     private static final int LEGEND_PADDING = 8;
     private static final int LEGEND_ROW_HEIGHT = 16;

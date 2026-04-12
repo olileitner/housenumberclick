@@ -690,8 +690,8 @@ public final class HouseNumberClickRiskRegressionTests {
 
         assertEquals(colorA, colorB, "same postcode should always map to same color");
         assertEquals(colorA, colorC, "postcode color mapping should ignore surrounding whitespace");
-        assertTrue(missing.getRed() == 240 && missing.getGreen() == 98 && missing.getBlue() == 146,
-                "empty postcode should map to dedicated vivid missing-postcode color");
+        assertTrue(missing.getRed() == 135 && missing.getGreen() == 135 && missing.getBlue() == 135,
+                "empty postcode should map to same gray used for no-address-data in completeness layer");
     }
 
     private static void testPostcodeLegendTopFiveOrdering() {

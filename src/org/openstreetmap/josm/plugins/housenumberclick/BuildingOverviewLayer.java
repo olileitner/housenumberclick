@@ -29,7 +29,7 @@ final class BuildingOverviewLayer extends Layer {
     private static final Color ADDRESSED_FILL_COLOR = new Color(86, 180, 233, 190);
     private static final Color UNADDRESSED_FILL_COLOR = new Color(230, 159, 0, 190);
     private static final Color MISPLACED_COLOR = new Color(204, 121, 167, 190);
-    private static final Color NO_ADDRESS_DATA_COLOR = new Color(135, 135, 135, 130);
+    static final Color NO_ADDRESS_DATA_COLOR = new Color(135, 135, 135, 130);
     private static final Color LEGEND_BACKGROUND_COLOR = new Color(248, 248, 248, 215);
     private static final int LEGEND_PADDING = 8;
     private static final int LEGEND_ROW_HEIGHT = 16;
