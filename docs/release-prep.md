@@ -9,6 +9,7 @@ This checklist prepares a release for externally hosted jars (for example GitHub
 1. Set `plugin.version` in `build.xml`.
 2. Update `RELEASE_NOTES.md` for that version.
 3. Keep only one `What's New` block for the current version in `README.md`.
+4. Use only non-interactive release commands (no editor prompts).
 
 ## 2) Build and Validate
 
@@ -34,10 +35,18 @@ Check the built jar contains:
 
 ## 4) GitHub Release
 
-1. Create and push tag `v<version>`.
-2. Create GitHub release for `v<version>`.
-3. Upload `dist/HouseNumberClick-<version>.jar`.
-4. Use release notes from `RELEASE_NOTES.md`.
+```bash
+cd /home/oliver/IdeaProjects/housenumberclick
+git tag -a v<version> -m "Release v<version>"
+git push origin main
+git push origin v<version>
+gh release create v<version> dist/HouseNumberClick-<version>.jar \
+  --title "HouseNumberClick v<version>" \
+  --notes-file RELEASE_NOTES.md
+```
+
+Hard rule:
+- If a command would open an editor, stop and rerun with explicit non-interactive flags.
 
 ## 5) PluginsSource URL Pattern
 

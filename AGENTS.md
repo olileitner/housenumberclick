@@ -88,6 +88,42 @@ Important:
 
 ---
 
+## Reference Street (Overpass)
+
+* Loaded automatically when a street is selected
+* Must be lightweight and fast
+* Must NOT block UI interaction
+
+### Behavior
+
+* Auto-load is allowed, but must be:
+
+  * debounced (no repeated rapid calls)
+  * cached per street
+  * non-blocking (background thread)
+
+### Data constraints
+
+* Only load ways with matching street name
+* No buildings
+* No unrelated geometry
+
+### Rendering
+
+* Separate layer
+* Read-only
+* Red, dashed
+* Clipped to outside `DataSourceBounds`
+
+❗ Agents must NOT:
+
+* trigger recursive loading chains
+* expand search to unrelated streets
+* merge reference data into main dataset
+* block UI while loading
+
+---
+
 ## Split System (IMPORTANT)
 
 Split behavior is fully inline:

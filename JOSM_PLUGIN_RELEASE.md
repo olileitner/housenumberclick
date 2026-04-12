@@ -19,7 +19,8 @@ From `build.xml` in this repository:
 ## 2) Recommended PluginsSource-First Flow
 
 1. Update `plugin.version` in `build.xml` before tagging/release.
-2. Build and verify:
+2. Use only non-interactive release commands (no editor prompts).
+3. Build and verify:
 
 ```bash
 cd /home/oliver/IdeaProjects/housenumberclick
@@ -35,15 +36,19 @@ ls -lh dist/HouseNumberClick-<version>.jar
 unzip -p dist/HouseNumberClick-<version>.jar META-INF/MANIFEST.MF
 ```
 
-3. Tag and release on GitHub:
+4. Tag and release on GitHub (non-interactive):
 
 ```bash
-git tag v<version>
+git tag -a v<version> -m "Release v<version>"
+git push origin main
 git push origin v<version>
+gh release create v<version> dist/HouseNumberClick-<version>.jar \
+  --title "HouseNumberClick v<version>" \
+  --notes-file RELEASE_NOTES.md
 ```
 
-4. Upload `dist/HouseNumberClick-<version>.jar` as release asset.
-5. Use the direct release asset URL for PluginsSource.
+5. If a command would open an editor, stop and rerun with explicit non-interactive flags.
+6. Use the direct release asset URL for PluginsSource.
 
 URL pattern:
 
