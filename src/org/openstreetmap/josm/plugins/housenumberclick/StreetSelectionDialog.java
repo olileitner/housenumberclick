@@ -29,6 +29,7 @@ import javax.swing.JTextField;
 import javax.swing.JToggleButton;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.text.JTextComponent;
 
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.gui.MainApplication;
@@ -88,6 +89,7 @@ final class StreetSelectionDialog {
     private boolean updatingInputs;
     private DataSet rememberedDataSet;
     private boolean streetNavigationDispatcherRegistered;
+    private Component lastFocusedDialogInput;
 
     private static final int DIALOG_WIDTH = 390;
     private static final int DIALOG_HEIGHT = 860;
@@ -725,6 +727,7 @@ final class StreetSelectionDialog {
 
     private void continueWorking() {
         streetModeController.activate(buildCurrentSelection());
+        restoreLastDialogInputFocus();
     }
 
     private void refreshModeStateUi(boolean active) {
@@ -1313,9 +1316,69 @@ final class StreetSelectionDialog {
             if (!isDialogFocused()) {
                 return false;
             }
+            rememberLastDialogInputFocus();
             streetModeController.deactivate();
+            // Keep the dialog visible, but return keyboard focus to JOSM so standard tools/shortcuts work immediately.
+            focusMapViewAfterPause();
             event.consume();
             return true;
+        }
+        return false;
+    }
+
+    private void focusMapViewAfterPause() {
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().clearGlobalFocusOwner();
+        MapFrame map = MainApplication.getMap();
+        if (map != null && map.mapView != null) {
+            map.mapView.requestFocusInWindow();
+            return;
+        }
+        Frame mainFrame = MainApplication.getMainFrame();
+        if (mainFrame != null) {
+            mainFrame.requestFocus();
+        }
+    }
+
+    private void rememberLastDialogInputFocus() {
+        Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+        if (!isComponentInsideDialog(focusOwner) || !isDialogInputComponent(focusOwner)) {
+            return;
+        }
+        lastFocusedDialogInput = focusOwner;
+    }
+
+    private void restoreLastDialogInputFocus() {
+        Component target = lastFocusedDialogInput;
+        if (target == null) {
+            return;
+        }
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            if (isComponentInsideDialog(target) && target.isShowing() && target.isFocusable()) {
+                target.requestFocusInWindow();
+            }
+        });
+    }
+
+    private boolean isDialogInputComponent(Component component) {
+        if (component == null) {
+            return false;
+        }
+        return component instanceof JTextComponent
+                || component == houseNumberField
+                || component == rowHousePartsField
+                || component == postcodeCombo
+                || component == streetCombo
+                || component == buildingTypeCombo
+                || component == postcodeCombo.getEditor().getEditorComponent()
+                || component == streetCombo.getEditor().getEditorComponent()
+                || component == buildingTypeCombo.getEditor().getEditorComponent();
+    }
+
+    private boolean isComponentInsideDialog(Component component) {
+        for (Component current = component; current != null; current = current.getParent()) {
+            if (current == dialog) {
+                return true;
+            }
         }
         return false;
     }
