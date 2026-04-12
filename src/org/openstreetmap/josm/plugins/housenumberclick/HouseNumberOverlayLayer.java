@@ -207,12 +207,10 @@ final class HouseNumberOverlayLayer extends Layer {
             }
 
             Point current = mapView.getPoint(entry.getLabelPoint());
-            if (!isOnScreen(current, mapView)) {
-                previous = null;
-                continue;
-            }
             if (previous != null) {
-                g.drawLine(previous.x, previous.y, current.x, current.y);
+                if (isOnScreen(previous, mapView) || isOnScreen(current, mapView)) {
+                    g.drawLine(previous.x, previous.y, current.x, current.y);
+                }
             }
             previous = current;
         }
