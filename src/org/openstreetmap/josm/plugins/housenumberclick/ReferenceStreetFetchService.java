@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collections;
 
 import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.coor.LatLon;
@@ -21,25 +22,102 @@ import org.openstreetmap.josm.tools.Logging;
 
 final class ReferenceStreetFetchService {
 
+    static final class ReferenceStreetContext {
+        private final String normalizedStreet;
+        private final String datasetContextKey;
+        private final List<Bounds> dataSourceBounds;
+        private final List<LatLon> localEndpoints;
+        private final List<LatLon> localAllNodes;
+
+        ReferenceStreetContext(
+                String normalizedStreet,
+                String datasetContextKey,
+                List<Bounds> dataSourceBounds,
+                List<LatLon> localEndpoints,
+                List<LatLon> localAllNodes
+        ) {
+            this.normalizedStreet = normalizeStatic(normalizedStreet);
+            this.datasetContextKey = normalizeStatic(datasetContextKey);
+            this.dataSourceBounds = immutableBoundsCopy(dataSourceBounds);
+            this.localEndpoints = immutableLatLonCopy(localEndpoints);
+            this.localAllNodes = immutableLatLonCopy(localAllNodes);
+        }
+
+        String getNormalizedStreet() {
+            return normalizedStreet;
+        }
+
+        String getDatasetContextKey() {
+            return datasetContextKey;
+        }
+
+        List<Bounds> getDataSourceBounds() {
+            return dataSourceBounds;
+        }
+
+        List<LatLon> getLocalEndpoints() {
+            return localEndpoints;
+        }
+
+        List<LatLon> getLocalAllNodes() {
+            return localAllNodes;
+        }
+
+        private static String normalizeStatic(String value) {
+            return value == null ? "" : value.trim();
+        }
+
+        private static List<Bounds> immutableBoundsCopy(List<Bounds> source) {
+            if (source == null || source.isEmpty()) {
+                return List.of();
+            }
+            List<Bounds> copy = new ArrayList<>(source.size());
+            for (Bounds bounds : source) {
+                if (bounds != null) {
+                    copy.add(new Bounds(bounds));
+                }
+            }
+            return Collections.unmodifiableList(copy);
+        }
+
+        private static List<LatLon> immutableLatLonCopy(List<LatLon> source) {
+            if (source == null || source.isEmpty()) {
+                return List.of();
+            }
+            List<LatLon> copy = new ArrayList<>(source.size());
+            for (LatLon latLon : source) {
+                if (latLon != null) {
+                    copy.add(new LatLon(latLon.lat(), latLon.lon()));
+                }
+            }
+            return Collections.unmodifiableList(copy);
+        }
+    }
+
     private static final double EXPAND_RATIO = 0.10;
     private static final double MIN_EXPAND_DEGREES = 0.001;
     private static final double MAX_EXPAND_DEGREES = 0.015;
     private static final double ENDPOINT_NEAR_METERS = 35.0;
     private static final double ANY_NODE_NEAR_METERS = 18.0;
 
-    DataSet loadReferenceStreet(DataSet editDataSet, String streetName) throws Exception {
-        String normalizedStreet = normalize(streetName);
-        if (editDataSet == null || normalizedStreet.isEmpty()) {
+    DataSet loadReferenceStreet(ReferenceStreetContext context) throws Exception {
+        if (context == null) {
             return new DataSet();
         }
 
-        List<Way> localStreetWays = collectStreetWays(editDataSet, normalizedStreet);
-        if (localStreetWays.isEmpty()) {
+        String normalizedStreet = normalize(context.getNormalizedStreet());
+        if (normalizedStreet.isEmpty()) {
+            return new DataSet();
+        }
+
+        List<LatLon> localEndpoints = context.getLocalEndpoints();
+        List<LatLon> localAllNodes = context.getLocalAllNodes();
+        if (localAllNodes.isEmpty()) {
             // Defensive: without local anchor ways we cannot reliably disambiguate common names.
             return new DataSet();
         }
 
-        Bounds bounds = mergedDataSourceBounds(editDataSet.getDataSourceBounds());
+        Bounds bounds = mergedDataSourceBounds(context.getDataSourceBounds());
         if (bounds == null) {
             return new DataSet();
         }
@@ -86,7 +164,7 @@ final class ReferenceStreetFetchService {
                 totalDownloadedWayCount
         ));
 
-        Set<Way> keptComponent = keepPlausibleConnectedComponent(downloaded, localStreetWays, normalizedStreet);
+        Set<Way> keptComponent = keepPlausibleConnectedComponent(downloaded, localEndpoints, localAllNodes, normalizedStreet);
         Logging.debug(String.format(
                 "Reference street fetch: street='%s', keptWays=%d, removedWays=%d",
                 normalizedStreet,
@@ -109,14 +187,16 @@ final class ReferenceStreetFetchService {
                 + "out meta;";
     }
 
-    private Set<Way> keepPlausibleConnectedComponent(DataSet downloaded, List<Way> localStreetWays, String normalizedStreet) {
+    private Set<Way> keepPlausibleConnectedComponent(
+            DataSet downloaded,
+            List<LatLon> localEndpoints,
+            List<LatLon> localAllNodes,
+            String normalizedStreet
+    ) {
         List<Way> downloadedStreetWays = collectStreetWays(downloaded, normalizedStreet);
         if (downloadedStreetWays.isEmpty()) {
             return Set.of();
         }
-
-        List<LatLon> localEndpoints = collectEndpoints(localStreetWays);
-        List<LatLon> localAllNodes = collectAllNodeCoords(localStreetWays);
 
         Set<Way> seedWays = new HashSet<>();
         for (Way way : downloadedStreetWays) {
@@ -209,32 +289,6 @@ final class ReferenceStreetFetchService {
         return index;
     }
 
-    private List<LatLon> collectEndpoints(List<Way> ways) {
-        List<LatLon> endpoints = new ArrayList<>();
-        for (Way way : ways) {
-            for (Node node : endpointsOf(way)) {
-                if (node != null && node.getCoor() != null) {
-                    endpoints.add(node.getCoor());
-                }
-            }
-        }
-        return endpoints;
-    }
-
-    private List<LatLon> collectAllNodeCoords(List<Way> ways) {
-        List<LatLon> coords = new ArrayList<>();
-        for (Way way : ways) {
-            if (way == null) {
-                continue;
-            }
-            for (Node node : way.getNodes()) {
-                if (node != null && node.getCoor() != null) {
-                    coords.add(node.getCoor());
-                }
-            }
-        }
-        return coords;
-    }
 
     private List<Node> endpointsOf(Way way) {
         List<Node> endpoints = new ArrayList<>(2);

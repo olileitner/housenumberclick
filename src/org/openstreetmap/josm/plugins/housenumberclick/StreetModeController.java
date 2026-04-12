@@ -9,12 +9,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.actions.OrthogonalizeAction;
 import org.openstreetmap.josm.command.Command;
 import org.openstreetmap.josm.command.SequenceCommand;
+import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.UndoRedoHandler;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.DataSourceListener;
@@ -78,8 +80,8 @@ final class StreetModeController {
     private final CornerSnapService cornerSnapService = new CornerSnapService();
     private final ReferenceStreetFetchService referenceStreetFetchService = new ReferenceStreetFetchService();
     private final StreetCompletenessHeuristic streetCompletenessHeuristic = new StreetCompletenessHeuristic();
-    private final Map<String, DataSet> referenceStreetCache = new HashMap<>();
-    private final Set<String> referenceStreetLoadsInProgress = new HashSet<>();
+    private final Map<ReferenceLoadKey, DataSet> referenceStreetCache = new HashMap<>();
+    private final Set<ReferenceLoadKey> referenceStreetLoadsInProgress = new HashSet<>();
     private boolean rectangularizeAfterLineSplit;
     private int configuredTerraceParts = 2;
     private AddressSelection lastSelection = new AddressSelection("", "", "", "", 1);
@@ -117,6 +119,42 @@ final class StreetModeController {
 
     interface TerracePartsUpdateListener {
         void onTerracePartsUpdated(int parts);
+    }
+
+    private static final class ReferenceLoadKey {
+        private final String datasetContextKey;
+        private final String streetKey;
+
+        private ReferenceLoadKey(String datasetContextKey, String streetKey) {
+            this.datasetContextKey = normalize(datasetContextKey).toLowerCase(Locale.ROOT);
+            this.streetKey = normalize(streetKey).toLowerCase(Locale.ROOT);
+        }
+
+        private static ReferenceLoadKey of(String datasetContextKey, String streetName) {
+            return new ReferenceLoadKey(datasetContextKey, streetName);
+        }
+
+        private boolean isValid() {
+            return !datasetContextKey.isEmpty() && !streetKey.isEmpty();
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (!(other instanceof ReferenceLoadKey)) {
+                return false;
+            }
+            ReferenceLoadKey that = (ReferenceLoadKey) other;
+            return datasetContextKey.equals(that.datasetContextKey)
+                    && streetKey.equals(that.streetKey);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(datasetContextKey, streetKey);
+        }
     }
 
     private final DataSourceListener dataSourceRefreshListener = event -> onDataSourceChanged();
@@ -543,13 +581,18 @@ final class StreetModeController {
             return;
         }
 
+        ReferenceLoadKey loadKey = ReferenceLoadKey.of(datasetContextKey(editDataSet), currentStreetKey);
+        if (!loadKey.isValid()) {
+            return;
+        }
+
         DataSet cached;
         synchronized (referenceStreetCache) {
-            cached = referenceStreetCache.get(currentStreetKey);
+            cached = referenceStreetCache.get(loadKey);
         }
         if (cached != null) {
             Logging.debug("HouseNumberClick reference auto: cached reference reused for street='" + currentStreet + "'.");
-            showReferenceForCurrentStreet(currentStreet, currentStreetKey, cached);
+            showReferenceForCurrentStreet(currentStreet, loadKey, cached);
             return;
         }
 
@@ -563,18 +606,26 @@ final class StreetModeController {
     }
 
     private void requestReferenceStreetLoad(String normalizedStreet, boolean manualRequest) {
-        String streetKey = streetKey(normalizedStreet);
-        if (streetKey.isEmpty()) {
+        DataSet editDataSet = getActiveEditDataSet();
+        if (editDataSet == null) {
+            if (manualRequest) {
+                showShortNotification("No editable dataset is available.");
+            }
+            return;
+        }
+
+        ReferenceLoadKey loadKey = ReferenceLoadKey.of(datasetContextKey(editDataSet), normalizedStreet);
+        if (!loadKey.isValid()) {
             return;
         }
 
         DataSet cached;
         synchronized (referenceStreetCache) {
-            cached = referenceStreetCache.get(streetKey);
+            cached = referenceStreetCache.get(loadKey);
         }
         if (cached != null) {
             Logging.debug("HouseNumberClick reference auto: cached reference reused for street='" + normalizedStreet + "'.");
-            showReferenceForCurrentStreet(normalizedStreet, streetKey, cached);
+            showReferenceForCurrentStreet(normalizedStreet, loadKey, cached);
             if (manualRequest) {
                 String loadedMessage = cached.getWays().isEmpty()
                         ? I18n.tr("No reference street geometry found for {0}.", normalizedStreet)
@@ -586,27 +637,21 @@ final class StreetModeController {
             return;
         }
 
-        DataSet editDataSet = getActiveEditDataSet();
-        if (editDataSet == null) {
-            if (manualRequest) {
-                showShortNotification("No editable dataset is available.");
-            }
-            return;
-        }
-
-        if (!tryStartReferenceLoad(streetKey)) {
+        if (!tryStartReferenceLoad(loadKey)) {
             Logging.debug("HouseNumberClick reference auto: auto-load skipped for street='" + normalizedStreet + "' (already running).");
             return;
         }
 
+        ReferenceStreetFetchService.ReferenceStreetContext context = buildReferenceStreetContext(editDataSet, normalizedStreet, loadKey.datasetContextKey);
+
         Thread loadThread = new Thread(() -> {
             try {
-                DataSet referenceData = referenceStreetFetchService.loadReferenceStreet(editDataSet, normalizedStreet);
+                DataSet referenceData = referenceStreetFetchService.loadReferenceStreet(context);
                 synchronized (referenceStreetCache) {
-                    referenceStreetCache.put(streetKey, referenceData != null ? referenceData : new DataSet());
+                    referenceStreetCache.put(loadKey, referenceData != null ? referenceData : new DataSet());
                 }
                 GuiHelper.runInEDT(() -> {
-                    showReferenceForCurrentStreet(normalizedStreet, streetKey, referenceData);
+                    showReferenceForCurrentStreet(normalizedStreet, loadKey, referenceData);
                     if (manualRequest) {
                         String loadedMessage = referenceData == null || referenceData.getWays().isEmpty()
                                 ? I18n.tr("No reference street geometry found for {0}.", normalizedStreet)
@@ -626,20 +671,22 @@ final class StreetModeController {
                     GuiHelper.runInEDT(() -> showReferenceLoadFailure(normalizedStreet));
                 }
             } finally {
-                finishReferenceLoad(streetKey);
+                finishReferenceLoad(loadKey);
             }
-        }, "hnc-reference-street-loader-" + streetKey);
+        }, "hnc-reference-street-loader-" + loadKey.streetKey + "-" + loadKey.datasetContextKey);
         loadThread.setDaemon(true);
         loadThread.start();
     }
 
-    private void showReferenceForCurrentStreet(String streetName, String streetKey, DataSet referenceData) {
+    private void showReferenceForCurrentStreet(String streetName, ReferenceLoadKey loadKey, DataSet referenceData) {
         String currentStreetKey = streetKey(navigationService.getCurrentStreet());
+        String currentContextKey = datasetContextKey(getActiveEditDataSet());
+        ReferenceLoadKey currentKey = ReferenceLoadKey.of(currentContextKey, currentStreetKey);
         DataSet editDataSet = getActiveEditDataSet();
         boolean currentStreetIncomplete = editDataSet != null
                 && !currentStreetKey.isEmpty()
                 && streetCompletenessHeuristic.isStreetPossiblyIncomplete(editDataSet, navigationService.getCurrentStreet());
-        if (!streetKey.equals(currentStreetKey) || !currentStreetIncomplete) {
+        if (!loadKey.equals(currentKey) || !currentStreetIncomplete) {
             Logging.debug("HouseNumberClick reference auto: auto-load skipped for street='" + streetName
                     + "' (selection changed before completion).");
             return;
@@ -649,7 +696,7 @@ final class StreetModeController {
             return;
         }
         overlayManager.showReferenceStreetLayer(streetName, referenceData);
-        visibleReferenceStreetKey = streetKey;
+        visibleReferenceStreetKey = currentStreetKey;
     }
 
     private void removeVisibleReferenceLayer(String reason) {
@@ -662,26 +709,84 @@ final class StreetModeController {
         visibleReferenceStreetKey = "";
     }
 
-    private boolean tryStartReferenceLoad(String streetKey) {
+    private boolean tryStartReferenceLoad(ReferenceLoadKey loadKey) {
         synchronized (referenceStreetLoadsInProgress) {
-            if (referenceStreetLoadsInProgress.contains(streetKey)) {
+            if (referenceStreetLoadsInProgress.contains(loadKey)) {
                 return false;
             }
-            referenceStreetLoadsInProgress.add(streetKey);
+            referenceStreetLoadsInProgress.add(loadKey);
             return true;
         }
     }
 
-    private void finishReferenceLoad(String streetKey) {
+    private void finishReferenceLoad(ReferenceLoadKey loadKey) {
         synchronized (referenceStreetLoadsInProgress) {
-            referenceStreetLoadsInProgress.remove(streetKey);
+            referenceStreetLoadsInProgress.remove(loadKey);
         }
     }
 
     private boolean isReferenceLoadInProgress(String streetKey) {
-        synchronized (referenceStreetLoadsInProgress) {
-            return referenceStreetLoadsInProgress.contains(streetKey);
+        DataSet editDataSet = getActiveEditDataSet();
+        ReferenceLoadKey loadKey = ReferenceLoadKey.of(datasetContextKey(editDataSet), streetKey);
+        if (!loadKey.isValid()) {
+            return false;
         }
+        synchronized (referenceStreetLoadsInProgress) {
+            return referenceStreetLoadsInProgress.contains(loadKey);
+        }
+    }
+
+    private ReferenceStreetFetchService.ReferenceStreetContext buildReferenceStreetContext(
+            DataSet editDataSet,
+            String normalizedStreet,
+            String datasetContextKey
+    ) {
+        List<Bounds> boundsCopy = new ArrayList<>();
+        for (Bounds bounds : editDataSet.getDataSourceBounds()) {
+            if (bounds != null) {
+                boundsCopy.add(new Bounds(bounds));
+            }
+        }
+
+        List<LatLon> localEndpoints = new ArrayList<>();
+        List<LatLon> localAllNodes = new ArrayList<>();
+        for (Way way : editDataSet.getWays()) {
+            if (way == null || !way.isUsable() || !way.hasTag("highway")) {
+                continue;
+            }
+            if (!normalize(way.get("name")).equalsIgnoreCase(normalizedStreet)) {
+                continue;
+            }
+
+            if (way.getNodesCount() > 0) {
+                copyNodeCoor(way.firstNode(), localEndpoints);
+                if (way.getNodesCount() > 1) {
+                    copyNodeCoor(way.lastNode(), localEndpoints);
+                }
+            }
+            for (Node node : way.getNodes()) {
+                copyNodeCoor(node, localAllNodes);
+            }
+        }
+
+        return new ReferenceStreetFetchService.ReferenceStreetContext(
+                normalizedStreet,
+                datasetContextKey,
+                boundsCopy,
+                localEndpoints,
+                localAllNodes
+        );
+    }
+
+    private void copyNodeCoor(Node node, List<LatLon> target) {
+        if (node == null || node.getCoor() == null || target == null) {
+            return;
+        }
+        target.add(new LatLon(node.getCoor().lat(), node.getCoor().lon()));
+    }
+
+    private String datasetContextKey(DataSet dataSet) {
+        return dataSet == null ? "" : "ds@" + Integer.toHexString(System.identityHashCode(dataSet));
     }
 
     private String streetKey(String streetName) {
