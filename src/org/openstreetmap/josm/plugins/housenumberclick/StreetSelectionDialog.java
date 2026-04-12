@@ -854,23 +854,23 @@ final class StreetSelectionDialog {
 
         gbc.gridy = 0;
         gbc.insets = new Insets(2, 0, 2, 0);
-        panel.add(showHouseNumberLayerCheckbox, gbc);
+        panel.add(zoomToSelectedStreetCheckbox, gbc);
 
         gbc.gridy = 1;
+        gbc.insets = new Insets(2, 0, 2, 0);
+        panel.add(showHouseNumberLayerCheckbox, gbc);
+
+        gbc.gridy = 2;
         gbc.insets = new Insets(2, 16, 2, 0);
         panel.add(houseNumberSubOptionsPanel, gbc);
 
-        gbc.gridy = 2;
+        gbc.gridy = 3;
         gbc.insets = new Insets(2, 0, 2, 0);
         panel.add(showHouseNumberOverviewCheckbox, gbc);
 
-        gbc.gridy = 3;
-        gbc.insets = new Insets(2, 0, 2, 0);
-        panel.add(showStreetHouseNumberCountsCheckbox, gbc);
-
         gbc.gridy = 4;
         gbc.insets = new Insets(2, 0, 2, 0);
-        panel.add(zoomToSelectedStreetCheckbox, gbc);
+        panel.add(showStreetHouseNumberCountsCheckbox, gbc);
 
         return panel;
     }
