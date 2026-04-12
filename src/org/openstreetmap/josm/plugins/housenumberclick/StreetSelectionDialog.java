@@ -516,9 +516,6 @@ final class StreetSelectionDialog {
         rememberedIncrementStep = houseNumberIncrementStep;
     }
 
-    private boolean containsLetter(String value) {
-        return dialogController.containsLetter(value);
-    }
 
     private void updateHouseNumberFromMode(String houseNumber) {
         updatingInputs = true;

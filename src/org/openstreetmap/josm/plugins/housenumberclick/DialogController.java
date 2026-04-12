@@ -17,8 +17,5 @@ final class DialogController {
         return value != null && value.matches(".*[A-Za-z].*");
     }
 
-    String normalize(String value) {
-        return value == null ? "" : value.trim();
-    }
 }
 

@@ -61,6 +61,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Single split adjacency protection remains active with snapping", HouseNumberClickRiskRegressionTests::testSingleSplitAdjacencyProtectionWithSnap);
             run("Terrace split succeeds with parts=2", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithTwoParts);
             run("Terrace split succeeds with parts=4", HouseNumberClickRiskRegressionTests::testTerraceSplitSucceedsWithFourParts);
+            run("Terrace split failure path performs rollback", HouseNumberClickRiskRegressionTests::testTerraceSplitFailurePathRollsBackCommands);
             run("Terrace split orientation supports non-rectangular outlines", HouseNumberClickRiskRegressionTests::testTerraceSplitOrientationSupportsNonRectangularOutlines);
             run("Terrace split fails for invalid parts", HouseNumberClickRiskRegressionTests::testTerraceSplitFailsForInvalidParts);
             run("Terrace split result order is deterministic", HouseNumberClickRiskRegressionTests::testTerraceSplitOrderIsDeterministic);
@@ -71,12 +72,15 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
             run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
             run("Ctrl has priority over Alt split activation", HouseNumberClickRiskRegressionTests::testCtrlHasPriorityOverAltActivation);
+            run("Ctrl+Shift click is passed through to JOSM core", HouseNumberClickRiskRegressionTests::testCtrlShiftClickIsPassedThrough);
             run("Temporary Alt split exits on Alt release", HouseNumberClickRiskRegressionTests::testTemporaryAltSplitExitsOnAltRelease);
             run("Alt+digit sets row-house parts through controller", HouseNumberClickRiskRegressionTests::testAltDigitSetsTerracePartsShortcut);
+            run("Alt+digit shortcut requires plain Alt", HouseNumberClickRiskRegressionTests::testAltDigitShortcutRequiresPlainAlt);
             run("Row-house parts dialog sync avoids document mutation during notifications", HouseNumberClickRiskRegressionTests::testRowHousePartsDialogSyncDefersDocumentMutation);
             run("Ctrl cursor uses custom magnifier without arrow asset fallback", HouseNumberClickRiskRegressionTests::testCtrlCursorUsesCustomMagnifier);
             run("Split cursor hotspot keeps scalp tip shifted left", HouseNumberClickRiskRegressionTests::testSplitCursorHotspotShiftedLeft);
             run("Split map mode is line-split only", HouseNumberClickRiskRegressionTests::testSplitMapModeIsLineSplitOnly);
+            run("Reference cache is invalidated on data source changes", HouseNumberClickRiskRegressionTests::testReferenceCacheInvalidationOnDataSourceChange);
             run("Rectangularize option is propagated to temporary line split mode", HouseNumberClickRiskRegressionTests::testRectangularizePreferencePropagation);
             run("Rectangularize skips triangle split results", HouseNumberClickRiskRegressionTests::testRectangularizeCandidateGuard);
             run("House-number cursor label depends on complete address inputs", HouseNumberClickRiskRegressionTests::testHouseNumberCursorLabelCompletenessGuard);
@@ -546,6 +550,23 @@ public final class HouseNumberClickRiskRegressionTests {
                 "Alt+digit shortcut should provide status feedback for configured parts");
     }
 
+    private static void testAltDigitShortcutRequiresPlainAlt() throws Exception {
+        String source = readPluginSource("HouseNumberClickStreetMapMode.java");
+        assertTrue(source.contains("&& !e.isShiftDown())"),
+                "Alt+digit shortcut must require plain Alt and ignore Alt+Shift combinations");
+    }
+
+    private static void testCtrlShiftClickIsPassedThrough() throws Exception {
+        String source = readPluginSource("HouseNumberClickStreetMapMode.java");
+        int ctrlBranch = source.indexOf("if (e.isControlDown()) {");
+        assertTrue(ctrlBranch >= 0, "mouseReleased should branch on Ctrl click state");
+        int shiftGuard = source.indexOf("if (e.isShiftDown())", ctrlBranch);
+        assertTrue(shiftGuard > ctrlBranch, "Ctrl click branch should guard Shift combinations");
+        int readbackCall = source.indexOf("handleSecondaryClick(e, stats);", ctrlBranch);
+        assertTrue(readbackCall > shiftGuard,
+                "secondary readback handling should happen only after Shift passthrough guard");
+    }
+
     private static void testRowHousePartsDialogSyncDefersDocumentMutation() throws Exception {
         String source = readPluginSource("StreetSelectionDialog.java");
         assertTrue(source.contains("updateRowHousePartsFromMode"),
@@ -580,32 +601,42 @@ public final class HouseNumberClickRiskRegressionTests {
         Path splitModePath = Path.of(
                 "src", "org", "openstreetmap", "josm", "plugins", "housenumberclick", "HouseNumberSplitMapMode.java"
         );
-        if (!Files.exists(splitModePath)) {
-            assertTrue(true, "split cursor hotspot check is not applicable when split map mode source is removed");
-            return;
-        }
+        assertFalse(Files.exists(splitModePath),
+                "single-mapmode architecture must not contain HouseNumberSplitMapMode source anymore");
 
-        String source = Files.readString(splitModePath);
-        assertTrue(source.contains("private static final int CURSOR_HOTSPOT_X = 7;"),
-                "split cursor hotspot should remain shifted left for accurate scalp-tip drawing");
+        String source = readPluginSource("HouseNumberClickStreetMapMode.java");
+        assertTrue(source.contains("createSplitCursor"),
+                "split cursor handling must live in HouseNumberClickStreetMapMode");
+        assertTrue(source.contains("/images/scalpel_cursor.png"),
+                "street mode split cursor should use scalpel asset");
+        assertTrue(source.contains("int hotspotX = 4;"),
+                "street mode split cursor should keep hotspot aligned to the scalp tip");
     }
 
     private static void testSplitMapModeIsLineSplitOnly() throws Exception {
         Path splitModePath = Path.of(
                 "src", "org", "openstreetmap", "josm", "plugins", "housenumberclick", "HouseNumberSplitMapMode.java"
         );
-        if (!Files.exists(splitModePath)) {
-            assertTrue(true, "line-split-only split mode check is not applicable when split map mode source is removed");
-            return;
-        }
+        assertFalse(Files.exists(splitModePath),
+                "single-mapmode architecture must not keep a dedicated split map mode source");
 
-        String source = Files.readString(splitModePath);
-        assertFalse(source.contains("TERRACE_CLICK"),
-                "split map mode should no longer expose a dedicated terrace interaction kind");
-        assertFalse(source.contains("executeTerraceSplitAtEvent"),
-                "split map mode should not trigger right-click terrace split execution anymore");
-        assertTrue(source.contains("event.getKeyCode() == KeyEvent.VK_ALT"),
-                "split map mode should still react to Alt release for temporary split cancellation");
+        String source = readPluginSource("HouseNumberClickStreetMapMode.java");
+        assertTrue(source.contains("mouseDragged"),
+                "line split interactions should be handled inline in street mode");
+        assertTrue(source.contains("handleTerraceRightClick"),
+                "row-house split should remain handled inline in street mode");
+        assertFalse(source.contains("activateTemporarySplitModeFromAlt"),
+                "street mode must not switch to a separate temporary split mode");
+    }
+
+    private static void testReferenceCacheInvalidationOnDataSourceChange() throws Exception {
+        String source = readPluginSource("StreetModeController.java");
+        assertTrue(source.contains("invalidateReferenceStreetStateForDataSourceChange();"),
+                "data source change flow should invalidate reference street state before rescan");
+        assertTrue(source.contains("referenceStreetCache.clear();"),
+                "reference cache should be cleared on data source changes");
+        assertTrue(source.contains("referenceStreetLoadsInProgress.clear();"),
+                "in-progress reference loads should be reset on data source changes");
     }
 
     private static void testRectangularizePreferencePropagation() throws Exception {
@@ -1192,6 +1223,16 @@ public final class HouseNumberClickRiskRegressionTests {
 
         assertTrue(result.isSuccess(), "terrace split should succeed for parts=4");
         assertEquals(4, result.getResultWays().size(), "parts=4 should create exactly four result ways");
+    }
+
+    private static void testTerraceSplitFailurePathRollsBackCommands() throws Exception {
+        String source = readPluginSource("TerraceSplitService.java");
+        assertTrue(source.contains("rollbackAndFailure"),
+                "terrace split should route failures through a rollback helper");
+        assertTrue(source.contains("rollbackCommandsAddedSince(undoStartSize);"),
+                "terrace split failure path should rollback all commands since start");
+        assertTrue(source.contains("UndoRedoHandler.getInstance().undo(undoCount);"),
+                "rollback helper should undo commands added during partial terrace splits");
     }
 
     private static void testTerraceSplitOrientationSupportsNonRectangularOutlines() throws Exception {

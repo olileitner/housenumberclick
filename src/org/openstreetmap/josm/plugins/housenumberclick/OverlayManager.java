@@ -68,13 +68,6 @@ final class OverlayManager {
         map.mapView.repaint();
     }
 
-    boolean hasReferenceStreetLoaded(String streetName) {
-        LayerManager layerManager = MainApplication.getLayerManager();
-        return layerManager != null
-                && referenceStreetLayer != null
-                && layerManager.containsLayer(referenceStreetLayer)
-                && referenceStreetLayer.hasStreet(streetName);
-    }
 
     void removeReferenceStreetLayer() {
         LayerManager layerManager = MainApplication.getLayerManager();

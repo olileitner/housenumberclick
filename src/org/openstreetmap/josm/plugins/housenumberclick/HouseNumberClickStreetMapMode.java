@@ -47,8 +47,6 @@ import org.openstreetmap.josm.tools.Logging;
 final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPaintable {
 
     private static final long DUPLICATE_CLICK_WINDOW_MILLIS = 120L;
-    static final String PREF_RELATION_SCAN_LIMIT = BuildingResolver.PREF_RELATION_SCAN_LIMIT;
-    static final String PREF_WAY_SCAN_LIMIT = BuildingResolver.PREF_WAY_SCAN_LIMIT;
     static final int DEFAULT_RELATION_SCAN_CANDIDATES = BuildingResolver.DEFAULT_RELATION_SCAN_CANDIDATES;
     static final int DEFAULT_WAY_SCAN_CANDIDATES = BuildingResolver.DEFAULT_WAY_SCAN_CANDIDATES;
     private static final long SLOW_CLICK_LOG_THRESHOLD_MILLIS = 40L;
@@ -248,7 +246,8 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             return false;
         }
 
-        if (!e.isConsumed() && id == KeyEvent.KEY_PRESSED && e.isAltDown() && !e.isControlDown() && !e.isMetaDown()) {
+        if (!e.isConsumed() && id == KeyEvent.KEY_PRESSED
+                && e.isAltDown() && !e.isControlDown() && !e.isMetaDown() && !e.isShiftDown()) {
             int shortcutParts = resolveAltPartsShortcut(e);
             if (shortcutParts > 0) {
                 controller.setConfiguredTerraceParts(shortcutParts);
@@ -467,6 +466,9 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
         ClickResolutionStats stats = new ClickResolutionStats();
         try {
             if (e.isControlDown()) {
+                if (e.isShiftDown()) {
+                    return;
+                }
                 handleSecondaryClick(e, stats);
             } else {
                 handlePrimaryClick(e, stats);
@@ -1103,13 +1105,6 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
         }
     }
 
-    static int getConfiguredRelationScanLimit() {
-        return BuildingResolver.getConfiguredRelationScanLimit();
-    }
-
-    static int getConfiguredWayScanLimit() {
-        return BuildingResolver.getConfiguredWayScanLimit();
-    }
 
     private boolean incrementHouseNumberAfterSuccessfulApply() {
         return applyHouseNumberUpdate(houseNumberService.incrementAfterSuccessfulApply(houseNumber, houseNumberIncrementStep));

@@ -519,9 +519,21 @@ final class StreetModeController {
         dataSourceRescanQueued = true;
         GuiHelper.runInEDT(() -> {
             dataSourceRescanQueued = false;
+            invalidateReferenceStreetStateForDataSourceChange();
             syncDataSourceListenerBinding();
             rescanPluginData();
         });
+    }
+
+    private void invalidateReferenceStreetStateForDataSourceChange() {
+        synchronized (referenceStreetCache) {
+            referenceStreetCache.clear();
+        }
+        synchronized (referenceStreetLoadsInProgress) {
+            referenceStreetLoadsInProgress.clear();
+        }
+        removeVisibleReferenceLayer("data source changed");
+        lastReferenceSyncStreetKey = "";
     }
 
     private void syncDataSourceListenerBinding() {

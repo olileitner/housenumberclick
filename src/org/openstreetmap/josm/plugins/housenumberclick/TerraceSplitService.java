@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
+import org.openstreetmap.josm.data.UndoRedoHandler;
 import org.openstreetmap.josm.data.coor.EastNorth;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.DataSet;
@@ -53,6 +54,8 @@ final class TerraceSplitService {
             return TerraceSplitResult.failure("Terrace split requires parts >= 2.");
         }
 
+        final int undoStartSize = UndoRedoHandler.getInstance().getUndoCommands().size();
+
         Bounds bounds = computeBounds(buildingWay);
         if (!bounds.isValid()) {
             return TerraceSplitResult.failure("Building geometry is not suitable for terrace split.");
@@ -67,50 +70,66 @@ final class TerraceSplitService {
 
         SplitContext splitContext = context == null ? SplitContext.empty() : context;
 
-        for (int partIndex = 1; partIndex < request.getParts(); partIndex++) {
-            double ratio = partIndex / (double) request.getParts();
-            LatLon lineStart;
-            LatLon lineEnd;
-            if (splitOrientation != null) {
-                SplitLine splitLine = splitOrientation.lineAtRatio(ratio);
-                lineStart = toLatLon(splitLine.start);
-                lineEnd = toLatLon(splitLine.end);
-            } else if (splitAlongLongitude) {
-                double lon = bounds.minLon + (bounds.width() * ratio);
-                lineStart = new LatLon(bounds.minLat - margin, lon);
-                lineEnd = new LatLon(bounds.maxLat + margin, lon);
-            } else {
-                double lat = bounds.minLat + (bounds.height() * ratio);
-                lineStart = new LatLon(lat, bounds.minLon - margin);
-                lineEnd = new LatLon(lat, bounds.maxLon + margin);
+        try {
+            for (int partIndex = 1; partIndex < request.getParts(); partIndex++) {
+                double ratio = partIndex / (double) request.getParts();
+                LatLon lineStart;
+                LatLon lineEnd;
+                if (splitOrientation != null) {
+                    SplitLine splitLine = splitOrientation.lineAtRatio(ratio);
+                    lineStart = toLatLon(splitLine.start);
+                    lineEnd = toLatLon(splitLine.end);
+                } else if (splitAlongLongitude) {
+                    double lon = bounds.minLon + (bounds.width() * ratio);
+                    lineStart = new LatLon(bounds.minLat - margin, lon);
+                    lineEnd = new LatLon(bounds.maxLat + margin, lon);
+                } else {
+                    double lat = bounds.minLat + (bounds.height() * ratio);
+                    lineStart = new LatLon(lat, bounds.minLon - margin);
+                    lineEnd = new LatLon(lat, bounds.maxLon + margin);
+                }
+
+                Way splitTarget = findSingleSplitTarget(pieces, lineStart, lineEnd);
+                if (splitTarget == null) {
+                    return rollbackAndFailure(undoStartSize, "Building geometry is not suitable for equal terrace splitting.");
+                }
+
+                SingleSplitResult splitResult = singleBuildingSplitService.splitBuilding(
+                        dataSet,
+                        splitTarget,
+                        lineStart,
+                        lineEnd,
+                        splitContext
+                );
+                if (!splitResult.isSuccess() || splitResult.getResultWays().size() != 2) {
+                    return rollbackAndFailure(undoStartSize, "Terrace split failed: " + splitResult.getMessage());
+                }
+
+                pieces.remove(splitTarget);
+                pieces.addAll(splitResult.getResultWays());
             }
 
-            Way splitTarget = findSingleSplitTarget(pieces, lineStart, lineEnd);
-            if (splitTarget == null) {
-                return TerraceSplitResult.failure("Building geometry is not suitable for equal terrace splitting.");
+            if (pieces.size() != request.getParts()) {
+                return rollbackAndFailure(undoStartSize, "Terrace split produced an unexpected number of result ways.");
             }
 
-            SingleSplitResult splitResult = singleBuildingSplitService.splitBuilding(
-                    dataSet,
-                    splitTarget,
-                    lineStart,
-                    lineEnd,
-                    splitContext
-            );
-            if (!splitResult.isSuccess() || splitResult.getResultWays().size() != 2) {
-                return TerraceSplitResult.failure("Terrace split failed: " + splitResult.getMessage());
-            }
-
-            pieces.remove(splitTarget);
-            pieces.addAll(splitResult.getResultWays());
+            pieces.sort(buildDeterministicOrder(splitOrientation, splitAlongLongitude));
+            return TerraceSplitResult.success("Terrace split completed.", pieces);
+        } catch (RuntimeException ex) {
+            return rollbackAndFailure(undoStartSize, "Terrace split failed: " + ex.getMessage());
         }
+    }
 
-        if (pieces.size() != request.getParts()) {
-            return TerraceSplitResult.failure("Terrace split produced an unexpected number of result ways.");
+    private TerraceSplitResult rollbackAndFailure(int undoStartSize, String message) {
+        rollbackCommandsAddedSince(undoStartSize);
+        return TerraceSplitResult.failure(message);
+    }
+
+    private void rollbackCommandsAddedSince(int undoStartSize) {
+        int undoCount = UndoRedoHandler.getInstance().getUndoCommands().size() - undoStartSize;
+        if (undoCount > 0) {
+            UndoRedoHandler.getInstance().undo(undoCount);
         }
-
-        pieces.sort(buildDeterministicOrder(splitOrientation, splitAlongLongitude));
-        return TerraceSplitResult.success("Terrace split completed.", pieces);
     }
 
     private Way findSingleSplitTarget(List<Way> pieces, LatLon lineStart, LatLon lineEnd) {
@@ -424,17 +443,6 @@ final class TerraceSplitService {
             return new Vector2D(x / len, y / len);
         }
 
-        private Vector2D add(Vector2D other) {
-            return new Vector2D(x + other.x, y + other.y);
-        }
-
-        private Vector2D multiply(double scalar) {
-            return new Vector2D(x * scalar, y * scalar);
-        }
-
-        private double dot(Vector2D other) {
-            return (x * other.x) + (y * other.y);
-        }
 
         private Vector2D perpendicular() {
             return new Vector2D(-y, x);

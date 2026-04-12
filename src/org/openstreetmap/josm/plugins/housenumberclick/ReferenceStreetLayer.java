@@ -63,9 +63,6 @@ final class ReferenceStreetLayer extends Layer {
         invalidate();
     }
 
-    boolean hasStreet(String streetName) {
-        return !referenceStreetPolylines.isEmpty() && referenceStreetName.equalsIgnoreCase(normalize(streetName));
-    }
 
     @Override
     public void paint(Graphics2D graphics, MapView mapView, Bounds bounds) {

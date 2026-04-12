@@ -8,7 +8,6 @@ import java.util.Optional;
 import org.openstreetmap.josm.command.AddCommand;
 import org.openstreetmap.josm.command.ChangeCommand;
 import org.openstreetmap.josm.command.Command;
-import org.openstreetmap.josm.command.SelectCommand;
 import org.openstreetmap.josm.command.SequenceCommand;
 import org.openstreetmap.josm.command.SplitWayCommand;
 import org.openstreetmap.josm.data.osm.DataSet;
@@ -71,9 +70,6 @@ final class SplitCommandBuilder {
         return new SequenceCommand(name, commands);
     }
 
-    SelectCommand buildSelectCommand(DataSet dataSet, List<? extends OsmPrimitive> selection) {
-        return new SelectCommand(dataSet, new ArrayList<>(selection));
-    }
 
     private int calculateInsertIndex(List<Node> closedWayNodes, int segmentIndex) {
         int min = 1;
