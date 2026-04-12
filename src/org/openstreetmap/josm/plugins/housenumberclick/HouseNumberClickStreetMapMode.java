@@ -39,6 +39,7 @@ import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.gui.MapView;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
+import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.gui.layer.MapViewPaintable;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
@@ -704,6 +705,16 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             @Override
             public void updateStatusLine(String message) {
                 HouseNumberClickStreetMapMode.this.updateStatusLine(message);
+            }
+
+            @Override
+            public void notifyUser(String message) {
+                if (message == null || message.isBlank()) {
+                    return;
+                }
+                new Notification(message)
+                        .setDuration(Notification.TIME_SHORT)
+                        .show();
             }
 
             @Override
