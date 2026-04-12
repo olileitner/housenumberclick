@@ -10,8 +10,12 @@ import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
+import org.openstreetmap.josm.tools.Logging;
 
 final class StreetCompletenessHeuristic {
+
+    private static final double EDGE_MARGIN_RATIO = 0.01;
+    private static final double EDGE_MARGIN_MIN = 0.0001;
 
     boolean isStreetPossiblyIncomplete(DataSet dataSet, String streetName) {
         String normalizedStreet = normalize(streetName);
@@ -19,8 +23,8 @@ final class StreetCompletenessHeuristic {
             return false;
         }
 
-        Bounds downloadedBounds = mergedDataSourceBounds(dataSet.getDataSourceBounds());
-        if (downloadedBounds == null) {
+        Collection<Bounds> dataSourceBounds = dataSet.getDataSourceBounds();
+        if (dataSourceBounds == null || dataSourceBounds.isEmpty()) {
             return false;
         }
 
@@ -29,26 +33,19 @@ final class StreetCompletenessHeuristic {
             return false;
         }
 
-        double latSpan = Math.abs(downloadedBounds.getMaxLat() - downloadedBounds.getMinLat());
-        double lonSpan = Math.abs(downloadedBounds.getMaxLon() - downloadedBounds.getMinLon());
-        double latMargin = Math.max(0.0001, latSpan * 0.01);
-        double lonMargin = Math.max(0.0001, lonSpan * 0.01);
-
         for (Way way : streetWays) {
             if (way == null) {
                 continue;
             }
-            for (Node node : way.getNodes()) {
-                if (isNearDownloadEdge(node, downloadedBounds, latMargin, lonMargin)) {
-                    return true;
-                }
+
+            if (way.isClosed()) {
+                continue;
             }
 
-            if (!way.isClosed()) {
-                if (isLikelyCutOffEndpoint(way.firstNode(), downloadedBounds, latMargin, lonMargin)
-                        || isLikelyCutOffEndpoint(way.lastNode(), downloadedBounds, latMargin, lonMargin)) {
-                    return true;
-                }
+            if (isLikelyCutOffEndpoint(way.firstNode(), dataSourceBounds)
+                    || isLikelyCutOffEndpoint(way.lastNode(), dataSourceBounds)) {
+                Logging.debug("HouseNumberClick completeness heuristic: cutoff-endpoint for street='" + normalizedStreet + "'.");
+                return true;
             }
         }
 
@@ -69,9 +66,28 @@ final class StreetCompletenessHeuristic {
         return result;
     }
 
-    private boolean isLikelyCutOffEndpoint(Node node, Bounds bounds, double latMargin, double lonMargin) {
-        return isNearDownloadEdge(node, bounds, latMargin, lonMargin)
+    private boolean isLikelyCutOffEndpoint(Node node, Collection<Bounds> boundsCollection) {
+        return isNearAnyDownloadEdge(node, boundsCollection)
                 && countConnectedHighwayWays(node) <= 1;
+    }
+
+    private boolean isNearAnyDownloadEdge(Node node, Collection<Bounds> boundsCollection) {
+        if (boundsCollection == null || boundsCollection.isEmpty()) {
+            return false;
+        }
+        for (Bounds bounds : boundsCollection) {
+            if (bounds == null) {
+                continue;
+            }
+            double latSpan = Math.abs(bounds.getMaxLat() - bounds.getMinLat());
+            double lonSpan = Math.abs(bounds.getMaxLon() - bounds.getMinLon());
+            double latMargin = Math.max(EDGE_MARGIN_MIN, latSpan * EDGE_MARGIN_RATIO);
+            double lonMargin = Math.max(EDGE_MARGIN_MIN, lonSpan * EDGE_MARGIN_RATIO);
+            if (isNearDownloadEdge(node, bounds, latMargin, lonMargin)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int countConnectedHighwayWays(Node node) {
@@ -107,24 +123,6 @@ final class StreetCompletenessHeuristic {
                 || Math.abs(lon - bounds.getMaxLon()) <= lonMargin;
     }
 
-    private Bounds mergedDataSourceBounds(Collection<Bounds> boundsCollection) {
-        if (boundsCollection == null || boundsCollection.isEmpty()) {
-            return null;
-        }
-
-        Bounds merged = null;
-        for (Bounds bounds : boundsCollection) {
-            if (bounds == null) {
-                continue;
-            }
-            if (merged == null) {
-                merged = new Bounds(bounds);
-            } else {
-                merged.extend(bounds);
-            }
-        }
-        return merged;
-    }
 
     private String normalize(String value) {
         return value == null ? "" : value.trim();
