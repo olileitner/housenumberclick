@@ -48,6 +48,7 @@ final class BuildingOverviewCollector {
             entries.add(new BuildingOverviewEntry(
                     candidate.primitive,
                     candidate.hasHouseNumber,
+                    candidate.hasMissingRequiredAddressFields,
                     candidate.hasMisplacedHouseNumber,
                     hasDuplicateExactAddress
             ));
@@ -65,10 +66,21 @@ final class BuildingOverviewCollector {
             return;
         }
 
-        boolean hasHouseNumber = !normalize(primitive.get("addr:housenumber")).isEmpty();
+        String street = normalize(primitive.get("addr:street"));
+        String postcode = normalize(primitive.get("addr:postcode"));
+        String houseNumber = normalize(primitive.get("addr:housenumber"));
+
+        boolean hasHouseNumber = !houseNumber.isEmpty();
+        boolean hasMissingRequiredAddressFields = hasHouseNumber && (street.isEmpty() || postcode.isEmpty());
         boolean hasMisplacedHouseNumber = !hasHouseNumber && hasMisplacedHouseNumber(primitive);
         String duplicateAddressKey = hasHouseNumber ? buildDuplicateAddressKey(primitive) : "";
-        entries.add(new CandidateEntry(primitive, hasHouseNumber, hasMisplacedHouseNumber, duplicateAddressKey));
+        entries.add(new CandidateEntry(
+                primitive,
+                hasHouseNumber,
+                hasMissingRequiredAddressFields,
+                hasMisplacedHouseNumber,
+                duplicateAddressKey
+        ));
     }
 
     private String buildDuplicateAddressKey(OsmPrimitive primitive) {
@@ -205,13 +217,20 @@ final class BuildingOverviewCollector {
     static final class BuildingOverviewEntry {
         private final OsmPrimitive primitive;
         private final boolean hasHouseNumber;
+        private final boolean hasMissingRequiredAddressFields;
         private final boolean hasMisplacedHouseNumber;
         private final boolean hasDuplicateExactAddress;
 
-        BuildingOverviewEntry(OsmPrimitive primitive, boolean hasHouseNumber, boolean hasMisplacedHouseNumber,
-                boolean hasDuplicateExactAddress) {
+        BuildingOverviewEntry(
+                OsmPrimitive primitive,
+                boolean hasHouseNumber,
+                boolean hasMissingRequiredAddressFields,
+                boolean hasMisplacedHouseNumber,
+                boolean hasDuplicateExactAddress
+        ) {
             this.primitive = primitive;
             this.hasHouseNumber = hasHouseNumber;
+            this.hasMissingRequiredAddressFields = hasMissingRequiredAddressFields;
             this.hasMisplacedHouseNumber = hasMisplacedHouseNumber;
             this.hasDuplicateExactAddress = hasDuplicateExactAddress;
         }
@@ -222,6 +241,10 @@ final class BuildingOverviewCollector {
 
         boolean hasHouseNumber() {
             return hasHouseNumber;
+        }
+
+        boolean hasMissingRequiredAddressFields() {
+            return hasMissingRequiredAddressFields;
         }
 
         boolean hasMisplacedHouseNumber() {
@@ -236,13 +259,20 @@ final class BuildingOverviewCollector {
     private static final class CandidateEntry {
         private final OsmPrimitive primitive;
         private final boolean hasHouseNumber;
+        private final boolean hasMissingRequiredAddressFields;
         private final boolean hasMisplacedHouseNumber;
         private final String duplicateAddressKey;
 
-        CandidateEntry(OsmPrimitive primitive, boolean hasHouseNumber, boolean hasMisplacedHouseNumber,
-                String duplicateAddressKey) {
+        CandidateEntry(
+                OsmPrimitive primitive,
+                boolean hasHouseNumber,
+                boolean hasMissingRequiredAddressFields,
+                boolean hasMisplacedHouseNumber,
+                String duplicateAddressKey
+        ) {
             this.primitive = primitive;
             this.hasHouseNumber = hasHouseNumber;
+            this.hasMissingRequiredAddressFields = hasMissingRequiredAddressFields;
             this.hasMisplacedHouseNumber = hasMisplacedHouseNumber;
             this.duplicateAddressKey = duplicateAddressKey;
         }

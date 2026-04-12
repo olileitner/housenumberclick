@@ -740,6 +740,7 @@ public final class HouseNumberClickRiskRegressionTests {
         boolean containsAddressedDuplicate = false;
         boolean containsSameHouseOtherStreet = false;
         boolean containsSameHouseMissingPostcode = false;
+        boolean containsMissingRequiredAddressFields = false;
         boolean containsUnaddressedLarge = false;
         boolean containsAddressedTiny = false;
         for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
@@ -762,6 +763,9 @@ public final class HouseNumberClickRiskRegressionTests {
                     && entry.hasHouseNumber()
                     && !entry.hasDuplicateExactAddress()) {
                 containsSameHouseMissingPostcode = true;
+                if (entry.hasMissingRequiredAddressFields()) {
+                    containsMissingRequiredAddressFields = true;
+                }
             }
             if (entry.getPrimitive() == unaddressedLarge && !entry.hasHouseNumber()) {
                 containsUnaddressedLarge = true;
@@ -779,6 +783,8 @@ public final class HouseNumberClickRiskRegressionTests {
                 "same housenumber with different street must not be marked duplicate");
         assertTrue(containsSameHouseMissingPostcode,
                 "same housenumber without postcode must not be marked duplicate");
+        assertTrue(containsMissingRequiredAddressFields,
+                "housenumber without postcode should be flagged as missing required address fields");
         assertTrue(containsUnaddressedLarge, "large unaddressed building should be included and marked unaddressed");
         assertFalse(containsAddressedTiny, "tiny building should be excluded by minimum area filter");
     }
