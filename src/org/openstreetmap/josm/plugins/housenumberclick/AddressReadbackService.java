@@ -7,8 +7,14 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MapFrame;
 
+/**
+ * Reads street, postcode, house number, and building type from clicked buildings or fallback street ways.
+ */
 final class AddressReadbackService {
 
+    /**
+     * Readback payload containing street/address values and the source category.
+     */
     static final class AddressReadbackResult {
         private final String street;
         private final String postcode;
@@ -101,5 +107,3 @@ final class AddressReadbackService {
         return value == null ? "" : value.trim();
     }
 }
-
-

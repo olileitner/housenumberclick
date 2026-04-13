@@ -6,8 +6,14 @@ import java.util.List;
 
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 
+/**
+ * Detects address/tag conflicts between existing building tags and the values selected for apply.
+ */
 final class AddressConflictService {
 
+	/**
+	 * One differing tag field between existing and proposed address/building values.
+	 */
 	static final class ConflictField {
 		private final String key;
 		private final String existingValue;
@@ -32,6 +38,9 @@ final class AddressConflictService {
 		}
 	}
 
+	/**
+	 * Structured outcome of conflict detection used by overwrite-warning UI.
+	 */
 	static final class ConflictAnalysis {
 		private final boolean hasConflict;
 		private final String overwrittenStreet;

@@ -29,6 +29,9 @@ import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.tools.I18n;
 
+/**
+ * Dialog that lists streets with address counts, selection shortcuts, and rescan controls.
+ */
 final class StreetHouseNumberCountDialog {
 
     private static final int DIALOG_OFFSET_X = 66;
@@ -268,6 +271,4 @@ final class StreetHouseNumberCountDialog {
         focusMapView();
     }
 }
-
-
 

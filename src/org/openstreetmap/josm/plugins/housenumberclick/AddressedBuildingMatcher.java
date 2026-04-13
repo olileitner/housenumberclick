@@ -4,6 +4,9 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.Way;
 
+/**
+ * Shared predicate helper for identifying addressable buildings, optionally filtered by street.
+ */
 final class AddressedBuildingMatcher {
 
     private AddressedBuildingMatcher() {
@@ -57,6 +60,3 @@ final class AddressedBuildingMatcher {
         return value == null ? "" : value.trim();
     }
 }
-
-
-

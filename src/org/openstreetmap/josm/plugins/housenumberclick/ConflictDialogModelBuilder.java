@@ -5,8 +5,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
 
+/**
+ * Converts conflict analysis into table-oriented dialog rows for overwrite confirmation UI.
+ */
 final class ConflictDialogModelBuilder {
 
+    /**
+     * One row in the conflict confirmation table (field, existing value, proposed value).
+     */
     static final class DialogRow {
         private final String field;
         private final String existing;
@@ -31,6 +37,9 @@ final class ConflictDialogModelBuilder {
         }
     }
 
+    /**
+     * Immutable dialog data model containing all rows shown in overwrite confirmation.
+     */
     static final class DialogModel {
         private final List<DialogRow> rows;
 
@@ -68,5 +77,3 @@ final class ConflictDialogModelBuilder {
         return value == null ? "" : value;
     }
 }
-
-

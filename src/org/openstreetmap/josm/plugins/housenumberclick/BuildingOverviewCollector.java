@@ -14,6 +14,9 @@ import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.RelationMember;
 import org.openstreetmap.josm.data.osm.Way;
 
+/**
+ * Collects building diagnostics used by completeness and postcode overview layers.
+ */
 final class BuildingOverviewCollector {
 
     static final double MIN_BUILDING_AREA = 25.0;
@@ -220,6 +223,9 @@ final class BuildingOverviewCollector {
         return value == null ? "" : value.trim();
     }
 
+    /**
+     * Public entry used by overview layers to render completeness and diagnostics for one building.
+     */
     static final class BuildingOverviewEntry {
         private final OsmPrimitive primitive;
         private final boolean hasHouseNumber;
@@ -269,6 +275,9 @@ final class BuildingOverviewCollector {
         }
     }
 
+    /**
+     * Internal collection-stage representation before duplicate-address evaluation is finalized.
+     */
     private static final class CandidateEntry {
         private final OsmPrimitive primitive;
         private final boolean hasHouseNumber;
@@ -294,5 +303,3 @@ final class BuildingOverviewCollector {
         }
     }
 }
-
-

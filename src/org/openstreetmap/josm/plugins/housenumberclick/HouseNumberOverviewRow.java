@@ -4,6 +4,9 @@ import java.util.List;
 
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 
+/**
+ * Row model used by the house-number overview table for odd/even values and linked primitives.
+ */
 final class HouseNumberOverviewRow {
 
     private final String oddValue;
@@ -59,4 +62,3 @@ final class HouseNumberOverviewRow {
         return evenDuplicate;
     }
 }
-

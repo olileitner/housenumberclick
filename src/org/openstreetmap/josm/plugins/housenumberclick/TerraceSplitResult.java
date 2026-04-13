@@ -6,6 +6,9 @@ import java.util.List;
 
 import org.openstreetmap.josm.data.osm.Way;
 
+/**
+ * Result object for row-house split execution with status message and resulting ways.
+ */
 final class TerraceSplitResult {
 
 	private final boolean success;
@@ -38,4 +41,3 @@ final class TerraceSplitResult {
 		return resultWays;
 	}
 }
-

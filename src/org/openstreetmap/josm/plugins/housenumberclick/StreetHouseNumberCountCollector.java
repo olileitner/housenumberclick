@@ -14,6 +14,9 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.Way;
 
+/**
+ * Collects per-street address counts and completeness indicators across the current dataset.
+ */
 final class StreetHouseNumberCountCollector {
 
     List<StreetHouseNumberCountRow> collectRows(DataSet dataSet) {
@@ -85,5 +88,3 @@ final class StreetHouseNumberCountCollector {
         return normalize(value).toLowerCase(Locale.ROOT);
     }
 }
-
-

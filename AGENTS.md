@@ -302,6 +302,14 @@ Do NOT:
 
 ---
 
+### When changing class code
+
+* If a class responsibility/behavior changes, update its class comment (`/** ... */`) in the same change.
+* Keep `docs/class-inventory.md` in sync with the current classes and class comments.
+* Treat comment + inventory updates as required maintenance, not optional cleanup.
+
+---
+
 ## Golden Rules
 
 1. **Single MapMode only**

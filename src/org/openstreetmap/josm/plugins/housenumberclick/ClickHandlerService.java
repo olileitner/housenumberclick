@@ -13,6 +13,9 @@ import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
 
+/**
+ * Encapsulates click interaction flow for applying tags, reading addresses, and conflict handling.
+ */
 final class ClickHandlerService {
 
     private static final String DEFAULT_STREET_PICKED_HOUSE_NUMBER = "1";
@@ -44,6 +47,9 @@ final class ClickHandlerService {
         void updateAddressValues(String streetName, String postcode, String buildingType, String houseNumber);
     }
 
+    /**
+     * Result of a primary (apply) click, including outcome, resolution stats, and next UI state.
+     */
     static final class PrimaryClickResult {
         private final String outcome;
         private final BuildingResolver.BuildingResolutionResult resolution;
@@ -93,6 +99,9 @@ final class ClickHandlerService {
         }
     }
 
+    /**
+     * Lightweight result of non-primary click flows with outcome and resolver diagnostics.
+     */
     static final class ClickResult {
         private final String outcome;
         private final BuildingResolver.BuildingResolutionResult resolution;
@@ -404,4 +413,3 @@ final class ClickHandlerService {
         return value == null ? "" : value.trim();
     }
 }
-

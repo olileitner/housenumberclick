@@ -12,6 +12,9 @@ import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.data.projection.ProjectionRegistry;
 
+/**
+ * Splits row-house buildings into configured parts based on click position and geometry orientation.
+ */
 final class TerraceSplitService {
 
     private static final double LINE_MARGIN_FALLBACK = 1e-5;
@@ -337,6 +340,9 @@ final class TerraceSplitService {
         return new Bounds(minLat, maxLat, minLon, maxLon);
     }
 
+    /**
+     * Axis-aligned latitude/longitude bounds used for fallback terrace splitting.
+     */
     private static final class Bounds {
         private final double minLat;
         private final double maxLat;
@@ -368,6 +374,9 @@ final class TerraceSplitService {
         }
     }
 
+    /**
+     * Concrete split line in projected coordinates for one ratio step.
+     */
     private static final class SplitLine {
         private final EastNorth start;
         private final EastNorth end;
@@ -378,6 +387,9 @@ final class TerraceSplitService {
         }
     }
 
+    /**
+     * Orientation model that derives deterministic split lines along the main building axis.
+     */
     private static final class SplitOrientation {
         private final Vector2D mainAxis;
         private final Vector2D perpendicular;
@@ -418,6 +430,9 @@ final class TerraceSplitService {
         }
     }
 
+    /**
+     * Small 2D vector helper used for orientation and projection calculations.
+     */
     private static final class Vector2D {
         private final double x;
         private final double y;
@@ -449,4 +464,3 @@ final class TerraceSplitService {
         }
     }
 }
-

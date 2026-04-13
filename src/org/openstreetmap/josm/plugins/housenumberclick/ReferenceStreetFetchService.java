@@ -20,8 +20,14 @@ import org.openstreetmap.josm.gui.progress.NullProgressMonitor;
 import org.openstreetmap.josm.io.OverpassDownloadReader;
 import org.openstreetmap.josm.tools.Logging;
 
+/**
+ * Loads lightweight reference street geometries asynchronously with caching and debounce support.
+ */
 final class ReferenceStreetFetchService {
 
+    /**
+     * Immutable load context containing selected street and local dataset geometry anchors.
+     */
     static final class ReferenceStreetContext {
         private final String normalizedStreet;
         private final String datasetContextKey;

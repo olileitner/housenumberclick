@@ -31,6 +31,9 @@ import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.tools.I18n;
 
+/**
+ * Dialog that displays house-number completeness for the selected street and resume actions.
+ */
 final class HouseNumberOverviewDialog {
 
     private static final int DIALOG_OFFSET_X = 66;
@@ -251,6 +254,4 @@ final class HouseNumberOverviewDialog {
     }
 
 }
-
-
 

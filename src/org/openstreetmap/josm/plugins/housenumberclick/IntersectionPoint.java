@@ -3,6 +3,9 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.Node;
 
+/**
+ * Represents one detected intersection between a split line and a building outline segment.
+ */
 final class IntersectionPoint {
 
     private final LatLon coordinate;
@@ -33,4 +36,3 @@ final class IntersectionPoint {
         return existingNodeIntersection;
     }
 }
-

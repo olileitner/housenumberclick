@@ -15,6 +15,9 @@ import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
 
+/**
+ * Builds command sequences for split operations, including node preparation and tag preservation.
+ */
 final class SplitCommandBuilder {
 
     PreparedNodeCommands prepareNodes(DataSet dataSet, Way way, List<IntersectionPoint> intersections) {
@@ -84,6 +87,9 @@ final class SplitCommandBuilder {
         return insertIndex;
     }
 
+    /**
+     * Bundle returned from node preparation containing new split nodes, updated ring, and commands.
+     */
     static final class PreparedNodeCommands {
         private final List<Node> splitNodes;
         private final List<Node> updatedWayNodes;
@@ -108,4 +114,3 @@ final class SplitCommandBuilder {
         }
     }
 }
-

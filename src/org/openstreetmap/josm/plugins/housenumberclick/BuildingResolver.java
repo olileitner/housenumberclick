@@ -19,6 +19,9 @@ import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.spi.preferences.Config;
 import org.openstreetmap.josm.tools.Logging;
 
+/**
+ * Resolves the clicked building primitive with relation-first logic and bounded candidate scanning.
+ */
 final class BuildingResolver {
 
     static final String PREF_RELATION_SCAN_LIMIT = "housenumberclick.streetmode.relationScanLimit";
@@ -30,6 +33,9 @@ final class BuildingResolver {
     private static final int MAX_SCAN_CANDIDATES = 100_000;
     private static final Set<String> WARNED_INVALID_LIMIT_KEYS = new HashSet<>();
 
+    /**
+     * Full resolver diagnostics and selected building primitive for one click resolution.
+     */
     static final class BuildingResolutionResult {
         private final OsmPrimitive building;
         private final String source;
@@ -386,6 +392,9 @@ final class BuildingResolver {
         return null;
     }
 
+    /**
+     * Internal relation-scan outcome with counters and limit state.
+     */
     private static final class RelationScanResult {
         private final Relation relation;
         private final int checked;
@@ -400,6 +409,9 @@ final class BuildingResolver {
         }
     }
 
+    /**
+     * Internal way-scan outcome with counters and limit state.
+     */
     private static final class WayScanResult {
         private final Way way;
         private final int checked;
@@ -414,4 +426,3 @@ final class BuildingResolver {
         }
     }
 }
-

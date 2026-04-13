@@ -9,6 +9,9 @@ import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.data.projection.ProjectionRegistry;
 
+/**
+ * Computes robust split-line intersections against building edges, including corner snapping logic.
+ */
 final class CornerSnapService {
 
     private static final double EPSILON = 1e-9;
@@ -250,12 +253,18 @@ final class CornerSnapService {
         return (ax * by) - (ay * bx);
     }
 
+    /**
+     * Segment intersection classification used by split-line edge intersection logic.
+     */
     private enum IntersectionType {
         NONE,
         POINT,
         COLLINEAR_OVERLAP
     }
 
+    /**
+     * Internal intersection result for two segments, including type and optional point.
+     */
     private static final class SegmentIntersection {
         private final IntersectionType type;
         private final LatLon intersection;
@@ -278,5 +287,3 @@ final class CornerSnapService {
         }
     }
 }
-
-

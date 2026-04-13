@@ -6,6 +6,9 @@ import org.openstreetmap.josm.plugins.Plugin;
 import org.openstreetmap.josm.plugins.PluginInformation;
 import org.openstreetmap.josm.spi.preferences.Config;
 
+/**
+ * Plugin entry point that wires the menu action and performs one-time toolbar migration.
+ */
 public class HouseNumberClickPlugin extends Plugin {
 
     private static final String TOOLBAR_ID = "housenumberclick";

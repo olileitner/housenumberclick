@@ -22,6 +22,9 @@ import org.openstreetmap.josm.data.projection.Projection;
 import org.openstreetmap.josm.data.projection.ProjectionRegistry;
 import org.openstreetmap.josm.tools.Geometry;
 
+/**
+ * Collects and normalizes addressable building entries for street-specific house-number overlays.
+ */
 final class HouseNumberOverlayCollector {
 
     private static final Pattern HOUSE_NUMBER_PATTERN = Pattern.compile("^\\s*(\\d+)\\s*([^\\d].*)?$");
@@ -218,6 +221,9 @@ final class HouseNumberOverlayCollector {
         return value == null ? "" : value.trim();
     }
 
+    /**
+     * Parsed representation of a house number split into sortable numeric and suffix parts.
+     */
     private static final class ParsedHouseNumber {
         private final int numberPart;
         private final String suffixPart;
@@ -228,5 +234,3 @@ final class HouseNumberOverlayCollector {
         }
     }
 }
-
-

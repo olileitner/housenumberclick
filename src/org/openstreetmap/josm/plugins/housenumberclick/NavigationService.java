@@ -3,6 +3,9 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Stores and updates current street navigation state shared between dialog and map interactions.
+ */
 final class NavigationService {
 
     private String currentStreet = "";
@@ -43,4 +46,3 @@ final class NavigationService {
         return value == null ? "" : value.trim();
     }
 }
-

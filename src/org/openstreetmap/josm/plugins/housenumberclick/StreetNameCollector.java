@@ -13,6 +13,9 @@ import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
 
+/**
+ * Utility for collecting unique street names from highway ways in the current dataset.
+ */
 final class StreetNameCollector {
 
     private StreetNameCollector() {
@@ -54,4 +57,3 @@ final class StreetNameCollector {
         return dataSet.getWays();
     }
 }
-

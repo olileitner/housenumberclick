@@ -138,7 +138,19 @@
         </javac>
     </target>
 
-    <target name="test" depends="test-compile" description="Run lightweight regression tests">
+    <target name="verify-class-inventory" depends="test-compile" description="Verify class Javadocs and docs/class-inventory.md consistency">
+        <java classname="org.openstreetmap.josm.plugins.housenumberclick.DocumentationConsistencyCheck"
+              fork="true"
+              failonerror="true">
+            <classpath>
+                <pathelement location="${test.classes.dir}"/>
+                <pathelement location="${classes.dir}"/>
+                <pathelement location="${basedir}"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="test" depends="verify-class-inventory" description="Run lightweight regression tests">
         <java classname="org.openstreetmap.josm.plugins.housenumberclick.HouseNumberClickRiskRegressionTests"
               fork="true"
               failonerror="true">

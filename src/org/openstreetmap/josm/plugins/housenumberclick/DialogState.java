@@ -1,5 +1,8 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
+/**
+ * Immutable snapshot of the dialog input values used to compare and restore UI state.
+ */
 final class DialogState {
 
     private String rememberedStreet;
@@ -136,4 +139,3 @@ final class DialogState {
         this.rememberedSplitMakeRectangular = rememberedSplitMakeRectangular;
     }
 }
-

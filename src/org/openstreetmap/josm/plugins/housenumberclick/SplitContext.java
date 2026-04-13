@@ -1,5 +1,8 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
+/**
+ * Lightweight context values that split services propagate into newly created building parts.
+ */
 final class SplitContext {
 
     private final String street;
@@ -26,4 +29,3 @@ final class SplitContext {
         return value == null ? "" : value.trim();
     }
 }
-

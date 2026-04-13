@@ -30,6 +30,9 @@ import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.ImageProvider;
 
+/**
+ * Renders street-specific house-number highlights and optional connection lines in a dedicated layer.
+ */
 final class HouseNumberOverlayLayer extends Layer {
 
     private static final Font TEXT_FONT = new Font(Font.SANS_SERIF, Font.BOLD, 16);
@@ -373,9 +376,3 @@ final class HouseNumberOverlayLayer extends Layer {
         return normalize(value).toLowerCase(Locale.ROOT);
     }
 }
-
-
-
-
-
-

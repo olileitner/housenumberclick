@@ -11,6 +11,9 @@ import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.gui.layer.LayerManager;
 import org.openstreetmap.josm.tools.I18n;
 
+/**
+ * Manages creation, refresh, visibility, and teardown of plugin-owned map overlay layers.
+ */
 final class OverlayManager {
 
     private HouseNumberOverlayLayer houseNumberOverlayLayer;
@@ -301,4 +304,3 @@ final class OverlayManager {
         return value == null ? "" : value.trim();
     }
 }
-

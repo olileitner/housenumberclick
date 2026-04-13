@@ -32,8 +32,14 @@ import org.openstreetmap.josm.gui.util.GuiHelper;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
+/**
+ * Orchestrates Street Mode state, dialog synchronization, overlays, and split/address operations.
+ */
 final class StreetModeController {
 
+    /**
+     * Immutable current address selection transferred from dialog to map mode.
+     */
     static final class AddressSelection {
         private final String streetName;
         private final String postcode;
@@ -123,6 +129,9 @@ final class StreetModeController {
         void onTerracePartsUpdated(int parts);
     }
 
+    /**
+     * Cache/load key combining dataset identity and normalized street name.
+     */
     private static final class ReferenceLoadKey {
         private final String datasetContextKey;
         private final String streetKey;
@@ -1081,6 +1090,9 @@ final class StreetModeController {
         return new SplitTargetScan(target, touchedOnly, ambiguous);
     }
 
+    /**
+     * Scan result describing whether a temporary split line targets exactly one building.
+     */
     private static final class SplitTargetScan {
         private final Way targetWay;
         private final boolean touchOnly;

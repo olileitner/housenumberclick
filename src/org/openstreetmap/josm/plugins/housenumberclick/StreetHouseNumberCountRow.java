@@ -1,5 +1,8 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
+/**
+ * Row model for per-street house-number counts, including duplicate marker information.
+ */
 final class StreetHouseNumberCountRow {
 
     private final String streetName;
@@ -32,4 +35,3 @@ final class StreetHouseNumberCountRow {
         return value == null ? "" : value.trim();
     }
 }
-

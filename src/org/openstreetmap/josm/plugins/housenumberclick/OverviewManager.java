@@ -7,6 +7,9 @@ import java.util.function.Consumer;
 
 import org.openstreetmap.josm.data.osm.DataSet;
 
+/**
+ * Coordinates overview dialogs and keeps their data synchronized with current plugin state.
+ */
 final class OverviewManager {
 
     private HouseNumberOverviewDialog houseNumberOverviewDialog;
@@ -92,5 +95,3 @@ final class OverviewManager {
     }
 
 }
-
-

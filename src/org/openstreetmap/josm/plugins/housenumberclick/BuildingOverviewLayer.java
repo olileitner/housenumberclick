@@ -24,6 +24,9 @@ import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.ImageProvider;
 
+/**
+ * Map layer that visualizes building-level address status to support completeness inspection.
+ */
 final class BuildingOverviewLayer extends Layer {
 
     private static final Color ADDRESSED_FILL_COLOR = new Color(86, 180, 233, 190);
@@ -300,5 +303,3 @@ final class BuildingOverviewLayer extends Layer {
         return value == null ? "" : value.trim();
     }
 }
-
-

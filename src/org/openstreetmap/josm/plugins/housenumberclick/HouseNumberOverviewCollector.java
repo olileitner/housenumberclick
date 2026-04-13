@@ -17,6 +17,9 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.Way;
 
+/**
+ * Aggregates and orders house numbers for the selected street to power the overview dialog.
+ */
 final class HouseNumberOverviewCollector {
 
     static final String MISSING_NUMBER_PLACEHOLDER = "•";
@@ -148,6 +151,9 @@ final class HouseNumberOverviewCollector {
         return value == null ? "" : value.trim();
     }
 
+    /**
+     * Parsed house-number token with normalized base number and suffix.
+     */
     private static final class ParsedHouseNumber {
         private final int baseNumber;
         private final String suffix;
@@ -158,6 +164,9 @@ final class HouseNumberOverviewCollector {
         }
     }
 
+    /**
+     * Groups occurrences of one base number and tracks duplicate exact values plus representative primitives.
+     */
     private static final class BaseNumberGroup {
         private final int baseNumber;
         private final TreeSet<String> suffixes = new TreeSet<>();
@@ -220,6 +229,9 @@ final class HouseNumberOverviewCollector {
         }
     }
 
+    /**
+     * Intermediate formatted cell data used while composing final overview rows.
+     */
     private static final class OverviewCellData {
         private final String value;
         private final OsmPrimitive primitive;
@@ -238,5 +250,3 @@ final class HouseNumberOverviewCollector {
         }
     }
 }
-
-

@@ -1,5 +1,8 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
+/**
+ * Input object for row-house splitting that currently carries the requested part count.
+ */
 final class TerraceSplitRequest {
 
     private static final int MIN_PARTS = 2;
@@ -18,5 +21,3 @@ final class TerraceSplitRequest {
         return parts >= MIN_PARTS;
     }
 }
-
-

@@ -13,6 +13,9 @@ import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
 
+/**
+ * Utility for extracting visible postcode candidates from the active dataset.
+ */
 final class PostcodeCollector {
 
     private PostcodeCollector() {
@@ -107,4 +110,3 @@ final class PostcodeCollector {
         }
     }
 }
-

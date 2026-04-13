@@ -8,6 +8,9 @@ import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.tools.I18n;
 
+/**
+ * Main toolbar/menu action that opens the street selection dialog and activates street mode.
+ */
 public class HouseNumberClickAction extends JosmAction {
 
     private final StreetModeController streetModeController;

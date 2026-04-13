@@ -44,6 +44,9 @@ import org.openstreetmap.josm.gui.layer.MapViewPaintable;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
+/**
+ * Single active map mode that handles address apply/readback and temporary split gestures.
+ */
 final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPaintable {
 
     private static final long DUPLICATE_CLICK_WINDOW_MILLIS = 120L;
@@ -84,6 +87,9 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
     private boolean appFocusListenerRegistered;
     private Window appFocusWindow;
 
+    /**
+     * Captures per-click diagnostics for debug logging of resolver and interaction paths.
+     */
     private static final class ClickResolutionStats {
         private String outcome = "unknown";
         private BuildingResolver.BuildingResolutionResult resolution = BuildingResolver.BuildingResolutionResult.notEvaluated();

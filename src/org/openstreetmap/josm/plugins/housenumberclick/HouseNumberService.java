@@ -3,6 +3,9 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * Encapsulates house-number parsing, normalization, and increment/decrement behavior.
+ */
 final class HouseNumberService {
 
     private static final Pattern NUMERIC_HOUSE_NUMBER_PATTERN = Pattern.compile("^(\\d+)$");
@@ -218,4 +221,3 @@ final class HouseNumberService {
         return null;
     }
 }
-

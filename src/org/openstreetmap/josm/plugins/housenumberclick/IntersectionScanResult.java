@@ -4,6 +4,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Result container for intersection scanning, including success state, message, and points.
+ */
 final class IntersectionScanResult {
 
     private final boolean success;
@@ -36,4 +39,3 @@ final class IntersectionScanResult {
         return intersections;
     }
 }
-

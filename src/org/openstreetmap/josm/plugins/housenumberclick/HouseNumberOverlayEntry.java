@@ -3,6 +3,9 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 import org.openstreetmap.josm.data.coor.EastNorth;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 
+/**
+ * Value object describing one rendered house-number label entry in the overlay layer.
+ */
 final class HouseNumberOverlayEntry {
 
     private final OsmPrimitive primitive;
@@ -46,4 +49,3 @@ final class HouseNumberOverlayEntry {
         return stableIndex;
     }
 }
-

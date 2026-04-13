@@ -1,5 +1,8 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
+/**
+ * Keeps dialog-side configuration state normalized and synchronized with controller callbacks.
+ */
 final class DialogController {
 
     int normalizeIncrementStep(int step) {
@@ -18,4 +21,3 @@ final class DialogController {
     }
 
 }
-

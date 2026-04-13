@@ -37,6 +37,9 @@ import org.openstreetmap.josm.gui.MapFrame;
 import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.tools.I18n;
 
+/**
+ * Main configuration dialog where users pick street/address settings before working in map mode.
+ */
 final class StreetSelectionDialog {
 
     private static final String DEFAULT_HOUSE_NUMBER = "1";

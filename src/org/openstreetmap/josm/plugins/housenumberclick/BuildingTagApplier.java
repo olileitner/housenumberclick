@@ -8,6 +8,9 @@ import org.openstreetmap.josm.command.ChangePropertyCommand;
 import org.openstreetmap.josm.data.UndoRedoHandler;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 
+/**
+ * Applies address and building tags via JOSM commands, including relation-aware write targets.
+ */
 final class BuildingTagApplier {
 
     private BuildingTagApplier() {

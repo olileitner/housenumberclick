@@ -2,6 +2,10 @@
 
 HouseNumberClick is a JOSM plugin for fast, street-focused house-number tagging on buildings.
 
+## Documentation
+
+- Class inventory (including core-class markers): `docs/class-inventory.md`
+
 ## What's New in 1.1.6
 
 - Single-mode interaction is finalized (`HouseNumberClickStreetMapMode` only), including inline split gestures.

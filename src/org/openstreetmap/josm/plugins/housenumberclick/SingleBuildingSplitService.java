@@ -15,6 +15,9 @@ import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
 
+/**
+ * Performs rollback-safe line splits within exactly one building geometry.
+ */
 final class SingleBuildingSplitService {
 
     private final CornerSnapService cornerSnapService;
@@ -218,6 +221,9 @@ final class SingleBuildingSplitService {
         return ordered;
     }
 
+    /**
+     * Two directed boundary paths between split nodes used to create the result polygons.
+     */
     private static final class RingPaths {
         private final List<Node> pathFromFirstToSecond;
         private final List<Node> pathFromSecondToFirst;
@@ -228,4 +234,3 @@ final class SingleBuildingSplitService {
         }
     }
 }
-

@@ -12,6 +12,9 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.tools.Logging;
 
+/**
+ * Estimates whether a street is likely incomplete to decide when reference street loading is useful.
+ */
 final class StreetCompletenessHeuristic {
 
     private static final double EDGE_MARGIN_RATIO = 0.01;
@@ -128,4 +131,3 @@ final class StreetCompletenessHeuristic {
         return value == null ? "" : value.trim();
     }
 }
-

@@ -28,6 +28,9 @@ import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.ImageProvider;
 
+/**
+ * Map layer that visualizes postcode distribution and mismatches for quick QA checks.
+ */
 final class PostcodeOverviewLayer extends Layer {
 
     private static final Color MISSING_POSTCODE_COLOR = BuildingOverviewLayer.NO_ADDRESS_DATA_COLOR;
@@ -311,6 +314,3 @@ final class PostcodeOverviewLayer extends Layer {
         return value == null ? "" : value.trim();
     }
 }
-
-
-

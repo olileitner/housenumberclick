@@ -24,6 +24,9 @@ import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.ImageProvider;
 
+/**
+ * Read-only overlay layer that renders fetched reference street geometry in a distinct style.
+ */
 final class ReferenceStreetLayer extends Layer {
 
     private static final Color REFERENCE_COLOR = new Color(220, 35, 35);
@@ -182,4 +185,3 @@ final class ReferenceStreetLayer extends Layer {
         return value == null ? "" : value.trim();
     }
 }
-

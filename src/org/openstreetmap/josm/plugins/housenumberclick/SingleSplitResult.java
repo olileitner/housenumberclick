@@ -6,6 +6,9 @@ import java.util.List;
 
 import org.openstreetmap.josm.data.osm.Way;
 
+/**
+ * Result object for a single line split execution, including message and produced ways.
+ */
 final class SingleSplitResult {
 
     private final boolean success;
@@ -38,4 +41,3 @@ final class SingleSplitResult {
         return resultWays;
     }
 }
-
