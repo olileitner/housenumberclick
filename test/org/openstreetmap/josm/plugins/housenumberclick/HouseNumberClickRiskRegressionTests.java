@@ -769,8 +769,8 @@ public final class HouseNumberClickRiskRegressionTests {
                 "completeness legend should contain complete-address label");
         assertTrue(source.contains("Address incomplete"),
                 "completeness legend should contain incomplete-address label");
-        assertTrue(source.contains("Address problematic"),
-                "completeness legend should contain problematic-address label");
+        assertTrue(source.contains("Duplicate address"),
+                "completeness legend should contain duplicate-address label");
         assertTrue(source.contains("No Address Data"),
                 "completeness legend should contain no-address-data label");
     }

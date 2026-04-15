@@ -76,7 +76,7 @@ final class BuildingOverviewLayer extends Layer {
         String title = I18n.tr("Completeness");
         String complete = I18n.tr("Address complete");
         String incomplete = I18n.tr("Address incomplete");
-        String problematic = I18n.tr("Address problematic");
+        String problematic = I18n.tr("Duplicate address");
         String noAddressData = I18n.tr("No Address Data");
 
         int contentRows = 4;
