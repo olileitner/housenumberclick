@@ -36,7 +36,7 @@ public final class DocumentationConsistencyCheck {
     );
 
     private static final Pattern INVENTORY_ROW = Pattern.compile(
-            "^\\| `([^`]+)` \\| `([^`]+)` \\| `([^`]+)` \\| (Ja|Nein) \\| (.*) \\|$"
+            "^\\| `([^`]+)` \\| `([^`]+)` \\| (Yes|No) \\| (.*) \\|$"
     );
 
     private DocumentationConsistencyCheck() {
@@ -94,7 +94,7 @@ public final class DocumentationConsistencyCheck {
         List<TypeInfo> types = new ArrayList<>();
         List<ScopeEntry> scopeStack = new ArrayList<>();
 
-        String relativeFile = javaFile.toString().replace('\\', '/');
+        String relativeFile = javaFile.getFileName().toString();
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
@@ -180,12 +180,11 @@ public final class DocumentationConsistencyCheck {
             }
 
             String qualifiedName = matcher.group(1);
-            String kind = matcher.group(2);
-            String file = matcher.group(3).replace('\\', '/');
-            boolean core = "Ja".equals(matcher.group(4));
-            String comment = normalizeWhitespace(unescapeTableText(matcher.group(5)));
+            String file = matcher.group(2).replace('\\', '/');
+            boolean core = "Yes".equals(matcher.group(3));
+            String comment = normalizeWhitespace(unescapeTableText(matcher.group(4)));
 
-            rows.put(qualifiedName, new InventoryRow(qualifiedName, kind, file, core, comment));
+            rows.put(qualifiedName, new InventoryRow(qualifiedName, file, core, comment));
         }
 
         return rows;
@@ -206,17 +205,13 @@ public final class DocumentationConsistencyCheck {
                 continue;
             }
 
-            if (!row.kind.equals(type.kind)) {
-                errors.add("Inventory kind mismatch for " + type.qualifiedName + ": expected "
-                        + type.kind + ", found " + row.kind);
-            }
             if (!row.file.equals(type.file)) {
                 errors.add("Inventory file mismatch for " + type.qualifiedName + ": expected "
                         + type.file + ", found " + row.file);
             }
             if (row.core != type.core) {
                 errors.add("Inventory core marker mismatch for " + type.qualifiedName + ": expected "
-                        + (type.core ? "Ja" : "Nein") + ", found " + (row.core ? "Ja" : "Nein"));
+                        + (type.core ? "Yes" : "No") + ", found " + (row.core ? "Yes" : "No"));
             }
             if (!row.comment.equals(type.classComment)) {
                 errors.add("Inventory comment mismatch for " + type.qualifiedName);
@@ -270,13 +265,11 @@ public final class DocumentationConsistencyCheck {
     }
 
     private static final class InventoryRow {
-        private final String kind;
         private final String file;
         private final boolean core;
         private final String comment;
 
-        private InventoryRow(String qualifiedName, String kind, String file, boolean core, String comment) {
-            this.kind = kind.toLowerCase(Locale.ROOT);
+        private InventoryRow(String qualifiedName, String file, boolean core, String comment) {
             this.file = file;
             this.core = core;
             this.comment = comment;
