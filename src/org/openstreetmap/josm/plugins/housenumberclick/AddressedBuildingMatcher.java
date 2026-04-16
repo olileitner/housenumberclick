@@ -56,6 +56,22 @@ final class AddressedBuildingMatcher {
         return normalize(primitive.get("addr:street")).equalsIgnoreCase(normalizedStreetName);
     }
 
+    static boolean isFullyAddressedBuilding(OsmPrimitive primitive) {
+        if (!isAddressedBuilding(primitive)) {
+            return false;
+        }
+        String postcode = normalize(primitive.get("addr:postcode"));
+        return !postcode.isEmpty();
+    }
+
+    static boolean isFullyAddressedBuildingForStreet(OsmPrimitive primitive, String streetName) {
+        if (!isAddressedBuildingForStreet(primitive, streetName)) {
+            return false;
+        }
+        String postcode = normalize(primitive.get("addr:postcode"));
+        return !postcode.isEmpty();
+    }
+
     private static String normalize(String value) {
         return value == null ? "" : value.trim();
     }

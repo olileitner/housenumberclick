@@ -30,8 +30,8 @@ public class HouseNumberClickAction extends JosmAction {
             return;
         }
 
-        List<String> streetNames = StreetNameCollector.collectStreetNames(dataSet);
+        List<StreetOption> streetOptions = StreetNameCollector.collectStreetIndex(dataSet).getStreetOptions();
         List<String> detectedPostcodes = PostcodeCollector.collectVisiblePostcodes(dataSet);
-        streetSelectionDialog.showDialog(dataSet, streetNames, detectedPostcodes);
+        streetSelectionDialog.showDialog(dataSet, streetOptions, detectedPostcodes);
     }
 }

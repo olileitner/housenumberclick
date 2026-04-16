@@ -36,6 +36,7 @@ import javax.swing.text.JTextComponent;
 import org.openstreetmap.josm.actions.mapmode.MapMode;
 import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.coor.LatLon;
+import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.MapView;
 import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.MapFrame;
@@ -751,6 +752,11 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             @Override
             public void updateAddressValues(String streetName, String postcode, String buildingType, String houseNumber) {
                 controller.updateAddressValues(streetName, postcode, buildingType, houseNumber);
+            }
+
+            @Override
+            public void rememberStreetInteraction(Way streetWay, LatLon interactionPoint) {
+                controller.rememberStreetInteraction(streetWay, interactionPoint);
             }
         };
     }

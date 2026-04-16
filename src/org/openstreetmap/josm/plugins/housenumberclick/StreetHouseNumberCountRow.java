@@ -5,18 +5,47 @@ package org.openstreetmap.josm.plugins.housenumberclick;
  */
 final class StreetHouseNumberCountRow {
 
-    private final String streetName;
+    private final StreetOption streetOption;
     private final int count;
     private final boolean hasDuplicate;
 
     StreetHouseNumberCountRow(String streetName, int count, boolean hasDuplicate) {
-        this.streetName = normalize(streetName);
+        this(new StreetOption(streetName, streetName, normalizeStatic(streetName).toLowerCase(java.util.Locale.ROOT)), count, hasDuplicate);
+    }
+
+    StreetHouseNumberCountRow(StreetOption streetOption, int count, boolean hasDuplicate) {
+        this.streetOption = streetOption;
         this.count = Math.max(0, count);
         this.hasDuplicate = hasDuplicate;
     }
 
     String getStreetName() {
-        return streetName;
+        return getDisplayStreetName();
+    }
+
+    String getDisplayStreetName() {
+        if (streetOption == null) {
+            return "";
+        }
+        return normalize(streetOption.getDisplayStreetName());
+    }
+
+    String getBaseStreetName() {
+        if (streetOption == null) {
+            return "";
+        }
+        return normalize(streetOption.getBaseStreetName());
+    }
+
+    String getClusterId() {
+        if (streetOption == null) {
+            return "";
+        }
+        return normalize(streetOption.getClusterId());
+    }
+
+    StreetOption getStreetOption() {
+        return streetOption;
     }
 
     int getCount() {
@@ -32,6 +61,10 @@ final class StreetHouseNumberCountRow {
     }
 
     private String normalize(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static String normalizeStatic(String value) {
         return value == null ? "" : value.trim();
     }
 }

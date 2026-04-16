@@ -38,11 +38,12 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `HouseNumberClickPlugin` | `HouseNumberClickPlugin.java` | Yes | Plugin entry point that wires the menu action and performs one-time toolbar migration. |
 | `HouseNumberClickStreetMapMode` | `HouseNumberClickStreetMapMode.java` | Yes | Single active map mode that handles address apply/readback and temporary split gestures. |
 | `HouseNumberClickStreetMapMode.ClickResolutionStats` | `HouseNumberClickStreetMapMode.java` | Yes | Captures per-click diagnostics for debug logging of resolver and interaction paths. |
-| `HouseNumberOverlayCollector` | `HouseNumberOverlayCollector.java` | No | Collects and normalizes addressable building entries for street-specific house-number overlays. |
+| `HouseNumberOverlayCollector` | `HouseNumberOverlayCollector.java` | No | Collects and normalizes addressed buildings near the locally resolved selected street segment. |
+| `HouseNumberOverlayCollector.CollectionStats` | `HouseNumberOverlayCollector.java` | No | Aggregated rejection counters used for overlay collection diagnostics. |
 | `HouseNumberOverlayCollector.ParsedHouseNumber` | `HouseNumberOverlayCollector.java` | No | Parsed representation of a house number split into sortable numeric and suffix parts. |
 | `HouseNumberOverlayEntry` | `HouseNumberOverlayEntry.java` | No | Value object describing one rendered house-number label entry in the overlay layer. |
 | `HouseNumberOverlayLayer` | `HouseNumberOverlayLayer.java` | No | Renders street-specific house-number highlights and optional connection lines in a dedicated layer. |
-| `HouseNumberOverviewCollector` | `HouseNumberOverviewCollector.java` | No | Aggregates and orders house numbers for the selected street to power the overview dialog. |
+| `HouseNumberOverviewCollector` | `HouseNumberOverviewCollector.java` | No | Aggregates and orders house numbers for the selected disambiguated street cluster. |
 | `HouseNumberOverviewCollector.BaseNumberGroup` | `HouseNumberOverviewCollector.java` | No | Groups occurrences of one base number and tracks duplicate exact values plus representative primitives. |
 | `HouseNumberOverviewCollector.OverviewCellData` | `HouseNumberOverviewCollector.java` | No | Intermediate formatted cell data used while composing final overview rows. |
 | `HouseNumberOverviewCollector.ParsedHouseNumber` | `HouseNumberOverviewCollector.java` | No | Parsed house-number token with normalized base number and suffix. |
@@ -69,11 +70,14 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `StreetHouseNumberCountCollector` | `StreetHouseNumberCountCollector.java` | No | Collects per-street address counts and completeness indicators across the current dataset. |
 | `StreetHouseNumberCountDialog` | `StreetHouseNumberCountDialog.java` | No | Dialog that lists streets with address counts, selection shortcuts, and rescan controls. |
 | `StreetHouseNumberCountRow` | `StreetHouseNumberCountRow.java` | No | Row model for per-street house-number counts, including duplicate marker information. |
-| `StreetModeController` | `StreetModeController.java` | Yes | Orchestrates Street Mode state, dialog synchronization, overlays, and split/address operations. |
+| `StreetModeController` | `StreetModeController.java` | Yes | Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays, and split/address operations. |
 | `StreetModeController.AddressSelection` | `StreetModeController.java` | Yes | Immutable current address selection transferred from dialog to map mode. |
 | `StreetModeController.ReferenceLoadKey` | `StreetModeController.java` | Yes | Cache/load key combining dataset identity and normalized street name. |
+| `StreetModeController.StreetSeedResolution` | `StreetModeController.java` | Yes | Resolved operational seed for local same-name street-chain expansion. |
 | `StreetModeController.SplitTargetScan` | `StreetModeController.java` | Yes | Scan result describing whether a temporary split line targets exactly one building. |
-| `StreetNameCollector` | `StreetNameCollector.java` | No | Utility for collecting unique street names from highway ways in the current dataset. |
+| `StreetNameCollector` | `StreetNameCollector.java` | No | Utility for collecting and spatially disambiguating street names from highway ways in the current dataset, and for resolving local same-name street chains from a concrete seed way. |
+| `StreetNameCollector.StreetIndex` | `StreetNameCollector.java` | No | Immutable lookup/index for disambiguated street clusters in the current dataset/view scope. |
+| `StreetOption` | `StreetOption.java` | No | Immutable street descriptor used to separate OSM base street names from UI disambiguation labels. |
 | `StreetSelectionDialog` | `StreetSelectionDialog.java` | No | Main configuration dialog where users pick street/address settings before working in map mode. |
 | `TerraceSplitRequest` | `TerraceSplitRequest.java` | No | Input object for row-house splitting that currently carries the requested part count. |
 | `TerraceSplitResult` | `TerraceSplitResult.java` | No | Result object for row-house split execution with status message and resulting ways. |

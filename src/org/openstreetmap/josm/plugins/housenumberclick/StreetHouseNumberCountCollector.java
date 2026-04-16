@@ -2,12 +2,9 @@ package org.openstreetmap.josm.plugins.housenumberclick;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
 
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
@@ -19,64 +16,77 @@ import org.openstreetmap.josm.data.osm.Way;
  */
 final class StreetHouseNumberCountCollector {
 
-    List<StreetHouseNumberCountRow> collectRows(DataSet dataSet) {
+    List<StreetHouseNumberCountRow> collectRows(DataSet dataSet, StreetNameCollector.StreetIndex streetIndex) {
         if (dataSet == null) {
             return new ArrayList<>();
         }
 
-        Map<String, Integer> countsByStreet = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-        Map<String, Set<String>> seenHouseNumbersByStreet = new HashMap<>();
-        Map<String, Boolean> hasDuplicateByStreet = new HashMap<>();
-        Set<String> allStreetNames = new HashSet<>();
+        StreetNameCollector.StreetIndex effectiveStreetIndex = streetIndex != null
+                ? streetIndex
+                : StreetNameCollector.collectStreetIndex(dataSet);
+
+        Map<String, StreetOption> optionByCluster = new HashMap<>();
+        Map<String, Integer> countsByCluster = new HashMap<>();
+        Map<String, Map<String, Integer>> exactAddressCountsByCluster = new HashMap<>();
+        Map<String, Boolean> hasDuplicateByCluster = new HashMap<>();
+
+        for (StreetOption option : effectiveStreetIndex.getStreetOptions()) {
+            if (option == null || !option.isValid()) {
+                continue;
+            }
+            optionByCluster.put(option.getClusterId(), option);
+            countsByCluster.putIfAbsent(option.getClusterId(), 0);
+            hasDuplicateByCluster.putIfAbsent(option.getClusterId(), false);
+        }
 
         for (Way way : dataSet.getWays()) {
-            collectStreetName(way, allStreetNames);
-            collectPrimitive(way, countsByStreet, seenHouseNumbersByStreet, hasDuplicateByStreet);
+            collectPrimitive(way, effectiveStreetIndex, countsByCluster, exactAddressCountsByCluster, hasDuplicateByCluster);
         }
         for (Relation relation : dataSet.getRelations()) {
-            collectPrimitive(relation, countsByStreet, seenHouseNumbersByStreet, hasDuplicateByStreet);
-        }
-
-        // Ensure streets without addressed buildings are visible in the table as count 0.
-        for (String streetName : allStreetNames) {
-            countsByStreet.putIfAbsent(streetName, 0);
+            collectPrimitive(relation, effectiveStreetIndex, countsByCluster, exactAddressCountsByCluster, hasDuplicateByCluster);
         }
 
         List<StreetHouseNumberCountRow> rows = new ArrayList<>();
-        for (Map.Entry<String, Integer> entry : countsByStreet.entrySet()) {
+        for (StreetOption option : effectiveStreetIndex.getStreetOptions()) {
+            if (option == null || !option.isValid()) {
+                continue;
+            }
+            String clusterId = option.getClusterId();
             rows.add(new StreetHouseNumberCountRow(
-                    entry.getKey(),
-                    entry.getValue(),
-                    Boolean.TRUE.equals(hasDuplicateByStreet.get(entry.getKey()))
+                    option,
+                    countsByCluster.getOrDefault(clusterId, 0),
+                    Boolean.TRUE.equals(hasDuplicateByCluster.get(clusterId))
             ));
         }
         return rows;
     }
 
-    private void collectPrimitive(OsmPrimitive primitive, Map<String, Integer> countsByStreet,
-            Map<String, Set<String>> seenHouseNumbersByStreet, Map<String, Boolean> hasDuplicateByStreet) {
+    private void collectPrimitive(OsmPrimitive primitive, StreetNameCollector.StreetIndex streetIndex,
+            Map<String, Integer> countsByCluster, Map<String, Map<String, Integer>> exactAddressCountsByCluster,
+            Map<String, Boolean> hasDuplicateByCluster) {
         // Count view uses the same addressed-building filter as overlay/overview collectors.
         if (!AddressedBuildingMatcher.isAddressedBuilding(primitive)) {
             return;
         }
 
-        String street = normalize(primitive.get("addr:street"));
-        String houseNumberKey = normalizeHouseNumberKey(primitive.get("addr:housenumber"));
-        countsByStreet.put(street, countsByStreet.getOrDefault(street, 0) + 1);
-
-        Set<String> seenHouseNumbers = seenHouseNumbersByStreet.computeIfAbsent(street, key -> new HashSet<>());
-        if (!seenHouseNumbers.add(houseNumberKey)) {
-            hasDuplicateByStreet.put(street, true);
-        }
-    }
-
-    private void collectStreetName(Way way, Set<String> allStreetNames) {
-        if (way == null || !way.isUsable() || !way.hasTag("highway")) {
+        StreetOption option = streetIndex.resolveForAddressPrimitive(primitive);
+        if (option == null || !option.isValid()) {
             return;
         }
-        String street = normalize(way.get("name"));
-        if (!street.isEmpty()) {
-            allStreetNames.add(street);
+
+        String clusterId = option.getClusterId();
+        countsByCluster.put(clusterId, countsByCluster.getOrDefault(clusterId, 0) + 1);
+
+        String fullAddressKey = normalizeFullAddressKey(primitive);
+        if (fullAddressKey.isEmpty()) {
+            return;
+        }
+
+        Map<String, Integer> exactAddressCounts = exactAddressCountsByCluster.computeIfAbsent(clusterId, key -> new HashMap<>());
+        int updatedCount = exactAddressCounts.getOrDefault(fullAddressKey, 0) + 1;
+        exactAddressCounts.put(fullAddressKey, updatedCount);
+        if (updatedCount > 1) {
+            hasDuplicateByCluster.put(clusterId, true);
         }
     }
 
@@ -84,7 +94,15 @@ final class StreetHouseNumberCountCollector {
         return value == null ? "" : value.trim();
     }
 
-    private String normalizeHouseNumberKey(String value) {
-        return normalize(value).toLowerCase(Locale.ROOT);
+    private String normalizeFullAddressKey(OsmPrimitive primitive) {
+        String street = normalize(primitive.get("addr:street"));
+        String postcode = normalize(primitive.get("addr:postcode"));
+        String houseNumber = normalize(primitive.get("addr:housenumber"));
+        if (street.isEmpty() || postcode.isEmpty() || houseNumber.isEmpty()) {
+            return "";
+        }
+        return street.toLowerCase(Locale.ROOT)
+                + "|" + postcode.toLowerCase(Locale.ROOT)
+                + "|" + houseNumber.toLowerCase(Locale.ROOT);
     }
 }

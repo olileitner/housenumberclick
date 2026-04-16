@@ -9,15 +9,19 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 final class HouseNumberOverlayEntry {
 
     private final OsmPrimitive primitive;
+    private final String street;
+    private final String postcode;
     private final String houseNumber;
     private final int numberPart;
     private final String suffixPart;
     private final EastNorth labelPoint;
     private final int stableIndex;
 
-    HouseNumberOverlayEntry(OsmPrimitive primitive, String houseNumber, int numberPart, String suffixPart,
+    HouseNumberOverlayEntry(OsmPrimitive primitive, String street, String postcode, String houseNumber, int numberPart, String suffixPart,
             EastNorth labelPoint, int stableIndex) {
         this.primitive = primitive;
+        this.street = street;
+        this.postcode = postcode;
         this.houseNumber = houseNumber;
         this.numberPart = numberPart;
         this.suffixPart = suffixPart;
@@ -27,6 +31,14 @@ final class HouseNumberOverlayEntry {
 
     OsmPrimitive getPrimitive() {
         return primitive;
+    }
+
+    String getStreet() {
+        return street;
+    }
+
+    String getPostcode() {
+        return postcode;
     }
 
     String getHouseNumber() {

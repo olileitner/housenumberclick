@@ -21,25 +21,35 @@ import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.data.projection.Projection;
 import org.openstreetmap.josm.data.projection.ProjectionRegistry;
 import org.openstreetmap.josm.tools.Geometry;
+import org.openstreetmap.josm.tools.Logging;
 
 /**
- * Collects and normalizes addressable building entries for street-specific house-number overlays.
+ * Collects and normalizes addressed buildings near the locally resolved selected street segment.
  */
 final class HouseNumberOverlayCollector {
 
     private static final Pattern HOUSE_NUMBER_PATTERN = Pattern.compile("^\\s*(\\d+)\\s*([^\\d].*)?$");
+    private static final double MAX_BUILDING_DISTANCE_TO_SELECTED_STREET_METERS = 120.0;
+    private static final String LOG_PREFIX = "HouseNumberClick overlay diagnostics";
 
-    List<HouseNumberOverlayEntry> collect(DataSet dataSet, String selectedStreet) {
-        String normalizedStreet = normalize(selectedStreet);
-        if (dataSet == null || normalizedStreet.isEmpty()) {
+    List<HouseNumberOverlayEntry> collect(DataSet dataSet, StreetOption selectedStreet,
+            StreetNameCollector.StreetIndex streetIndex, Way seedWayHint) {
+        if (dataSet == null || selectedStreet == null || !selectedStreet.isValid()) {
             return new ArrayList<>();
         }
 
+        StreetNameCollector.StreetIndex effectiveStreetIndex = streetIndex != null
+                ? streetIndex
+                : StreetNameCollector.collectStreetIndex(dataSet);
+        List<Way> selectedStreetWays = effectiveStreetIndex.getLocalStreetChainWays(selectedStreet, seedWayHint);
+
         List<HouseNumberOverlayEntry> entries = new ArrayList<>();
+        CollectionStats stats = new CollectionStats();
+        stats.selectedStreetWays = selectedStreetWays.size();
         int stableIndex = 0;
 
         for (Way way : dataSet.getWays()) {
-            HouseNumberOverlayEntry entry = buildEntry(way, normalizedStreet, stableIndex);
+            HouseNumberOverlayEntry entry = buildEntry(way, selectedStreet, selectedStreetWays, stableIndex, stats);
             if (entry != null) {
                 entries.add(entry);
                 stableIndex++;
@@ -47,7 +57,7 @@ final class HouseNumberOverlayCollector {
         }
 
         for (Relation relation : dataSet.getRelations()) {
-            HouseNumberOverlayEntry entry = buildEntry(relation, normalizedStreet, stableIndex);
+            HouseNumberOverlayEntry entry = buildEntry(relation, selectedStreet, selectedStreetWays, stableIndex, stats);
             if (entry != null) {
                 entries.add(entry);
                 stableIndex++;
@@ -55,6 +65,7 @@ final class HouseNumberOverlayCollector {
         }
 
         entries.sort(createComparator());
+        logCollectionResult(selectedStreet, stats, entries.size());
         return entries;
     }
 
@@ -66,27 +77,109 @@ final class HouseNumberOverlayCollector {
                 .thenComparingInt(HouseNumberOverlayEntry::getStableIndex);
     }
 
-    private HouseNumberOverlayEntry buildEntry(OsmPrimitive primitive, String selectedStreet, int stableIndex) {
-        // Address/building eligibility is centralized to keep collector behavior aligned.
-        if (!AddressedBuildingMatcher.isAddressedBuildingForStreet(primitive, selectedStreet)) {
+    private HouseNumberOverlayEntry buildEntry(OsmPrimitive primitive, StreetOption selectedStreet,
+            List<Way> selectedStreetWays, int stableIndex, CollectionStats stats) {
+        stats.scannedPrimitives++;
+        if (!AddressedBuildingMatcher.isAddressedBuildingForStreet(primitive, selectedStreet.getBaseStreetName())) {
+            stats.rejectedNotAddressedForStreet++;
             return null;
         }
 
         EastNorth labelPoint = resolveLabelPoint(primitive);
         if (labelPoint == null) {
+            stats.rejectedMissingLabelPoint++;
+            return null;
+        }
+        if (!isNearSelectedStreet(labelPoint, selectedStreetWays)) {
+            stats.rejectedByDistance++;
             return null;
         }
 
+        String street = normalize(primitive.get("addr:street"));
+        String postcode = normalize(primitive.get("addr:postcode"));
+        if (postcode.isEmpty()) {
+            stats.acceptedMissingPostcode++;
+        }
         String houseNumber = normalize(primitive.get("addr:housenumber"));
         ParsedHouseNumber parsedHouseNumber = parseHouseNumber(houseNumber);
         return new HouseNumberOverlayEntry(
                 primitive,
+                street,
+                postcode,
                 houseNumber,
                 parsedHouseNumber.numberPart,
                 parsedHouseNumber.suffixPart,
                 labelPoint,
                 stableIndex
         );
+    }
+
+    private boolean isNearSelectedStreet(EastNorth labelPoint, List<Way> streetWays) {
+        if (labelPoint == null || streetWays == null || streetWays.isEmpty()) {
+            return false;
+        }
+        double limitSquared = MAX_BUILDING_DISTANCE_TO_SELECTED_STREET_METERS * MAX_BUILDING_DISTANCE_TO_SELECTED_STREET_METERS;
+        double bestSquared = Double.POSITIVE_INFINITY;
+        for (Way way : streetWays) {
+            if (way == null || !way.isUsable()) {
+                continue;
+            }
+            List<Node> nodes = way.getNodes();
+            for (int i = 1; i < nodes.size(); i++) {
+                Node first = nodes.get(i - 1);
+                Node second = nodes.get(i);
+                if (first == null || second == null || first.getEastNorth() == null || second.getEastNorth() == null) {
+                    continue;
+                }
+                double distanceSquared = distanceSquaredToSegment(labelPoint, first.getEastNorth(), second.getEastNorth());
+                if (distanceSquared < bestSquared) {
+                    bestSquared = distanceSquared;
+                    if (bestSquared <= limitSquared) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return bestSquared <= limitSquared;
+    }
+
+    private double distanceSquaredToSegment(EastNorth point, EastNorth segmentStart, EastNorth segmentEnd) {
+        double px = point.east();
+        double py = point.north();
+        double ax = segmentStart.east();
+        double ay = segmentStart.north();
+        double bx = segmentEnd.east();
+        double by = segmentEnd.north();
+        double dx = bx - ax;
+        double dy = by - ay;
+        double lengthSquared = (dx * dx) + (dy * dy);
+        if (lengthSquared <= 0.0) {
+            double ex = px - ax;
+            double ey = py - ay;
+            return (ex * ex) + (ey * ey);
+        }
+        double t = ((px - ax) * dx + (py - ay) * dy) / lengthSquared;
+        t = Math.max(0.0, Math.min(1.0, t));
+        double projectionX = ax + (t * dx);
+        double projectionY = ay + (t * dy);
+        double ex = px - projectionX;
+        double ey = py - projectionY;
+        return (ex * ex) + (ey * ey);
+    }
+
+    private void logCollectionResult(StreetOption selectedStreet, CollectionStats stats, int collected) {
+        if (selectedStreet == null) {
+            return;
+        }
+        Logging.debug(LOG_PREFIX + ": collect result base='" + normalize(selectedStreet.getBaseStreetName())
+                + "', display='" + normalize(selectedStreet.getDisplayStreetName())
+                + "', cluster='" + normalize(selectedStreet.getClusterId()) + "', scanned=" + stats.scannedPrimitives
+                + ", selectedStreetWays=" + stats.selectedStreetWays
+                + ", collected=" + collected
+                + ", rejectedNotAddressedForStreet=" + stats.rejectedNotAddressedForStreet
+                + ", rejectedByDistance=" + stats.rejectedByDistance
+                + ", rejectedMissingLabelPoint=" + stats.rejectedMissingLabelPoint
+                + ", acceptedMissingPostcode=" + stats.acceptedMissingPostcode + ".");
     }
 
 
@@ -232,5 +325,17 @@ final class HouseNumberOverlayCollector {
             this.numberPart = numberPart;
             this.suffixPart = suffixPart;
         }
+    }
+
+    /**
+     * Aggregated rejection counters used for overlay collection diagnostics.
+     */
+    private static final class CollectionStats {
+        private int selectedStreetWays;
+        private int scannedPrimitives;
+        private int rejectedNotAddressedForStreet;
+        private int rejectedByDistance;
+        private int rejectedMissingLabelPoint;
+        private int acceptedMissingPostcode;
     }
 }

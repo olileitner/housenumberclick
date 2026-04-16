@@ -42,7 +42,7 @@ final class StreetHouseNumberCountDialog {
     private final TableRowSorter<DefaultTableModel> tableRowSorter;
     private final JTable table;
     private final List<StreetHouseNumberCountRow> currentRows = new ArrayList<>();
-    private final Consumer<String> streetClickListener;
+    private final Consumer<StreetOption> streetClickListener;
     private final Runnable rescanListener;
     private boolean positionInitializedForSession;
 
@@ -58,25 +58,25 @@ final class StreetHouseNumberCountDialog {
             }
         }
         sortedRows.sort(Comparator
-                .comparing((StreetHouseNumberCountRow row) -> normalizeStreetName(row.getStreetName()), String.CASE_INSENSITIVE_ORDER)
-                .thenComparing(row -> normalizeStreetName(row.getStreetName()), Comparator.naturalOrder())
+                .comparing((StreetHouseNumberCountRow row) -> normalizeStreetName(row.getDisplayStreetName()), String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(row -> normalizeStreetName(row.getDisplayStreetName()), Comparator.naturalOrder())
                 .thenComparing(Comparator.comparingInt(StreetHouseNumberCountRow::getCount).reversed()));
         return sortedRows;
     }
 
-    static List<String> buildStreetNavigationOrder(List<StreetHouseNumberCountRow> rows) {
+    static List<StreetOption> buildStreetNavigationOrder(List<StreetHouseNumberCountRow> rows) {
         List<StreetHouseNumberCountRow> sortedRows = sortRowsForDisplay(rows);
-        List<String> orderedStreetNames = new ArrayList<>(sortedRows.size());
+        List<StreetOption> orderedStreetOptions = new ArrayList<>(sortedRows.size());
         for (StreetHouseNumberCountRow row : sortedRows) {
-            String streetName = normalizeStreetName(row.getStreetName());
-            if (!streetName.isEmpty()) {
-                orderedStreetNames.add(streetName);
+            StreetOption option = row.getStreetOption();
+            if (option != null && option.isValid()) {
+                orderedStreetOptions.add(option);
             }
         }
-        return orderedStreetNames;
+        return orderedStreetOptions;
     }
 
-    StreetHouseNumberCountDialog(Consumer<String> streetClickListener, Runnable rescanListener) {
+    StreetHouseNumberCountDialog(Consumer<StreetOption> streetClickListener, Runnable rescanListener) {
         this.streetClickListener = streetClickListener;
         this.rescanListener = rescanListener;
 
@@ -157,7 +157,7 @@ final class StreetHouseNumberCountDialog {
         tableModel.setRowCount(0);
         for (StreetHouseNumberCountRow row : sortRowsForDisplay(rows)) {
             currentRows.add(row);
-            tableModel.addRow(new Object[] {row.getStreetName(), row.getCount()});
+            tableModel.addRow(new Object[] {row.getDisplayStreetName(), row.getCount()});
         }
 
         tableRowSorter.setSortKeys(Arrays.asList(
@@ -167,19 +167,28 @@ final class StreetHouseNumberCountDialog {
         tableRowSorter.sort();
     }
 
-    void highlightStreet(String streetName) {
-        String normalizedStreet = normalizeStreetName(streetName);
-        if (normalizedStreet.isEmpty() || currentRows.isEmpty()) {
+    void highlightStreet(StreetOption streetOption) {
+        if (streetOption == null || currentRows.isEmpty()) {
             table.clearSelection();
             return;
         }
+
+        String selectedClusterId = normalizeStreetName(streetOption.getClusterId());
+        String selectedDisplayStreet = normalizeStreetName(streetOption.getDisplayStreetName());
 
         for (int modelRow = 0; modelRow < currentRows.size(); modelRow++) {
             StreetHouseNumberCountRow row = currentRows.get(modelRow);
             if (row == null) {
                 continue;
             }
-            if (!normalizeStreetName(row.getStreetName()).equalsIgnoreCase(normalizedStreet)) {
+            StreetOption rowOption = row.getStreetOption();
+            if (rowOption == null) {
+                continue;
+            }
+            boolean sameCluster = !selectedClusterId.isEmpty()
+                    && normalizeStreetName(rowOption.getClusterId()).equalsIgnoreCase(selectedClusterId);
+            boolean sameDisplay = normalizeStreetName(rowOption.getDisplayStreetName()).equalsIgnoreCase(selectedDisplayStreet);
+            if (!sameCluster && !sameDisplay) {
                 continue;
             }
 
@@ -248,11 +257,11 @@ final class StreetHouseNumberCountDialog {
             return;
         }
 
-        String streetName = countRow.getStreetName();
-        if (streetName == null || streetName.isBlank()) {
+        StreetOption streetOption = countRow.getStreetOption();
+        if (streetOption == null || !streetOption.isValid()) {
             return;
         }
-        streetClickListener.accept(streetName);
+        streetClickListener.accept(streetOption);
         focusMapView();
     }
 

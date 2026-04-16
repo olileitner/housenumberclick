@@ -82,6 +82,8 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Split cursor hotspot keeps scalp tip shifted left", HouseNumberClickRiskRegressionTests::testSplitCursorHotspotShiftedLeft);
             run("Split map mode is line-split only", HouseNumberClickRiskRegressionTests::testSplitMapModeIsLineSplitOnly);
             run("Reference cache is invalidated on data source changes", HouseNumberClickRiskRegressionTests::testReferenceCacheInvalidationOnDataSourceChange);
+
+           run("Street selection is re-resolved against current street index", HouseNumberClickRiskRegressionTests::testStreetSelectionReResolutionOrder);
             run("Undo queue changes trigger visual rescan refresh", HouseNumberClickRiskRegressionTests::testUndoQueueChangesTriggerVisualRescanRefresh);
             run("Rectangularize option is propagated to temporary line split mode", HouseNumberClickRiskRegressionTests::testRectangularizePreferencePropagation);
             run("Rectangularize skips triangle split results", HouseNumberClickRiskRegressionTests::testRectangularizeCandidateGuard);
@@ -333,31 +335,38 @@ public final class HouseNumberClickRiskRegressionTests {
 
     private static void testOverviewDuplicateMarkerIgnoresMixedVariants() {
         DataSet dataSet = new DataSet();
+        dataSet.addPrimitiveRecursive(createOpenStreetWay("Example Street", true));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "1"));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "1a"));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "1b"));
 
         HouseNumberOverviewCollector collector = new HouseNumberOverviewCollector();
-        List<HouseNumberOverviewRow> rows = collector.collectRows(dataSet, "Example Street");
+        StreetNameCollector.StreetIndex streetIndex = StreetNameCollector.collectStreetIndex(dataSet);
+        StreetOption selectedStreet = resolveStreetOptionForBaseName(streetIndex, "Example Street");
+        List<HouseNumberOverviewRow> rows = collector.collectRows(dataSet, selectedStreet, streetIndex);
         String oddValue = firstNonEmptyOddValue(rows);
         assertEquals("1", oddValue, "mixed variants without exact duplicates should show only the base number");
     }
 
     private static void testOverviewDuplicateMarkerTracksExactRepeats() {
         DataSet dataSet = new DataSet();
+        dataSet.addPrimitiveRecursive(createOpenStreetWay("Example Street", true));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "1"));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "1"));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "1a"));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "1a"));
 
         HouseNumberOverviewCollector collector = new HouseNumberOverviewCollector();
-        List<HouseNumberOverviewRow> rows = collector.collectRows(dataSet, "Example Street");
+        StreetNameCollector.StreetIndex streetIndex = StreetNameCollector.collectStreetIndex(dataSet);
+        StreetOption selectedStreet = resolveStreetOptionForBaseName(streetIndex, "Example Street");
+        List<HouseNumberOverviewRow> rows = collector.collectRows(dataSet, selectedStreet, streetIndex);
         String oddValue = firstNonEmptyOddValue(rows);
         assertEquals("1 (dup)", oddValue, "exact duplicate values should show compact duplicate marker");
     }
 
     private static void testOverviewDuplicateRowCarriesGroupedPrimitives() {
         DataSet dataSet = new DataSet();
+        dataSet.addPrimitiveRecursive(createOpenStreetWay("Example Street", true));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "2"));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "2"));
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "2a"));
@@ -365,7 +374,9 @@ public final class HouseNumberClickRiskRegressionTests {
         dataSet.addPrimitiveRecursive(createClosedBuilding("Example Street", "2b"));
 
         HouseNumberOverviewCollector collector = new HouseNumberOverviewCollector();
-        List<HouseNumberOverviewRow> rows = collector.collectRows(dataSet, "Example Street");
+        StreetNameCollector.StreetIndex streetIndex = StreetNameCollector.collectStreetIndex(dataSet);
+        StreetOption selectedStreet = resolveStreetOptionForBaseName(streetIndex, "Example Street");
+        List<HouseNumberOverviewRow> rows = collector.collectRows(dataSet, selectedStreet, streetIndex);
         HouseNumberOverviewRow row = firstRowWithOddValuePrefix(rows, "2");
         assertTrue(row != null, "expected overview row for base number 2");
         assertTrue(row.isEvenDuplicate(), "even row for base 2 should be marked as duplicate");
@@ -444,6 +455,14 @@ public final class HouseNumberClickRiskRegressionTests {
             }
         }
         return null;
+    }
+
+    private static StreetOption resolveStreetOptionForBaseName(StreetNameCollector.StreetIndex streetIndex, String baseStreetName) {
+        StreetOption selectedStreet = streetIndex == null ? null : streetIndex.resolveForBaseStreetAndPrimitive(baseStreetName, null);
+        if (selectedStreet == null) {
+            throw new AssertionError("expected StreetOption for base street: " + baseStreetName);
+        }
+        return selectedStreet;
     }
 
     private static void testDataSetChangeDetection() {
@@ -649,6 +668,31 @@ public final class HouseNumberClickRiskRegressionTests {
                 "in-progress reference loads should be reset on data source changes");
     }
 
+    private static void testStreetSelectionReResolutionOrder() throws Exception {
+        String source = readPluginSource("StreetModeController.java");
+        int resolveStart = source.indexOf("private StreetOption resolveCurrentStreetOption(DataSet dataSet, StreetNameCollector.StreetIndex streetIndex)");
+        assertTrue(resolveStart >= 0, "controller should provide street re-resolution against current street index");
+        int resolveEnd = source.indexOf("private StreetOption resolveStreetOptionFromUiValue", resolveStart);
+        assertTrue(resolveEnd > resolveStart, "re-resolution method should end before UI string adapter");
+        String resolveBody = source.substring(resolveStart, resolveEnd);
+
+        int clusterMatch = resolveBody.indexOf("findByClusterId");
+        int displayMatch = resolveBody.indexOf("findByDisplayStreetName");
+        int baseMatch = resolveBody.indexOf("resolveForBaseStreetAndPrimitive");
+        assertTrue(clusterMatch >= 0 && displayMatch > clusterMatch && baseMatch > displayMatch,
+                "street re-resolution should follow cluster -> display -> base fallback order");
+        assertTrue(resolveBody.contains("navigationService.setCurrentStreetOption(resolvedOption)"),
+                "successful re-resolution should refresh stored navigation selection");
+
+        int zoomCurrentStart = source.indexOf("void zoomToCurrentStreet() {");
+        int zoomCurrentEnd = source.indexOf("void zoomToStreet(StreetOption streetOption)", zoomCurrentStart);
+        assertTrue(zoomCurrentStart >= 0 && zoomCurrentEnd > zoomCurrentStart,
+                "zoomToCurrentStreet should exist before StreetOption zoom overload");
+        String zoomCurrentBody = source.substring(zoomCurrentStart, zoomCurrentEnd);
+        assertFalse(zoomCurrentBody.contains("navigationService.getCurrentStreetOption()"),
+                "zoomToCurrentStreet must not directly use possibly stale stored StreetOption");
+    }
+
     private static void testUndoQueueChangesTriggerVisualRescanRefresh() throws Exception {
         String source = readPluginSource("StreetModeController.java");
         assertTrue(source.contains("addCommandQueueListener(commandQueueListener)"),
@@ -843,12 +887,12 @@ public final class HouseNumberClickRiskRegressionTests {
                 new StreetHouseNumberCountRow("  Charlie Street  ", 7, false)
         );
 
-        List<String> ordered = StreetHouseNumberCountDialog.buildStreetNavigationOrder(rows);
+        List<StreetOption> ordered = StreetHouseNumberCountDialog.buildStreetNavigationOrder(rows);
         assertEquals(4, ordered.size(), "all rows should be included in navigation order");
-        assertEquals("alpha street", ordered.get(0), "street list should start alphabetically");
-        assertEquals("Bravo Street", ordered.get(1), "street names should remain alphabetic regardless of count");
-        assertEquals("Charlie Street", ordered.get(2), "street names should be trimmed for navigation order");
-        assertEquals("Zulu Street", ordered.get(3), "highest counts should not override alphabetical order");
+        assertEquals("alpha street", ordered.get(0).getDisplayStreetName(), "street list should start alphabetically");
+        assertEquals("Bravo Street", ordered.get(1).getDisplayStreetName(), "street names should remain alphabetic regardless of count");
+        assertEquals("Charlie Street", ordered.get(2).getDisplayStreetName(), "street names should be trimmed for navigation order");
+        assertEquals("Zulu Street", ordered.get(3).getDisplayStreetName(), "highest counts should not override alphabetical order");
     }
 
     private static void testStreetZoomFallbackWayMatching() {

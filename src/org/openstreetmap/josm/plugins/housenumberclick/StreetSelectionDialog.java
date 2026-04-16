@@ -13,6 +13,7 @@ import java.awt.KeyboardFocusManager;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -80,6 +81,7 @@ final class StreetSelectionDialog {
     private final JButton rowHousePartsPlusButton;
     private final JTextField rowHousePartsField;
     private int houseNumberIncrementStep = 1;
+    private List<StreetOption> currentStreetOptions = List.of();
     private String lastSelectedStreet;
     private String rememberedStreet;
     private String rememberedPostcode;
@@ -365,8 +367,8 @@ final class StreetSelectionDialog {
         );
     }
 
-    void showDialog(DataSet activeDataSet, List<String> streetNames, List<String> detectedPostcodes) {
-        if (streetNames == null || streetNames.isEmpty()) {
+    void showDialog(DataSet activeDataSet, List<StreetOption> streetOptions, List<String> detectedPostcodes) {
+        if (streetOptions == null || streetOptions.isEmpty()) {
             JOptionPane.showMessageDialog(
                     MainApplication.getMainFrame(),
                     I18n.tr("No street names found in the current view."),
@@ -383,10 +385,15 @@ final class StreetSelectionDialog {
 
         String previousStreet = null;
         updatingInputs = true;
+        currentStreetOptions = new ArrayList<>();
 
         streetCombo.removeAllItems();
-        for (String streetName : streetNames) {
-            streetCombo.addItem(streetName);
+        for (StreetOption option : streetOptions) {
+            if (option == null || !option.isValid()) {
+                continue;
+            }
+            currentStreetOptions.add(option);
+            streetCombo.addItem(option.getDisplayStreetName());
         }
 
         if (previousStreet != null && !normalize(previousStreet).isEmpty()) {
@@ -721,6 +728,15 @@ final class StreetSelectionDialog {
     private void setStreetSelection(String streetName) {
         String normalizedStreet = streetName == null ? "" : streetName.trim();
         if (normalizedStreet.isEmpty()) {
+            return;
+        }
+
+        StreetOption matchingOption = findStreetOptionByDisplayName(normalizedStreet);
+        if (matchingOption == null) {
+            matchingOption = findFirstStreetOptionByBaseName(normalizedStreet);
+        }
+        if (matchingOption != null) {
+            streetCombo.setSelectedItem(matchingOption.getDisplayStreetName());
             return;
         }
 
@@ -1270,8 +1286,14 @@ final class StreetSelectionDialog {
     }
 
     private StreetModeController.AddressSelection buildCurrentSelection() {
+        StreetOption selectedOption = getSelectedStreetOption();
+        String baseStreetName = selectedOption != null ? selectedOption.getBaseStreetName() : "";
+        String displayStreetName = selectedOption != null ? selectedOption.getDisplayStreetName() : "";
+        String clusterId = selectedOption != null ? selectedOption.getClusterId() : "";
         return new StreetModeController.AddressSelection(
-                getSelectedStreet(),
+                baseStreetName,
+                displayStreetName,
+                clusterId,
                 getSelectedPostcode(),
                 getSelectedBuildingType(),
                 houseNumberField.getText(),
@@ -1317,6 +1339,37 @@ final class StreetSelectionDialog {
         return selected instanceof String ? normalize((String) selected) : "";
     }
 
+    private StreetOption getSelectedStreetOption() {
+        String selectedDisplayStreet = getSelectedStreet();
+        return findStreetOptionByDisplayName(selectedDisplayStreet);
+    }
+
+    private StreetOption findStreetOptionByDisplayName(String displayStreetName) {
+        String normalizedDisplayStreet = normalize(displayStreetName);
+        if (normalizedDisplayStreet.isEmpty()) {
+            return null;
+        }
+        for (StreetOption option : currentStreetOptions) {
+            if (option != null && normalizedDisplayStreet.equals(option.getDisplayStreetName())) {
+                return option;
+            }
+        }
+        return null;
+    }
+
+    private StreetOption findFirstStreetOptionByBaseName(String baseStreetName) {
+        String normalizedBaseStreet = normalize(baseStreetName);
+        if (normalizedBaseStreet.isEmpty()) {
+            return null;
+        }
+        for (StreetOption option : currentStreetOptions) {
+            if (option != null && normalizedBaseStreet.equals(option.getBaseStreetName())) {
+                return option;
+            }
+        }
+        return null;
+    }
+
     static boolean isDataSetChanged(DataSet rememberedDataSet, DataSet activeDataSet) {
         return rememberedDataSet != activeDataSet;
     }
@@ -1360,11 +1413,11 @@ final class StreetSelectionDialog {
     }
 
     private void navigateStreetByOffset(int offset) {
-        String selectedStreet = getSelectedStreet();
+        StreetOption selectedStreetOption = getSelectedStreetOption();
         if (!canNavigateStreet(offset)) {
             return;
         }
-        if (selectedStreet == null) {
+        if (selectedStreetOption == null) {
             if (offset > 0 && streetCombo != null && streetCombo.getItemCount() > 0) {
                 // With empty initial selection, Next should start at the first street.
                 streetCombo.setSelectedIndex(0);
@@ -1372,9 +1425,9 @@ final class StreetSelectionDialog {
             return;
         }
 
-        String nextStreet = resolveNextStreetByNavigationOrder(selectedStreet, offset);
-        if (nextStreet != null) {
-            setStreetSelection(nextStreet);
+        StreetOption nextStreetOption = resolveNextStreetByNavigationOrder(selectedStreetOption, offset);
+        if (nextStreetOption != null) {
+            setStreetSelection(nextStreetOption.getDisplayStreetName());
             return;
         }
 
@@ -1387,8 +1440,8 @@ final class StreetSelectionDialog {
             return false;
         }
 
-        String selectedStreet = getSelectedStreet();
-        String nextByOrder = resolveNextStreetByNavigationOrder(selectedStreet, offset);
+        StreetOption selectedStreetOption = getSelectedStreetOption();
+        StreetOption nextByOrder = resolveNextStreetByNavigationOrder(selectedStreetOption, offset);
         if (nextByOrder != null) {
             return true;
         }
@@ -1397,12 +1450,12 @@ final class StreetSelectionDialog {
         return nextIndex >= 0 && nextIndex < streetCombo.getItemCount();
     }
 
-    private String resolveNextStreetByNavigationOrder(String selectedStreet, int offset) {
+    private StreetOption resolveNextStreetByNavigationOrder(StreetOption selectedStreet, int offset) {
         if (selectedStreet == null || offset == 0) {
             return null;
         }
 
-        List<String> orderedStreets = streetModeController.getStreetNavigationOrder();
+        List<StreetOption> orderedStreets = streetModeController.getStreetNavigationOrder();
         if (orderedStreets == null || orderedStreets.isEmpty()) {
             return null;
         }

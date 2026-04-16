@@ -20,8 +20,9 @@ final class OverviewManager {
 
     void refreshHouseNumberOverview(
             boolean enabled,
-            String currentStreet,
+            StreetOption currentStreet,
             DataSet editDataSet,
+            StreetNameCollector.StreetIndex streetIndex,
             Runnable continueWorkingCallback
     ) {
         if (!enabled || editDataSet == null) {
@@ -34,19 +35,27 @@ final class OverviewManager {
         }
 
         houseNumberOverviewDialog.updateData(
-                currentStreet,
-                houseNumberOverviewCollector.collectRows(editDataSet, currentStreet),
-                streetCompletenessHeuristic.isStreetPossiblyIncomplete(editDataSet, currentStreet)
+                currentStreet == null ? "" : currentStreet.getDisplayStreetName(),
+                houseNumberOverviewCollector.collectRows(
+                        editDataSet,
+                        currentStreet,
+                        streetIndex
+                ),
+                streetCompletenessHeuristic.isStreetPossiblyIncomplete(
+                        editDataSet,
+                        currentStreet == null ? "" : currentStreet.getBaseStreetName()
+                )
         );
         houseNumberOverviewDialog.showDialog();
     }
 
-    List<String> refreshStreetHouseNumberCounts(
+    List<StreetOption> refreshStreetHouseNumberCounts(
             boolean enabled,
             DataSet editDataSet,
-            Consumer<String> onStreetSelected,
+            StreetNameCollector.StreetIndex streetIndex,
+            Consumer<StreetOption> onStreetSelected,
             Runnable onRescanRequested,
-            String currentStreet
+            StreetOption currentStreet
     ) {
         if (!enabled || editDataSet == null) {
             hideStreetHouseNumberCounts();
@@ -57,8 +66,8 @@ final class OverviewManager {
             streetHouseNumberCountDialog = new StreetHouseNumberCountDialog(onStreetSelected, onRescanRequested);
         }
 
-        List<StreetHouseNumberCountRow> rows = streetHouseNumberCountCollector.collectRows(editDataSet);
-        List<String> streetNavigationOrder = Collections.unmodifiableList(
+        List<StreetHouseNumberCountRow> rows = streetHouseNumberCountCollector.collectRows(editDataSet, streetIndex);
+        List<StreetOption> streetNavigationOrder = Collections.unmodifiableList(
                 StreetHouseNumberCountDialog.buildStreetNavigationOrder(rows));
         streetHouseNumberCountDialog.updateData(rows);
         streetHouseNumberCountDialog.showDialog();
@@ -87,11 +96,11 @@ final class OverviewManager {
         }
     }
 
-    void highlightStreetInStreetCountDialog(String streetName) {
+    void highlightStreetInStreetCountDialog(StreetOption streetOption) {
         if (streetHouseNumberCountDialog == null) {
             return;
         }
-        streetHouseNumberCountDialog.highlightStreet(streetName);
+        streetHouseNumberCountDialog.highlightStreet(streetOption);
     }
 
 }

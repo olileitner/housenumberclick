@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Relation;
@@ -45,6 +46,8 @@ final class ClickHandlerService {
         void notifyBuildingTypeConsumed();
 
         void updateAddressValues(String streetName, String postcode, String buildingType, String houseNumber);
+
+        void rememberStreetInteraction(Way streetWay, LatLon interactionPoint);
     }
 
     /**
@@ -224,6 +227,9 @@ final class ClickHandlerService {
             return clickResult("map-unavailable", BuildingResolver.BuildingResolutionResult.notEvaluated());
         }
 
+        Way clickedStreetWay = resolveStreetWayAtClick(map, e);
+        LatLon clickPoint = resolveClickPoint(map, e);
+
         BuildingResolver.BuildingResolutionResult resolution = buildingResolver.resolveAtClick(map, e);
         OsmPrimitive building = resolution.getBuilding();
         if (building == null) {
@@ -233,6 +239,7 @@ final class ClickHandlerService {
                     buildingType
             );
             if (readback != null) {
+                port.rememberStreetInteraction(clickedStreetWay, clickPoint);
                 String streetPickedHouseNumber = normalize(readback.getHouseNumber());
                 if (streetPickedHouseNumber.isEmpty()) {
                     streetPickedHouseNumber = DEFAULT_STREET_PICKED_HOUSE_NUMBER;
@@ -262,6 +269,10 @@ final class ClickHandlerService {
             port.updateStatusLine(message);
             port.notifyUser(message);
             return clickResult("address-data-missing", resolution);
+        }
+
+        if (readback != null && !normalize(readback.getStreet()).isEmpty()) {
+            port.rememberStreetInteraction(clickedStreetWay, clickPoint);
         }
 
         port.updateAddressValues(
@@ -407,6 +418,33 @@ final class ClickHandlerService {
 
     private boolean isPostcodeSelected(String postcode) {
         return postcode != null && !postcode.trim().isEmpty();
+    }
+
+    private Way resolveStreetWayAtClick(MapFrame map, MouseEvent event) {
+        if (map == null || map.mapView == null || event == null) {
+            return null;
+        }
+        List<OsmPrimitive> nearby = map.mapView.getAllNearest(event.getPoint(), this::isNamedStreetWay);
+        for (OsmPrimitive primitive : nearby) {
+            if (primitive instanceof Way && isNamedStreetWay(primitive)) {
+                return (Way) primitive;
+            }
+        }
+        return null;
+    }
+
+    private boolean isNamedStreetWay(OsmPrimitive primitive) {
+        return primitive instanceof Way
+                && primitive.isUsable()
+                && primitive.hasTag("highway")
+                && !normalize(primitive.get("name")).isEmpty();
+    }
+
+    private LatLon resolveClickPoint(MapFrame map, MouseEvent event) {
+        if (map == null || map.mapView == null || event == null) {
+            return null;
+        }
+        return map.mapView.getLatLon(event.getX(), event.getY());
     }
 
     private String normalize(String value) {

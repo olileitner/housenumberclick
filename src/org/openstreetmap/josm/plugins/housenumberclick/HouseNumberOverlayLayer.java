@@ -9,6 +9,7 @@ import java.awt.Point;
 import java.awt.RenderingHints;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -29,11 +30,14 @@ import org.openstreetmap.josm.gui.dialogs.LayerListDialog;
 import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.ImageProvider;
+import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Renders street-specific house-number highlights and optional connection lines in a dedicated layer.
  */
 final class HouseNumberOverlayLayer extends Layer {
+
+    private static final String LOG_PREFIX = "HouseNumberClick overlay diagnostics";
 
     private static final Font TEXT_FONT = new Font(Font.SANS_SERIF, Font.BOLD, 16);
     private static final Color BUBBLE_FILL_COLOR = new Color(255, 255, 220, 225);
@@ -44,6 +48,8 @@ final class HouseNumberOverlayLayer extends Layer {
     private static final Color EVEN_BUBBLE_BORDER_COLOR = new Color(92, 126, 170, 220);
     private static final Color ODD_LINE_COLOR = new Color(193, 146, 88, 190);
     private static final Color EVEN_LINE_COLOR = new Color(98, 134, 179, 190);
+    private static final Color MISSING_POSTCODE_BUBBLE_FILL_COLOR = new Color(255, 238, 150, 235);
+    private static final Color MISSING_POSTCODE_BUBBLE_BORDER_COLOR = new Color(196, 162, 36, 230);
     private static final Color DUPLICATE_BUBBLE_FILL_COLOR = new Color(255, 175, 175, 235);
     private static final Color DUPLICATE_BUBBLE_BORDER_COLOR = new Color(195, 20, 20, 235);
     private static final Color TEXT_COLOR = new Color(10, 10, 10, 230);
@@ -52,29 +58,40 @@ final class HouseNumberOverlayLayer extends Layer {
     private static final long CACHE_REFRESH_INTERVAL_NANOS = 500_000_000L;
 
     private final HouseNumberOverlayCollector collector;
-    private String selectedStreet = "";
+    private StreetOption selectedStreet;
+    private StreetNameCollector.StreetIndex selectedStreetIndex;
+    private Way selectedSeedWayHint;
     private boolean houseNumberLabelsEnabled;
     private boolean connectionLinesEnabled;
     private boolean separateEvenOddConnectionLinesEnabled;
     private DataSet cachedDataSet;
-    private String cachedStreet = "";
+    private String cachedStreetClusterId = "";
+    private long cachedSeedWayId;
     private List<HouseNumberOverlayEntry> cachedEntries = List.of();
-    private Set<String> cachedDuplicateNumbers = Set.of();
+    private Set<String> cachedDuplicateAddresses = Set.of();
     private long lastCacheRefreshNanos;
     private boolean cacheDirty = true;
+    private String lastPaintDiagnosticKey = "";
+    private String lastHighlightDiagnosticKey = "";
+    private String lastEntryDiagnosticKey = "";
 
     HouseNumberOverlayLayer() {
         super(I18n.tr("House number overlay"));
         this.collector = new HouseNumberOverlayCollector();
     }
 
-    void updateSettings(String selectedStreet, boolean houseNumberLabelsEnabled, boolean connectionLinesEnabled,
+    void updateSettings(StreetOption selectedStreet, StreetNameCollector.StreetIndex selectedStreetIndex,
+            Way seedWayHint,
+            boolean houseNumberLabelsEnabled, boolean connectionLinesEnabled,
             boolean separateEvenOddConnectionLinesEnabled) {
-        String normalizedStreet = normalize(selectedStreet);
-        if (!normalizedStreet.equals(this.selectedStreet)) {
+        String normalizedClusterId = selectedStreet == null ? "" : normalize(selectedStreet.getClusterId());
+        String previousClusterId = this.selectedStreet == null ? "" : normalize(this.selectedStreet.getClusterId());
+        if (!normalizedClusterId.equals(previousClusterId)) {
             cacheDirty = true;
         }
-        this.selectedStreet = normalizedStreet;
+        this.selectedStreet = selectedStreet;
+        this.selectedStreetIndex = selectedStreetIndex;
+        this.selectedSeedWayHint = seedWayHint;
         this.houseNumberLabelsEnabled = houseNumberLabelsEnabled;
         this.connectionLinesEnabled = connectionLinesEnabled;
         this.separateEvenOddConnectionLinesEnabled = connectionLinesEnabled && separateEvenOddConnectionLinesEnabled;
@@ -88,7 +105,9 @@ final class HouseNumberOverlayLayer extends Layer {
 
     @Override
     public void paint(Graphics2D graphics, MapView mapView, Bounds bounds) {
-        if (mapView == null || selectedStreet.isEmpty()) {
+        if (mapView == null || selectedStreet == null || normalize(selectedStreet.getBaseStreetName()).isEmpty()) {
+            logPaintReasonOnce("skip:no-selected-street",
+                    LOG_PREFIX + ": paint skipped -> no selected street (base/display/cluster unavailable).");
             return;
         }
 
@@ -96,8 +115,14 @@ final class HouseNumberOverlayLayer extends Layer {
                 ? MainApplication.getLayerManager().getEditDataSet()
                 : null;
         if (dataSet == null) {
+            logPaintReasonOnce("skip:no-dataset", LOG_PREFIX + ": paint skipped -> no active dataset.");
             return;
         }
+
+        logPaintReasonOnce("paint:active:" + normalize(selectedStreet.getClusterId()),
+                LOG_PREFIX + ": paint active for base='" + normalize(selectedStreet.getBaseStreetName())
+                        + "', display='" + normalize(selectedStreet.getDisplayStreetName())
+                        + "', cluster='" + normalize(selectedStreet.getClusterId()) + "'.");
 
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -114,14 +139,21 @@ final class HouseNumberOverlayLayer extends Layer {
         refreshCacheIfNeeded(dataSet);
         List<HouseNumberOverlayEntry> entries = cachedEntries;
         if (entries.isEmpty()) {
+            logEntryReasonOnce("entries:empty:" + normalize(selectedStreet.getClusterId()),
+                    LOG_PREFIX + ": no house-number entries to draw for cluster='"
+                            + normalize(selectedStreet.getClusterId()) + "'.");
             g.dispose();
             return;
         }
 
+        logEntryReasonOnce("entries:draw:" + normalize(selectedStreet.getClusterId()) + ":" + entries.size(),
+                LOG_PREFIX + ": drawing " + entries.size() + " house-number entries for cluster='"
+                        + normalize(selectedStreet.getClusterId()) + "'.");
+
         if (connectionLinesEnabled && entries.size() > 1) {
             drawConnectionLines(g, mapView, entries);
         }
-        drawBubblesAndLabels(g, mapView, entries, cachedDuplicateNumbers);
+        drawBubblesAndLabels(g, mapView, entries, cachedDuplicateAddresses);
         g.dispose();
     }
 
@@ -129,17 +161,22 @@ final class HouseNumberOverlayLayer extends Layer {
         long now = System.nanoTime();
         boolean needsRefresh = cacheDirty
                 || dataSet != cachedDataSet
-                || !normalize(selectedStreet).equals(cachedStreet)
+                || !normalize(selectedStreet.getClusterId()).equals(cachedStreetClusterId)
+                || resolveSeedWayUniqueId(selectedSeedWayHint) != cachedSeedWayId
                 || now - lastCacheRefreshNanos >= CACHE_REFRESH_INTERVAL_NANOS;
         if (!needsRefresh) {
             return;
         }
 
-        List<HouseNumberOverlayEntry> entries = collector.collect(dataSet, selectedStreet);
+        StreetNameCollector.StreetIndex effectiveStreetIndex = selectedStreetIndex != null
+                ? selectedStreetIndex
+                : StreetNameCollector.collectStreetIndex(dataSet);
+        List<HouseNumberOverlayEntry> entries = collector.collect(dataSet, selectedStreet, effectiveStreetIndex, selectedSeedWayHint);
         cachedEntries = Collections.unmodifiableList(entries);
-        cachedDuplicateNumbers = Collections.unmodifiableSet(collectDuplicateHouseNumbers(entries));
+        cachedDuplicateAddresses = Collections.unmodifiableSet(collectDuplicateAddressKeys(entries));
         cachedDataSet = dataSet;
-        cachedStreet = normalize(selectedStreet);
+        cachedStreetClusterId = normalize(selectedStreet.getClusterId());
+        cachedSeedWayId = resolveSeedWayUniqueId(selectedSeedWayHint);
         lastCacheRefreshNanos = now;
         cacheDirty = false;
     }
@@ -148,21 +185,47 @@ final class HouseNumberOverlayLayer extends Layer {
         if (g == null || mapView == null || dataSet == null) {
             return;
         }
+        StreetNameCollector.StreetIndex streetIndex = selectedStreetIndex != null
+                ? selectedStreetIndex
+                : StreetNameCollector.collectStreetIndex(dataSet);
+        List<Way> highlightedStreetWays = streetIndex.getLocalStreetChainWays(selectedStreet, selectedSeedWayHint);
+        Set<Way> highlightedStreetWaySet = new LinkedHashSet<>(highlightedStreetWays);
         g.setColor(STREET_HIGHLIGHT_COLOR);
         g.setStroke(new BasicStroke(STREET_HIGHLIGHT_WIDTH, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        int sameBaseHighwayWays = 0;
+        int highlightedWays = 0;
         for (Way way : dataSet.getWays()) {
-            if (!isSelectedStreetWay(way)) {
+            if (way == null || !way.isUsable() || !way.hasKey("highway")) {
                 continue;
             }
+            if (!normalize(way.get("name")).equalsIgnoreCase(selectedStreet.getBaseStreetName())) {
+                continue;
+            }
+            sameBaseHighwayWays++;
+            if (!highlightedStreetWaySet.contains(way)) {
+                continue;
+            }
+            highlightedWays++;
             drawWayHighlight(g, mapView, way);
         }
-    }
 
-    private boolean isSelectedStreetWay(Way way) {
-        if (way == null || !way.isUsable() || !way.hasKey("highway")) {
-            return false;
+        String selectedCluster = normalize(selectedStreet.getClusterId());
+        if (sameBaseHighwayWays == 0) {
+            logHighlightReasonOnce("highlight:none-base:" + selectedCluster,
+                    LOG_PREFIX + ": highlight skipped -> no highway ways found for base='"
+                            + normalize(selectedStreet.getBaseStreetName()) + "'.");
+            return;
         }
-        return normalize(way.get("name")).equalsIgnoreCase(selectedStreet);
+        if (highlightedWays == 0) {
+            logHighlightReasonOnce("highlight:none-local-chain:" + selectedCluster + ":" + sameBaseHighwayWays,
+                    LOG_PREFIX + ": highlight skipped -> base ways found=" + sameBaseHighwayWays
+                            + ", but 0 matched local street chain for selected cluster='" + selectedCluster + "'.");
+            return;
+        }
+        logHighlightReasonOnce("highlight:ok:" + selectedCluster + ":" + highlightedWays,
+                LOG_PREFIX + ": highlighted " + highlightedWays + " way(s) for selected cluster='"
+                        + selectedCluster + "' (base matches=" + sameBaseHighwayWays
+                        + ", localChainWays=" + highlightedStreetWays.size() + ").");
     }
 
     private void drawWayHighlight(Graphics2D g, MapView mapView, Way way) {
@@ -238,7 +301,10 @@ final class HouseNumberOverlayLayer extends Layer {
             int x = point.x - bubbleWidth / 2;
             int y = point.y - bubbleHeight / 2;
             int numberPart = entry.getNumberPart();
-            boolean duplicateHouseNumber = duplicateNumbers.contains(normalizeHouseNumberKey(label));
+            boolean missingPostcode = normalize(entry.getPostcode()).isEmpty();
+            boolean duplicateHouseNumber = duplicateNumbers.contains(
+                    normalizeAddressKey(entry.getStreet(), entry.getPostcode(), entry.getHouseNumber())
+            );
 
             if (duplicateHouseNumber) {
                 int ringPadding = 5;
@@ -256,9 +322,9 @@ final class HouseNumberOverlayLayer extends Layer {
                 g.drawOval(outerX, outerY, outerWidth, outerHeight);
             }
 
-            g.setColor(resolveBubbleFillColor(duplicateHouseNumber, numberPart));
+            g.setColor(resolveBubbleFillColor(duplicateHouseNumber, numberPart, missingPostcode));
             g.fillOval(x, y, bubbleWidth, bubbleHeight);
-            g.setColor(resolveBubbleBorderColor(duplicateHouseNumber, numberPart));
+            g.setColor(resolveBubbleBorderColor(duplicateHouseNumber, numberPart, missingPostcode));
             g.setStroke(new BasicStroke(duplicateHouseNumber ? 3.2f : 1.6f));
             g.drawOval(x, y, bubbleWidth, bubbleHeight);
 
@@ -269,29 +335,31 @@ final class HouseNumberOverlayLayer extends Layer {
         }
     }
 
-    private Set<String> collectDuplicateHouseNumbers(List<HouseNumberOverlayEntry> entries) {
-        Map<String, Integer> houseNumberCounts = new HashMap<>();
+    private Set<String> collectDuplicateAddressKeys(List<HouseNumberOverlayEntry> entries) {
+        Map<String, Integer> addressCounts = new HashMap<>();
         for (HouseNumberOverlayEntry entry : entries) {
-            String key = normalize(entry.getHouseNumber());
-            key = normalizeHouseNumberKey(key);
+            String key = normalizeAddressKey(entry.getStreet(), entry.getPostcode(), entry.getHouseNumber());
             if (key.isEmpty()) {
                 continue;
             }
-            houseNumberCounts.put(key, houseNumberCounts.getOrDefault(key, 0) + 1);
+            addressCounts.put(key, addressCounts.getOrDefault(key, 0) + 1);
         }
 
-        Set<String> duplicateNumbers = new HashSet<>();
-        for (Map.Entry<String, Integer> countEntry : houseNumberCounts.entrySet()) {
+        Set<String> duplicateAddresses = new HashSet<>();
+        for (Map.Entry<String, Integer> countEntry : addressCounts.entrySet()) {
             if (countEntry.getValue() > 1) {
-                duplicateNumbers.add(countEntry.getKey());
+                duplicateAddresses.add(countEntry.getKey());
             }
         }
-        return duplicateNumbers;
+        return duplicateAddresses;
     }
 
-    private Color resolveBubbleFillColor(boolean duplicateHouseNumber, int numberPart) {
+    private Color resolveBubbleFillColor(boolean duplicateHouseNumber, int numberPart, boolean missingPostcode) {
         if (duplicateHouseNumber) {
             return DUPLICATE_BUBBLE_FILL_COLOR;
+        }
+        if (missingPostcode) {
+            return MISSING_POSTCODE_BUBBLE_FILL_COLOR;
         }
         if (numberPart == Integer.MAX_VALUE) {
             return BUBBLE_FILL_COLOR;
@@ -299,9 +367,12 @@ final class HouseNumberOverlayLayer extends Layer {
         return Math.abs(numberPart % 2) == 0 ? EVEN_BUBBLE_FILL_COLOR : ODD_BUBBLE_FILL_COLOR;
     }
 
-    private Color resolveBubbleBorderColor(boolean duplicateHouseNumber, int numberPart) {
+    private Color resolveBubbleBorderColor(boolean duplicateHouseNumber, int numberPart, boolean missingPostcode) {
         if (duplicateHouseNumber) {
             return DUPLICATE_BUBBLE_BORDER_COLOR;
+        }
+        if (missingPostcode) {
+            return MISSING_POSTCODE_BUBBLE_BORDER_COLOR;
         }
         if (numberPart == Integer.MAX_VALUE) {
             return BUBBLE_BORDER_COLOR;
@@ -353,7 +424,8 @@ final class HouseNumberOverlayLayer extends Layer {
 
     @Override
     public Object getInfoComponent() {
-        return I18n.tr("Street: {0}", selectedStreet.isEmpty() ? I18n.tr("(none)") : selectedStreet);
+        String displayStreet = selectedStreet == null ? "" : normalize(selectedStreet.getDisplayStreetName());
+        return I18n.tr("Street: {0}", displayStreet.isEmpty() ? I18n.tr("(none)") : displayStreet);
     }
 
     @Override
@@ -372,7 +444,40 @@ final class HouseNumberOverlayLayer extends Layer {
         return value == null ? "" : value.trim();
     }
 
-    private String normalizeHouseNumberKey(String value) {
-        return normalize(value).toLowerCase(Locale.ROOT);
+    private String normalizeAddressKey(String street, String postcode, String houseNumber) {
+        String normalizedStreet = normalize(street);
+        String normalizedPostcode = normalize(postcode);
+        String normalizedHouseNumber = normalize(houseNumber);
+        if (normalizedStreet.isEmpty() || normalizedPostcode.isEmpty() || normalizedHouseNumber.isEmpty()) {
+            return "";
+        }
+        return normalizedStreet.toLowerCase(Locale.ROOT)
+                + "|" + normalizedPostcode.toLowerCase(Locale.ROOT)
+                + "|" + normalizedHouseNumber.toLowerCase(Locale.ROOT);
+    }
+
+    private long resolveSeedWayUniqueId(Way seedWay) {
+        return seedWay == null ? 0L : seedWay.getUniqueId();
+    }
+
+    private void logPaintReasonOnce(String key, String message) {
+        if (!key.equals(lastPaintDiagnosticKey)) {
+            lastPaintDiagnosticKey = key;
+            Logging.debug(message);
+        }
+    }
+
+    private void logHighlightReasonOnce(String key, String message) {
+        if (!key.equals(lastHighlightDiagnosticKey)) {
+            lastHighlightDiagnosticKey = key;
+            Logging.debug(message);
+        }
+    }
+
+    private void logEntryReasonOnce(String key, String message) {
+        if (!key.equals(lastEntryDiagnosticKey)) {
+            lastEntryDiagnosticKey = key;
+            Logging.debug(message);
+        }
     }
 }

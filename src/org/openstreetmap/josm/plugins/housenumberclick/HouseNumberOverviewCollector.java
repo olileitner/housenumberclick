@@ -18,7 +18,7 @@ import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.Way;
 
 /**
- * Aggregates and orders house numbers for the selected street to power the overview dialog.
+ * Aggregates and orders house numbers for the selected disambiguated street cluster.
  */
 final class HouseNumberOverviewCollector {
 
@@ -26,20 +26,24 @@ final class HouseNumberOverviewCollector {
 
     private static final Pattern HOUSE_NUMBER_PATTERN = Pattern.compile("^\\s*(\\d+)\\s*([A-Za-z]*)");
 
-    List<HouseNumberOverviewRow> collectRows(DataSet dataSet, String selectedStreet) {
-        String normalizedStreet = normalize(selectedStreet);
-        if (dataSet == null || normalizedStreet.isEmpty()) {
+    List<HouseNumberOverviewRow> collectRows(DataSet dataSet, StreetOption selectedStreet,
+            StreetNameCollector.StreetIndex streetIndex) {
+        if (dataSet == null || selectedStreet == null || !selectedStreet.isValid()) {
             return new ArrayList<>();
         }
+
+        StreetNameCollector.StreetIndex effectiveStreetIndex = streetIndex != null
+                ? streetIndex
+                : StreetNameCollector.collectStreetIndex(dataSet);
 
         Map<Integer, BaseNumberGroup> oddGroups = new TreeMap<>();
         Map<Integer, BaseNumberGroup> evenGroups = new TreeMap<>();
 
         for (Way way : dataSet.getWays()) {
-            collectPrimitive(way, normalizedStreet, oddGroups, evenGroups);
+            collectPrimitive(way, selectedStreet, effectiveStreetIndex, oddGroups, evenGroups);
         }
         for (Relation relation : dataSet.getRelations()) {
-            collectPrimitive(relation, normalizedStreet, oddGroups, evenGroups);
+            collectPrimitive(relation, selectedStreet, effectiveStreetIndex, oddGroups, evenGroups);
         }
 
         List<OverviewCellData> oddValues = formatGroups(oddGroups);
@@ -47,10 +51,15 @@ final class HouseNumberOverviewCollector {
         return buildRows(oddValues, evenValues);
     }
 
-    private void collectPrimitive(OsmPrimitive primitive, String selectedStreet,
+    private void collectPrimitive(OsmPrimitive primitive, StreetOption selectedStreet,
+            StreetNameCollector.StreetIndex streetIndex,
             Map<Integer, BaseNumberGroup> oddGroups, Map<Integer, BaseNumberGroup> evenGroups) {
         // Shared matcher keeps street-specific building filtering consistent across collectors.
-        if (!AddressedBuildingMatcher.isAddressedBuildingForStreet(primitive, selectedStreet)) {
+        if (!AddressedBuildingMatcher.isAddressedBuildingForStreet(primitive, selectedStreet.getBaseStreetName())) {
+            return;
+        }
+        StreetOption primitiveStreet = streetIndex.resolveForAddressPrimitive(primitive);
+        if (primitiveStreet == null || !selectedStreet.getClusterId().equals(primitiveStreet.getClusterId())) {
             return;
         }
 
@@ -63,7 +72,6 @@ final class HouseNumberOverviewCollector {
         BaseNumberGroup group = target.computeIfAbsent(parsed.baseNumber, BaseNumberGroup::new);
         group.addOccurrence(parsed.suffix, primitive, primitive.get("addr:housenumber"));
     }
-
 
     private ParsedHouseNumber parseHouseNumber(String rawValue) {
         String value = normalize(rawValue);
@@ -213,6 +221,8 @@ final class HouseNumberOverviewCollector {
         }
 
         boolean hasExactDuplicate() {
+            // Overview intentionally flags duplicate *house numbers* per selected street cluster.
+            // Full-address duplicate checks (street+postcode+housenumber) remain in overlay/count views.
             return findHighestDuplicateCount() > 1;
         }
 

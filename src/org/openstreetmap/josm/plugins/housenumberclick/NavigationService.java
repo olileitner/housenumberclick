@@ -8,22 +8,44 @@ import java.util.List;
  */
 final class NavigationService {
 
-    private String currentStreet = "";
+    private StreetOption currentStreetOption;
+    private String currentStreetBase = "";
+    private String currentStreetDisplay = "";
+    private String currentStreetClusterId = "";
     private String currentPostcode = "";
-    private List<String> streetNavigationOrder = List.of();
+    private List<StreetOption> streetNavigationOrder = List.of();
 
     void updateFromSelection(StreetModeController.AddressSelection selection) {
         if (selection == null) {
-            currentStreet = "";
+            currentStreetOption = null;
+            currentStreetBase = "";
+            currentStreetDisplay = "";
+            currentStreetClusterId = "";
             currentPostcode = "";
             return;
         }
-        currentStreet = normalize(selection.getStreetName());
+        setCurrentStreetOption(new StreetOption(
+                selection.getStreetName(),
+                selection.getDisplayStreetName(),
+                selection.getStreetClusterId()
+        ));
         currentPostcode = normalize(selection.getPostcode());
     }
 
+    StreetOption getCurrentStreetOption() {
+        return currentStreetOption;
+    }
+
     String getCurrentStreet() {
-        return currentStreet;
+        return currentStreetBase;
+    }
+
+    String getCurrentStreetDisplay() {
+        return currentStreetDisplay;
+    }
+
+    String getCurrentStreetClusterId() {
+        return currentStreetClusterId;
     }
 
     String getCurrentPostcode() {
@@ -31,14 +53,31 @@ final class NavigationService {
     }
 
     void setCurrentStreet(String streetName) {
-        currentStreet = normalize(streetName);
+        String normalizedStreet = normalize(streetName);
+        currentStreetOption = normalizedStreet.isEmpty()
+                ? null
+                : new StreetOption(normalizedStreet, normalizedStreet, "");
+        currentStreetBase = normalizedStreet;
+        currentStreetDisplay = normalizedStreet;
+        currentStreetClusterId = "";
     }
 
-    void setStreetNavigationOrder(List<String> order) {
+    void setCurrentStreetOption(StreetOption option) {
+        if (option == null) {
+            setCurrentStreet("");
+            return;
+        }
+        currentStreetOption = option;
+        currentStreetBase = normalize(option.getBaseStreetName());
+        currentStreetDisplay = normalize(option.getDisplayStreetName());
+        currentStreetClusterId = normalize(option.getClusterId());
+    }
+
+    void setStreetNavigationOrder(List<StreetOption> order) {
         streetNavigationOrder = order == null ? List.of() : List.copyOf(order);
     }
 
-    List<String> getStreetNavigationOrder() {
+    List<StreetOption> getStreetNavigationOrder() {
         return new ArrayList<>(streetNavigationOrder);
     }
 
