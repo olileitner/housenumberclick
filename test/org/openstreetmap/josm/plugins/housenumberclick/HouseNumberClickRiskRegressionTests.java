@@ -103,6 +103,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
             run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
             run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
+            run("Building overview duplicate detection ignores relation/outer self-duplicates", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorIgnoresRelationOuterSelfDuplicate);
             System.out.println("All HouseNumberClick risk regression tests passed.");
         } catch (Throwable t) {
             exitCode = 1;
@@ -1006,6 +1007,32 @@ public final class HouseNumberClickRiskRegressionTests {
         assertTrue(containsNoAddressData,
                 "building without street, postcode and housenumber should be flagged as no address data");
         assertFalse(containsAddressedTiny, "tiny building should be excluded by minimum area filter");
+    }
+
+    private static void testBuildingOverviewCollectorIgnoresRelationOuterSelfDuplicate() {
+        DataSet dataSet = new DataSet();
+
+        Way outerWay = createClosedBuildingWithSize(null, null, 0.0002);
+        outerWay.put("addr:street", "Example Street");
+        outerWay.put("addr:postcode", "12345");
+        outerWay.put("addr:housenumber", "10");
+
+        Relation relation = new Relation();
+        relation.put("type", "multipolygon");
+        relation.put("building", "yes");
+        relation.put("addr:street", "Example Street");
+        relation.put("addr:postcode", "12345");
+        relation.put("addr:housenumber", "10");
+        relation.addMember(new org.openstreetmap.josm.data.osm.RelationMember("outer", outerWay));
+
+        dataSet.addPrimitiveRecursive(outerWay);
+        dataSet.addPrimitive(relation);
+
+        BuildingOverviewCollector collector = new BuildingOverviewCollector();
+        List<BuildingOverviewCollector.BuildingOverviewEntry> entries = collector.collect(dataSet);
+
+        assertEquals(1, entries.size(), "relation and addressed outer way should be canonicalized to one real building");
+        assertFalse(entries.get(0).hasDuplicateExactAddress(), "canonicalized self-representation must not become duplicate");
     }
 
     private static Way createOpenStreetWay(String streetName, boolean withHighwayTag) {

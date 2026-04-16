@@ -13,9 +13,11 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.RelationMember;
 import org.openstreetmap.josm.data.osm.Way;
+import org.openstreetmap.josm.tools.Logging;
 
 /**
- * Collects building diagnostics used by completeness and postcode overview layers.
+ * Collects building diagnostics used by completeness and postcode overview layers,
+ * canonicalizing relation/outer-way representations of the same real building.
  */
 final class BuildingOverviewCollector {
 
@@ -28,19 +30,30 @@ final class BuildingOverviewCollector {
             return List.of();
         }
 
+        int rawScannedPrimitives = 0;
         List<CandidateEntry> candidates = new ArrayList<>();
+        Map<Long, CandidateEntry> canonicalCandidatesByPrimitiveId = new HashMap<>();
         for (Way way : dataSet.getWays()) {
-            collectPrimitive(candidates, way);
+            rawScannedPrimitives++;
+            collectPrimitive(canonicalCandidatesByPrimitiveId, way);
         }
         for (Relation relation : dataSet.getRelations()) {
-            collectPrimitive(candidates, relation);
+            rawScannedPrimitives++;
+            collectPrimitive(canonicalCandidatesByPrimitiveId, relation);
         }
+        candidates.addAll(canonicalCandidatesByPrimitiveId.values());
 
         Map<String, Integer> duplicateAddressCounts = new HashMap<>();
         for (CandidateEntry candidate : candidates) {
             String duplicateKey = candidate.duplicateAddressKey;
             if (!duplicateKey.isEmpty()) {
                 duplicateAddressCounts.merge(duplicateKey, 1, Integer::sum);
+            }
+        }
+        int duplicateKeysAboveOne = 0;
+        for (Map.Entry<String, Integer> entry : duplicateAddressCounts.entrySet()) {
+            if (entry.getValue() > 1) {
+                duplicateKeysAboveOne++;
             }
         }
 
@@ -60,22 +73,36 @@ final class BuildingOverviewCollector {
                     hasDuplicateExactAddress
             ));
         }
+        if (Logging.isDebugEnabled()) {
+            Logging.debug("HouseNumberClick duplicate diagnostics: scanned=" + rawScannedPrimitives
+                    + ", canonicalized=" + candidates.size()
+                    + ", duplicateKeysOverOne=" + duplicateKeysAboveOne + ".");
+        }
         return entries;
     }
 
-    private void collectPrimitive(List<CandidateEntry> entries, OsmPrimitive primitive) {
+    private void collectPrimitive(Map<Long, CandidateEntry> canonicalCandidatesByPrimitiveId, OsmPrimitive primitive) {
         if (!AddressedBuildingMatcher.isBuildingGeometry(primitive)) {
             return;
         }
 
-        double primitiveArea = computeArea(primitive);
+        OsmPrimitive canonicalPrimitive = resolveCanonicalPrimitive(primitive);
+        if (canonicalPrimitive == null || !AddressedBuildingMatcher.isBuildingGeometry(canonicalPrimitive)) {
+            return;
+        }
+        long canonicalId = canonicalPrimitive.getUniqueId();
+        if (canonicalCandidatesByPrimitiveId.containsKey(canonicalId)) {
+            return;
+        }
+
+        double primitiveArea = computeArea(canonicalPrimitive);
         if (primitiveArea < MIN_BUILDING_AREA) {
             return;
         }
 
-        String street = normalize(primitive.get("addr:street"));
-        String postcode = normalize(primitive.get("addr:postcode"));
-        String houseNumber = normalize(primitive.get("addr:housenumber"));
+        String street = normalize(canonicalPrimitive.get("addr:street"));
+        String postcode = normalize(canonicalPrimitive.get("addr:postcode"));
+        String houseNumber = normalize(canonicalPrimitive.get("addr:housenumber"));
 
         boolean hasStreet = !street.isEmpty();
         boolean hasPostcode = !postcode.isEmpty();
@@ -86,10 +113,10 @@ final class BuildingOverviewCollector {
         boolean hasMissingStreet = hasMissingRequiredAddressFields && !hasStreet;
         boolean hasMissingPostcode = hasMissingRequiredAddressFields && !hasPostcode;
         boolean hasMissingHouseNumber = hasMissingRequiredAddressFields && !hasHouseNumber;
-        boolean hasMisplacedHouseNumber = !hasHouseNumber && hasMisplacedHouseNumber(primitive);
-        String duplicateAddressKey = hasHouseNumber ? buildDuplicateAddressKey(primitive) : "";
-        entries.add(new CandidateEntry(
-                primitive,
+        boolean hasMisplacedHouseNumber = !hasHouseNumber && hasMisplacedHouseNumber(canonicalPrimitive);
+        String duplicateAddressKey = hasHouseNumber ? buildDuplicateAddressKey(canonicalPrimitive) : "";
+        canonicalCandidatesByPrimitiveId.put(canonicalId, new CandidateEntry(
+                canonicalPrimitive,
                 hasHouseNumber,
                 hasNoAddressData,
                 hasMissingRequiredAddressFields,
@@ -99,6 +126,54 @@ final class BuildingOverviewCollector {
                 hasMisplacedHouseNumber,
                 duplicateAddressKey
         ));
+    }
+
+    private OsmPrimitive resolveCanonicalPrimitive(OsmPrimitive primitive) {
+        if (!(primitive instanceof Way) || !primitive.isUsable()) {
+            return primitive;
+        }
+        Way way = (Way) primitive;
+        Relation canonicalRelation = findAddressedOuterMultipolygonRelation(way);
+        return canonicalRelation != null ? canonicalRelation : primitive;
+    }
+
+    private Relation findAddressedOuterMultipolygonRelation(Way way) {
+        if (way == null || !way.isUsable()) {
+            return null;
+        }
+        Relation best = null;
+        for (OsmPrimitive referrer : way.getReferrers()) {
+            if (!(referrer instanceof Relation)) {
+                continue;
+            }
+            Relation relation = (Relation) referrer;
+            if (!isAddressedOuterMultipolygonRelationForWay(relation, way)) {
+                continue;
+            }
+            if (best == null || relation.getUniqueId() < best.getUniqueId()) {
+                best = relation;
+            }
+        }
+        return best;
+    }
+
+    private boolean isAddressedOuterMultipolygonRelationForWay(Relation relation, Way way) {
+        if (relation == null || way == null || !relation.isUsable()) {
+            return false;
+        }
+        if (!relation.hasTag("type", "multipolygon") || !relation.hasTag("building")) {
+            return false;
+        }
+        for (RelationMember member : relation.getMembers()) {
+            if (member == null || !member.isWay() || member.getWay() != way) {
+                continue;
+            }
+            String role = normalize(member.getRole());
+            if (role.isEmpty() || "outer".equals(role)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private String buildDuplicateAddressKey(OsmPrimitive primitive) {
