@@ -104,6 +104,8 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
             run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
             run("Building overview duplicate detection ignores relation/outer self-duplicates", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorIgnoresRelationOuterSelfDuplicate);
+            run("House-number overlay collector ignores relation/outer self-duplicates", HouseNumberClickRiskRegressionTests::testHouseNumberOverlayCollectorIgnoresRelationOuterSelfDuplicate);
+            run("House-number overlay collector keeps duplicates across distinct real buildings", HouseNumberClickRiskRegressionTests::testHouseNumberOverlayCollectorKeepsDistinctBuildingDuplicates);
             System.out.println("All HouseNumberClick risk regression tests passed.");
         } catch (Throwable t) {
             exitCode = 1;
@@ -1033,6 +1035,33 @@ public final class HouseNumberClickRiskRegressionTests {
 
         assertEquals(1, entries.size(), "relation and addressed outer way should be canonicalized to one real building");
         assertFalse(entries.get(0).hasDuplicateExactAddress(), "canonicalized self-representation must not become duplicate");
+    }
+
+    private static void testHouseNumberOverlayCollectorIgnoresRelationOuterSelfDuplicate() throws Exception {
+        String source = readPluginSource("HouseNumberOverlayCollector.java");
+
+        assertTrue(source.contains("resolveCanonicalPrimitive"),
+                "overlay collector should resolve canonical primitives before building entries");
+        assertTrue(source.contains("findBuildingOuterMultipolygonRelation"),
+                "overlay canonicalization should look up building multipolygon relations for outer ways");
+        assertTrue(source.contains("isBuildingOuterMultipolygonRelationForWay"),
+                "overlay canonicalization should require an outer-member relation match for the way");
+        assertTrue(source.contains("buildEntry(canonicalPrimitive, primitive"),
+                "overlay entry creation should operate on canonical primitive identity");
+    }
+
+    private static void testHouseNumberOverlayCollectorKeepsDistinctBuildingDuplicates() throws Exception {
+        String source = readPluginSource("HouseNumberOverlayCollector.java");
+        String layerSource = readPluginSource("HouseNumberOverlayLayer.java");
+
+        assertTrue(source.contains("Map<Long, HouseNumberOverlayEntry> entriesByCanonicalPrimitiveId"),
+                "overlay collector should track one entry per canonical primitive id");
+        assertTrue(source.contains("entriesByCanonicalPrimitiveId.containsKey(canonicalId)"),
+                "overlay collector should skip already processed canonical primitives");
+        assertTrue(source.contains("entriesByCanonicalPrimitiveId.put(canonicalId, entry)"),
+                "overlay collector should add exactly one entry for each canonical primitive");
+        assertTrue(layerSource.contains("collectDuplicateAddressKeys"),
+                "duplicate detection should remain in the overlay layer and use the collected entries unchanged");
     }
 
     private static Way createOpenStreetWay(String streetName, boolean withHighwayTag) {

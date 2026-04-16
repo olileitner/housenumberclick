@@ -38,7 +38,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `HouseNumberClickPlugin` | `HouseNumberClickPlugin.java` | Yes | Plugin entry point that wires the menu action and performs one-time toolbar migration. |
 | `HouseNumberClickStreetMapMode` | `HouseNumberClickStreetMapMode.java` | Yes | Single active map mode that handles address apply/readback and temporary split gestures. |
 | `HouseNumberClickStreetMapMode.ClickResolutionStats` | `HouseNumberClickStreetMapMode.java` | Yes | Captures per-click diagnostics for debug logging of resolver and interaction paths. |
-| `HouseNumberOverlayCollector` | `HouseNumberOverlayCollector.java` | No | Collects and normalizes addressed buildings near the locally resolved selected street segment. |
+| `HouseNumberOverlayCollector` | `HouseNumberOverlayCollector.java` | No | Collects and normalizes addressed buildings near the locally resolved selected street segment, canonicalizing relation/outer-way representations of the same real building. |
 | `HouseNumberOverlayCollector.CollectionStats` | `HouseNumberOverlayCollector.java` | No | Aggregated rejection counters used for overlay collection diagnostics. |
 | `HouseNumberOverlayCollector.ParsedHouseNumber` | `HouseNumberOverlayCollector.java` | No | Parsed representation of a house number split into sortable numeric and suffix parts. |
 | `HouseNumberOverlayEntry` | `HouseNumberOverlayEntry.java` | No | Value object describing one rendered house-number label entry in the overlay layer. |
