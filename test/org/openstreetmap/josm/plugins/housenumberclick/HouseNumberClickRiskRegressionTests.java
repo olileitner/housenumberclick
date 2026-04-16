@@ -811,6 +811,8 @@ public final class HouseNumberClickRiskRegressionTests {
         String source = readPluginSource("BuildingOverviewLayer.java");
         assertTrue(source.contains("Address complete"),
                 "completeness legend should contain complete-address label");
+        assertTrue(source.contains("Address incomplete"),
+                "completeness legend should contain the generic incomplete-address label for Any mode");
         assertTrue(source.contains("Postcode missing"),
                 "completeness legend should contain postcode-missing label");
         assertTrue(source.contains("Street missing"),
@@ -819,6 +821,12 @@ public final class HouseNumberClickRiskRegressionTests {
                 "completeness legend should contain house-number-missing label");
         assertTrue(source.contains("No Address Data"),
                 "completeness legend should contain no-address-data label");
+
+        String dialogSource = readPluginSource("StreetSelectionDialog.java");
+        assertTrue(dialogSource.contains("I18n.tr(\"Number\")"),
+                "analysis completeness radios should use 'Number' label");
+        assertTrue(dialogSource.contains("I18n.tr(\"Any\")"),
+                "analysis completeness radios should expose an 'Any' option");
 
         String duplicatesSource = readPluginSource("DuplicateAddressOverviewLayer.java");
         assertTrue(duplicatesSource.contains("Duplicate address"),

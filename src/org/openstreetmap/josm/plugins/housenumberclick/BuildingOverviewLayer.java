@@ -33,6 +33,7 @@ final class BuildingOverviewLayer extends Layer {
      * Selected required address field used to focus completeness-missing highlighting.
      */
     enum MissingField {
+        ANY,
         STREET,
         POSTCODE,
         HOUSE_NUMBER
@@ -231,6 +232,8 @@ final class BuildingOverviewLayer extends Layer {
 
     private boolean hasSelectedMissingField(boolean hasMissingStreet, boolean hasMissingPostcode, boolean hasMissingHouseNumber) {
         switch (missingField) {
+            case ANY:
+                return hasMissingStreet || hasMissingPostcode || hasMissingHouseNumber;
             case STREET:
                 return hasMissingStreet;
             case HOUSE_NUMBER:
@@ -243,6 +246,8 @@ final class BuildingOverviewLayer extends Layer {
 
     private String missingLegendLabel() {
         switch (missingField) {
+            case ANY:
+                return I18n.tr("Address incomplete");
             case STREET:
                 return I18n.tr("Street missing");
             case HOUSE_NUMBER:
@@ -293,6 +298,9 @@ final class BuildingOverviewLayer extends Layer {
 
     @Override
     public String getToolTipText() {
+        if (missingField == MissingField.ANY) {
+            return I18n.tr("Completeness overview (complete / incomplete / no address data)");
+        }
         return I18n.tr("Completeness overview (complete / selected missing field / no address data)");
     }
 
