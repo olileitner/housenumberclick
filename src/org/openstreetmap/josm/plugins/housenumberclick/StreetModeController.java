@@ -133,6 +133,7 @@ final class StreetModeController {
     private BuildingTypeConsumedListener buildingTypeConsumedListener;
     private ModeStateListener modeStateListener;
     private TerracePartsUpdateListener terracePartsUpdateListener;
+    private StreetSelectionRequestListener streetSelectionRequestListener;
 
     interface HouseNumberUpdateListener {
         void onHouseNumberUpdated(String houseNumber);
@@ -152,6 +153,10 @@ final class StreetModeController {
 
     interface TerracePartsUpdateListener {
         void onTerracePartsUpdated(int parts);
+    }
+
+    interface StreetSelectionRequestListener {
+        void onStreetSelectionRequested(StreetOption streetOption);
     }
 
     /**
@@ -303,6 +308,10 @@ final class StreetModeController {
         if (terracePartsUpdateListener != null) {
             terracePartsUpdateListener.onTerracePartsUpdated(configuredTerraceParts);
         }
+    }
+
+    void setStreetSelectionRequestListener(StreetSelectionRequestListener listener) {
+        this.streetSelectionRequestListener = listener;
     }
 
     void updateOverlaySettings(boolean overlayEnabled, boolean connectionLinesEnabled, boolean separateEvenOddLinesEnabled) {
@@ -478,12 +487,20 @@ final class StreetModeController {
                 lastSelection.getHouseNumber(),
                 lastSelection.getHouseNumberIncrementStep()
         );
+        requestMainDialogStreetSelection(selectedStreetOption);
         highlightCurrentStreetInStreetCountDialog();
         refreshOverlayLayer();
         refreshHouseNumberOverview();
         syncReferenceStreetVisibilityForCurrentStreet();
         zoomToStreet(selectedStreetOption);
         continueWorkingFromTableInteraction();
+    }
+
+    private void requestMainDialogStreetSelection(StreetOption selectedStreetOption) {
+        if (streetSelectionRequestListener == null || selectedStreetOption == null || !selectedStreetOption.isValid()) {
+            return;
+        }
+        streetSelectionRequestListener.onStreetSelectionRequested(selectedStreetOption);
     }
 
     private void highlightCurrentStreetInStreetCountDialog() {

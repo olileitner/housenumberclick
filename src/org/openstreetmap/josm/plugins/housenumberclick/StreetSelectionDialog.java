@@ -167,6 +167,7 @@ final class StreetSelectionDialog {
         this.streetModeController.setHouseNumberUpdateListener(this::updateHouseNumberFromMode);
         this.streetModeController.setAddressValuesReadListener(this::updateAddressValuesFromMode);
         this.streetModeController.setBuildingTypeConsumedListener(this::consumeBuildingTypeFromMode);
+        this.streetModeController.setStreetSelectionRequestListener(this::applyStreetSelectionFromOverview);
 
         JButton closeButton = new JButton(I18n.tr("Close"));
         closeButton.addActionListener(e -> closeDialog());
@@ -754,6 +755,19 @@ final class StreetSelectionDialog {
 
         streetCombo.addItem(normalizedStreet);
         streetCombo.setSelectedItem(normalizedStreet);
+    }
+
+    private void applyStreetSelectionFromOverview(StreetOption selectedStreetOption) {
+        if (selectedStreetOption == null || !selectedStreetOption.isValid()) {
+            return;
+        }
+        boolean wasUpdatingInputs = updatingInputs;
+        updatingInputs = true;
+        setStreetSelection(selectedStreetOption.getDisplayStreetName());
+        lastSelectedStreet = getSelectedStreet();
+        rememberedStreet = normalize(lastSelectedStreet);
+        updatingInputs = wasUpdatingInputs;
+        updateStreetNavigationButtonState();
     }
 
     private void positionTopLeftInOwner(Frame owner) {

@@ -100,6 +100,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Analysis section has no text postcode legend", HouseNumberClickRiskRegressionTests::testAnalysisSectionHasNoTextPostcodeLegend);
             run("Overview layer toggles are mutually exclusive", HouseNumberClickRiskRegressionTests::testOverviewLayerTogglesAreMutuallyExclusive);
             run("Table click continue hook is safe", HouseNumberClickRiskRegressionTests::testTableClickContinueHookIsSafe);
+            run("Street table click syncs main dialog selection", HouseNumberClickRiskRegressionTests::testStreetTableClickSyncsMainDialogSelection);
             run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
             run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
             run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
@@ -888,6 +889,20 @@ public final class HouseNumberClickRiskRegressionTests {
         StreetModeController controller = new StreetModeController();
         controller.continueWorkingFromTableInteraction();
         assertTrue(true, "table click continue hook should complete without exceptions");
+    }
+
+    private static void testStreetTableClickSyncsMainDialogSelection() throws Exception {
+        String controllerSource = readPluginSource("StreetModeController.java");
+        String dialogSource = readPluginSource("StreetSelectionDialog.java");
+
+        assertTrue(controllerSource.contains("setStreetSelectionRequestListener"),
+                "controller should expose a callback registration for main-dialog street sync");
+        assertTrue(controllerSource.contains("requestMainDialogStreetSelection(selectedStreetOption);"),
+                "street-table selection flow should request street sync in the main dialog");
+        assertTrue(dialogSource.contains("setStreetSelectionRequestListener(this::applyStreetSelectionFromOverview)"),
+                "main dialog should register for controller-driven street selection requests");
+        assertTrue(dialogSource.contains("setStreetSelection(selectedStreetOption.getDisplayStreetName())"),
+                "main dialog callback should apply selected street display name from the table click");
     }
 
     private static void testStreetNavigationOrderMatchesStreetCountsSorting() {
