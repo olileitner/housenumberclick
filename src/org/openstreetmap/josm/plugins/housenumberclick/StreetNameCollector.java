@@ -115,6 +115,26 @@ final class StreetNameCollector {
             return null;
         }
 
+        StreetOption findByWay(Way way) {
+            if (way == null || !way.isUsable()) {
+                return null;
+            }
+
+            StreetOption directMatch = optionByWay.get(way);
+            if (directMatch != null) {
+                return directMatch;
+            }
+
+            long wayId = way.getUniqueId();
+            for (Map.Entry<Way, StreetOption> entry : optionByWay.entrySet()) {
+                Way candidate = entry.getKey();
+                if (candidate != null && candidate.getUniqueId() == wayId) {
+                    return entry.getValue();
+                }
+            }
+            return null;
+        }
+
         List<StreetOption> getOptionsForBaseStreetName(String baseStreetName) {
             String key = normalize(baseStreetName).toLowerCase(Locale.ROOT);
             if (key.isEmpty()) {
@@ -251,6 +271,14 @@ final class StreetNameCollector {
             }
 
             return findNearestWay(referencePoint, candidates);
+        }
+
+        StreetOption findNearestOptionForBaseStreetName(String baseStreetName, LatLon referencePoint) {
+            Way nearestWay = findNearestWayForBaseStreetName(baseStreetName, referencePoint);
+            if (nearestWay == null) {
+                return null;
+            }
+            return findByWay(nearestWay);
         }
 
         Way findNearestWayForStreetOption(StreetOption option, LatLon referencePoint) {

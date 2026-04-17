@@ -34,7 +34,7 @@ import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays,
- * and split/address operations.
+ * spatially disambiguated street readback selection, and split/address operations.
  */
 final class StreetModeController {
 
@@ -278,6 +278,53 @@ final class StreetModeController {
         if (addressValuesReadListener != null) {
             addressValuesReadListener.onAddressValuesRead(streetName, postcode, buildingType, houseNumber);
         }
+    }
+
+    StreetOption resolveStreetOptionForReadback(String streetName) {
+        String normalizedStreet = normalize(streetName);
+        if (normalizedStreet.isEmpty()) {
+            return null;
+        }
+
+        DataSet editDataSet = getActiveEditDataSet();
+        StreetNameCollector.StreetIndex streetIndex = getStreetIndex(editDataSet);
+
+        StreetOption byDisplay = streetIndex.findByDisplayStreetName(normalizedStreet);
+        if (byDisplay != null && byDisplay.isValid()) {
+            return byDisplay;
+        }
+
+        List<StreetOption> options = streetIndex.getOptionsForBaseStreetName(normalizedStreet);
+        if (options.isEmpty()) {
+            return null;
+        }
+        if (options.size() == 1) {
+            return options.get(0);
+        }
+
+        if (lastStreetSeedWayHint != null && lastStreetSeedWayHint.isUsable()) {
+            StreetOption byWay = streetIndex.findByWay(lastStreetSeedWayHint);
+            if (isMatchingBaseStreetOption(byWay, normalizedStreet)) {
+                return byWay;
+            }
+
+            StreetOption bySeedPrimitive = streetIndex.resolveForBaseStreetAndPrimitive(normalizedStreet, lastStreetSeedWayHint);
+            if (isMatchingBaseStreetOption(bySeedPrimitive, normalizedStreet)) {
+                return bySeedPrimitive;
+            }
+        }
+
+        LatLon referencePoint = resolveStreetReferencePoint();
+        StreetOption nearestByPoint = streetIndex.findNearestOptionForBaseStreetName(normalizedStreet, referencePoint);
+        if (isMatchingBaseStreetOption(nearestByPoint, normalizedStreet)) {
+            return nearestByPoint;
+        }
+
+        StreetOption byBaseFallback = streetIndex.resolveForBaseStreetAndPrimitive(normalizedStreet, null);
+        if (isMatchingBaseStreetOption(byBaseFallback, normalizedStreet)) {
+            return byBaseFallback;
+        }
+        return options.get(0);
     }
 
     void setBuildingTypeConsumedListener(BuildingTypeConsumedListener listener) {
@@ -1220,6 +1267,13 @@ final class StreetModeController {
             return byDisplay;
         }
         return streetIndex.resolveForBaseStreetAndPrimitive(normalizedStreet, null);
+    }
+
+    private boolean isMatchingBaseStreetOption(StreetOption option, String baseStreetName) {
+        if (option == null || !option.isValid()) {
+            return false;
+        }
+        return normalize(option.getBaseStreetName()).equalsIgnoreCase(normalize(baseStreetName));
     }
 
     private void showReferenceLoadFailure(String streetName) {

@@ -83,7 +83,8 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Split map mode is line-split only", HouseNumberClickRiskRegressionTests::testSplitMapModeIsLineSplitOnly);
             run("Reference cache is invalidated on data source changes", HouseNumberClickRiskRegressionTests::testReferenceCacheInvalidationOnDataSourceChange);
 
-           run("Street selection is re-resolved against current street index", HouseNumberClickRiskRegressionTests::testStreetSelectionReResolutionOrder);
+            run("Street selection is re-resolved against current street index", HouseNumberClickRiskRegressionTests::testStreetSelectionReResolutionOrder);
+            run("Readback street selection stays spatially disambiguated for same-name streets", HouseNumberClickRiskRegressionTests::testReadbackStreetSelectionUsesSpatialDisambiguation);
             run("Undo queue changes trigger visual rescan refresh", HouseNumberClickRiskRegressionTests::testUndoQueueChangesTriggerVisualRescanRefresh);
             run("Rectangularize option is propagated to temporary line split mode", HouseNumberClickRiskRegressionTests::testRectangularizePreferencePropagation);
             run("Rectangularize skips triangle split results", HouseNumberClickRiskRegressionTests::testRectangularizeCandidateGuard);
@@ -704,6 +705,25 @@ public final class HouseNumberClickRiskRegressionTests {
                 "seed resolution should prefer nearest way within the selected street option cluster");
         assertTrue(source.contains("resolveDirectSeedWay(dataSet, baseStreetName, optionWays)"),
                 "direct seed hint should be validated against ways of the selected street option");
+    }
+
+    private static void testReadbackStreetSelectionUsesSpatialDisambiguation() throws Exception {
+        String controllerSource = readPluginSource("StreetModeController.java");
+        String dialogSource = readPluginSource("StreetSelectionDialog.java");
+        String collectorSource = readPluginSource("StreetNameCollector.java");
+
+        assertTrue(controllerSource.contains("StreetOption resolveStreetOptionForReadback(String streetName)"),
+                "controller should expose dedicated readback street-option resolution");
+        assertTrue(controllerSource.contains("streetIndex.findByWay(lastStreetSeedWayHint)"),
+                "readback disambiguation should first reuse the clicked street way when available");
+        assertTrue(controllerSource.contains("findNearestOptionForBaseStreetName"),
+                "readback disambiguation should use nearest-option lookup for ambiguous base names");
+
+        assertTrue(collectorSource.contains("StreetOption findNearestOptionForBaseStreetName(String baseStreetName, LatLon referencePoint)"),
+                "street index should support nearest-option lookup for base-name disambiguation");
+
+        assertTrue(dialogSource.contains("resolveStreetOptionForReadback(streetName)"),
+                "dialog should request controller-driven readback disambiguation before selecting a street item");
     }
 
     private static void testUndoQueueChangesTriggerVisualRescanRefresh() throws Exception {

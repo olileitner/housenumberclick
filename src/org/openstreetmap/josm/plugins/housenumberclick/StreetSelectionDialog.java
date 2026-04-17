@@ -40,7 +40,7 @@ import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.tools.I18n;
 
 /**
- * Main configuration dialog where users pick street/address settings before working in map mode.
+ * Main configuration dialog where users pick street/address settings and receive disambiguated readback updates.
  */
 final class StreetSelectionDialog {
 
@@ -587,7 +587,8 @@ final class StreetSelectionDialog {
 
     private void updateAddressValuesFromMode(String streetName, String postcode, String buildingType, String houseNumber) {
         updatingInputs = true;
-        setStreetSelection(streetName);
+        StreetOption resolvedReadbackStreet = streetModeController.resolveStreetOptionForReadback(streetName);
+        setStreetSelection(resolvedReadbackStreet != null ? resolvedReadbackStreet.getDisplayStreetName() : streetName);
         String normalizedPostcode = normalize(postcode);
         if (!normalizedPostcode.isEmpty()) {
             setSelectedPostcode(normalizedPostcode);
