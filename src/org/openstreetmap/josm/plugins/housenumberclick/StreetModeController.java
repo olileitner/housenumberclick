@@ -542,7 +542,9 @@ final class StreetModeController {
         refreshOverlayLayer();
         refreshHouseNumberOverview();
         syncReferenceStreetVisibilityForCurrentStreet();
-        zoomToStreet(selectedStreetOption);
+        if (zoomToSelectedStreetEnabled) {
+            zoomToStreet(selectedStreetOption);
+        }
         continueWorkingFromTableInteraction();
     }
 

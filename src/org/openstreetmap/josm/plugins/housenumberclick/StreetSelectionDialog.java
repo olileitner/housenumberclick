@@ -99,6 +99,7 @@ final class StreetSelectionDialog {
     private boolean rememberedZoomToSelectedStreetEnabled = true;
     private boolean rememberedSplitMakeRectangular;
     private boolean updatingInputs;
+    private boolean streetSelectionChangedByNavigation;
     private DataSet rememberedDataSet;
     private boolean streetNavigationDispatcherRegistered;
     private Component lastFocusedDialogInput;
@@ -468,10 +469,16 @@ final class StreetSelectionDialog {
 
         String selectedStreet = getSelectedStreet();
         boolean streetChanged = selectedStreet != null && !selectedStreet.equals(lastSelectedStreet);
+        boolean changedByNavigation = consumeStreetSelectionChangedByNavigation();
         if (streetChanged) {
             boolean wasUpdatingInputs = updatingInputs;
             updatingInputs = true;
-            houseNumberField.setText(DEFAULT_HOUSE_NUMBER);
+            if (changedByNavigation) {
+                setSelectedPostcode("");
+                houseNumberField.setText("");
+            } else {
+                houseNumberField.setText(DEFAULT_HOUSE_NUMBER);
+            }
             updatingInputs = wasUpdatingInputs;
         }
         lastSelectedStreet = selectedStreet;
@@ -1449,6 +1456,7 @@ final class StreetSelectionDialog {
         if (selectedStreetOption == null) {
             if (offset > 0 && streetCombo != null && streetCombo.getItemCount() > 0) {
                 // With empty initial selection, Next should start at the first street.
+                streetSelectionChangedByNavigation = true;
                 streetCombo.setSelectedIndex(0);
             }
             return;
@@ -1456,12 +1464,20 @@ final class StreetSelectionDialog {
 
         StreetOption nextStreetOption = resolveNextStreetByNavigationOrder(selectedStreetOption, offset);
         if (nextStreetOption != null) {
+            streetSelectionChangedByNavigation = true;
             setStreetSelection(nextStreetOption.getDisplayStreetName());
             return;
         }
 
         int nextIndex = streetCombo.getSelectedIndex() + offset;
+        streetSelectionChangedByNavigation = true;
         streetCombo.setSelectedIndex(nextIndex);
+    }
+
+    private boolean consumeStreetSelectionChangedByNavigation() {
+        boolean changedByNavigation = streetSelectionChangedByNavigation;
+        streetSelectionChangedByNavigation = false;
+        return changedByNavigation;
     }
 
     private boolean canNavigateStreet(int offset) {

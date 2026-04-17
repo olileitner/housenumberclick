@@ -102,6 +102,8 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Overview layer toggles are mutually exclusive", HouseNumberClickRiskRegressionTests::testOverviewLayerTogglesAreMutuallyExclusive);
             run("Table click continue hook is safe", HouseNumberClickRiskRegressionTests::testTableClickContinueHookIsSafe);
             run("Street table click syncs main dialog selection", HouseNumberClickRiskRegressionTests::testStreetTableClickSyncsMainDialogSelection);
+            run("Street table selection respects AutoZoom option", HouseNumberClickRiskRegressionTests::testStreetTableSelectionRespectsAutoZoomOption);
+            run("Previous/Next street navigation clears postcode and house number", HouseNumberClickRiskRegressionTests::testStreetNavigationClearsPostcodeAndHouseNumber);
             run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
             run("Street grouping bridges endpoint-to-segment gaps", HouseNumberClickRiskRegressionTests::testStreetGroupingBridgesEndpointToSegmentGaps);
             run("Street grouping merges collinear components after raw split", HouseNumberClickRiskRegressionTests::testStreetGroupingMergesCollinearComponentsAfterRawSplit);
@@ -940,6 +942,14 @@ public final class HouseNumberClickRiskRegressionTests {
                 "main dialog callback should apply selected street display name from the table click");
     }
 
+    private static void testStreetTableSelectionRespectsAutoZoomOption() throws Exception {
+        String controllerSource = readPluginSource("StreetModeController.java");
+        assertTrue(controllerSource.contains("if (zoomToSelectedStreetEnabled)"),
+                "street-table selection should only zoom when AutoZoom option is enabled");
+        assertTrue(controllerSource.contains("zoomToStreet(selectedStreetOption);"),
+                "street-table selection should still zoom to selected street when AutoZoom is enabled");
+    }
+
     private static void testStreetNavigationOrderMatchesStreetCountsSorting() {
         List<StreetHouseNumberCountRow> rows = List.of(
                 new StreetHouseNumberCountRow("Zulu Street", 99, false),
@@ -954,6 +964,16 @@ public final class HouseNumberClickRiskRegressionTests {
         assertEquals("Bravo Street", ordered.get(1).getDisplayStreetName(), "street names should remain alphabetic regardless of count");
         assertEquals("Charlie Street", ordered.get(2).getDisplayStreetName(), "street names should be trimmed for navigation order");
         assertEquals("Zulu Street", ordered.get(3).getDisplayStreetName(), "highest counts should not override alphabetical order");
+    }
+
+    private static void testStreetNavigationClearsPostcodeAndHouseNumber() throws Exception {
+        String source = readPluginSource("StreetSelectionDialog.java");
+        assertTrue(source.contains("streetSelectionChangedByNavigation"),
+                "dialog should track when street selection changes are triggered by Previous/Next navigation");
+        assertTrue(source.contains("setSelectedPostcode(\"\")"),
+                "Previous/Next navigation should clear postcode selection to empty");
+        assertTrue(source.contains("houseNumberField.setText(\"\")"),
+                "Previous/Next navigation should clear house number field");
     }
 
     private static void testStreetGroupingBridgesEndpointToSegmentGaps() {
