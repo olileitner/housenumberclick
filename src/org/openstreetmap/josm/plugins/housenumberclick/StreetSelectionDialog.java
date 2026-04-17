@@ -954,7 +954,6 @@ final class StreetSelectionDialog {
 
         JPanel buttons = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 6, 0));
         buttons.add(createOverviewButton);
-        buttons.add(createDuplicateOverviewButton);
         panel.add(buttons, BorderLayout.NORTH);
 
         JPanel radios = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 6, 0));
@@ -966,6 +965,7 @@ final class StreetSelectionDialog {
 
         JPanel postcodeButtonRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 6, 0));
         postcodeButtonRow.add(createPostcodeOverviewButton);
+        postcodeButtonRow.add(createDuplicateOverviewButton);
         panel.add(postcodeButtonRow, BorderLayout.SOUTH);
         return panel;
     }
