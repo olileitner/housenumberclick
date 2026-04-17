@@ -107,9 +107,11 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
             run("Street grouping bridges endpoint-to-segment gaps", HouseNumberClickRiskRegressionTests::testStreetGroupingBridgesEndpointToSegmentGaps);
             run("Street grouping merges collinear components after raw split", HouseNumberClickRiskRegressionTests::testStreetGroupingMergesCollinearComponentsAfterRawSplit);
+            run("Selected street option keeps full merged local chain", HouseNumberClickRiskRegressionTests::testSelectedStreetOptionKeepsFullMergedLocalChain);
             run("Street grouping keeps distant same-name roads separated", HouseNumberClickRiskRegressionTests::testStreetGroupingKeepsDistantSameNameRoadsSeparated);
             run("Street grouping keeps parallel nearby roads separated", HouseNumberClickRiskRegressionTests::testStreetGroupingKeepsParallelNearbyRoadsSeparated);
             run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
+            run("Street auto-zoom uses full-dataset street index", HouseNumberClickRiskRegressionTests::testStreetAutoZoomUsesFullDataSetStreetIndex);
             run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
             run("Building overview duplicate detection ignores relation/outer self-duplicates", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorIgnoresRelationOuterSelfDuplicate);
             run("House-number overlay collector ignores relation/outer self-duplicates", HouseNumberClickRiskRegressionTests::testHouseNumberOverlayCollectorIgnoresRelationOuterSelfDuplicate);
@@ -1052,6 +1054,34 @@ public final class HouseNumberClickRiskRegressionTests {
                 "second-stage merge should fuse collinear same-name raw components into one street option");
     }
 
+    private static void testSelectedStreetOptionKeepsFullMergedLocalChain() {
+        DataSet dataSet = new DataSet();
+
+        Way firstPart = createOpenStreetWayWithCoordinates(
+                "Cluster Street",
+                new LatLon(0.0, 0.0000),
+                new LatLon(0.0, 0.0010)
+        );
+        // Intentionally separated beyond direct endpoint/segment thresholds.
+        Way secondPart = createOpenStreetWayWithCoordinates(
+                "Cluster Street",
+                new LatLon(0.0, 0.0022),
+                new LatLon(0.0, 0.0032)
+        );
+
+        dataSet.addPrimitiveRecursive(firstPart);
+        dataSet.addPrimitiveRecursive(secondPart);
+
+        StreetNameCollector.StreetIndex index = StreetNameCollector.collectStreetIndex(dataSet);
+        StreetOption selectedStreet = resolveStreetOptionForBaseName(index, "Cluster Street");
+        List<Way> localChain = index.getLocalStreetChainWays(selectedStreet, firstPart);
+
+        assertEquals(2, localChain.size(),
+                "selected disambiguated street option should keep all merged ways in local chain");
+        assertTrue(localChain.contains(firstPart), "local chain should include first merged way");
+        assertTrue(localChain.contains(secondPart), "local chain should include second merged way");
+    }
+
     private static void testStreetGroupingKeepsParallelNearbyRoadsSeparated() {
         DataSet dataSet = new DataSet();
 
@@ -1094,6 +1124,16 @@ public final class HouseNumberClickRiskRegressionTests {
 
         assertEquals(1, matchingWays.size(), "only usable named highway ways should match fallback street zoom");
         assertTrue(matchingWays.contains(matching), "matching highway way should be part of fallback selection");
+    }
+
+    private static void testStreetAutoZoomUsesFullDataSetStreetIndex() throws Exception {
+        String controllerSource = readPluginSource("StreetModeController.java");
+        String collectorSource = readPluginSource("StreetNameCollector.java");
+
+        assertTrue(controllerSource.contains("StreetNameCollector.collectStreetIndex(editDataSet, false)"),
+                "street auto-zoom should resolve street index from full dataset scope, not current view only");
+        assertTrue(collectorSource.contains("static StreetIndex collectStreetIndex(DataSet dataSet, boolean limitToCurrentView)"),
+                "street collector should expose a scope-aware index builder for zoom paths");
     }
 
     private static void testBuildingOverviewCollectorFilteringAndClassification() {

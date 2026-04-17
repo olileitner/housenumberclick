@@ -33,7 +33,8 @@ import org.openstreetmap.josm.tools.Logging;
 /**
  * Utility for collecting and spatially disambiguating street names from highway ways in the current dataset,
  * using a two-stage grouping (raw connected components + conservative post-merge),
- * and for resolving local same-name street chains from a concrete seed way.
+ * and for resolving local same-name street chains from a concrete seed way while preserving
+ * full selected-cluster membership for disambiguated StreetOptions.
  */
 final class StreetNameCollector {
 
@@ -164,6 +165,11 @@ final class StreetNameCollector {
         List<Way> getLocalStreetChainWays(StreetOption option, Way preferredSeedWay) {
             if (option == null || !option.isValid()) {
                 return List.of();
+            }
+            List<Way> optionWays = getWaysForStreetOption(option);
+            if (!optionWays.isEmpty()) {
+                // A selected disambiguated option already represents one cluster; do not re-fragment via stricter BFS.
+                return optionWays;
             }
             return getLocalStreetChainWays(option.getBaseStreetName(), preferredSeedWay, option.getClusterId());
         }
@@ -465,11 +471,17 @@ final class StreetNameCollector {
     }
 
     static StreetIndex collectStreetIndex(DataSet dataSet) {
+        return collectStreetIndex(dataSet, true);
+    }
+
+    static StreetIndex collectStreetIndex(DataSet dataSet, boolean limitToCurrentView) {
         if (dataSet == null) {
             return new StreetIndex(List.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
         }
 
-        Collection<Way> candidateWays = getWaysFromCurrentView(dataSet);
+        Collection<Way> candidateWays = limitToCurrentView
+                ? getWaysFromCurrentView(dataSet)
+                : dataSet.getWays();
         Map<String, List<Way>> waysByBaseStreetName = new HashMap<>();
         for (Way way : candidateWays) {
             if (way == null || !way.isUsable() || !way.hasTag("highway")) {

@@ -34,8 +34,8 @@ import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays,
- * explicit street-selection zoom behavior, spatially disambiguated street readback selection,
- * and split/address operations.
+ * explicit street-selection zoom behavior with full selected-street framing,
+ * spatially disambiguated street readback selection, and split/address operations.
  */
 final class StreetModeController {
 
@@ -442,33 +442,48 @@ final class StreetModeController {
             return;
         }
 
-        StreetNameCollector.StreetIndex streetIndex = getStreetIndex(editDataSet);
-        StreetSeedResolution seedResolution = resolveStreetSeedResolution(editDataSet, streetOption, streetIndex);
+        StreetNameCollector.StreetIndex zoomStreetIndex = StreetNameCollector.collectStreetIndex(editDataSet, false);
+        StreetOption zoomStreetOption = resolveStreetOptionForZoom(streetOption, zoomStreetIndex);
+        if (zoomStreetOption == null || !zoomStreetOption.isValid()) {
+            zoomStreetOption = streetOption;
+        }
+
+        StreetSeedResolution seedResolution = resolveStreetSeedResolution(editDataSet, zoomStreetOption, zoomStreetIndex);
+        List<Way> localStreetWays = zoomStreetIndex.getLocalStreetChainWays(zoomStreetOption, seedResolution.seedWay);
         List<HouseNumberOverlayEntry> entries = houseNumberOverlayCollector.collect(
                 editDataSet,
-                streetOption,
-                streetIndex,
+                zoomStreetOption,
+                zoomStreetIndex,
                 seedResolution.seedWay
         );
         List<OsmPrimitive> fallbackStreetWays = List.of();
+        List<OsmPrimitive> selectionTargets = new ArrayList<>();
 
         BoundingXYVisitor visitor = new BoundingXYVisitor();
-        if (entries.isEmpty()) {
+        for (Way streetWay : localStreetWays) {
+            if (streetWay == null || !streetWay.isUsable()) {
+                continue;
+            }
+            streetWay.accept((OsmPrimitiveVisitor) visitor);
+            selectionTargets.add(streetWay);
+        }
+
+        for (HouseNumberOverlayEntry entry : entries) {
+            OsmPrimitive primitive = entry.getPrimitive();
+            if (primitive == null || !primitive.isUsable()) {
+                continue;
+            }
+            primitive.accept((OsmPrimitiveVisitor) visitor);
+        }
+
+        if (!visitor.hasExtend()) {
             fallbackStreetWays = collectStreetWayFallbackPrimitives(
                     editDataSet,
-                    streetOption,
-                    streetIndex,
+                    zoomStreetOption,
+                    zoomStreetIndex,
                     seedResolution.seedWay
             );
             for (OsmPrimitive primitive : fallbackStreetWays) {
-                primitive.accept((OsmPrimitiveVisitor) visitor);
-            }
-        } else {
-            for (HouseNumberOverlayEntry entry : entries) {
-                OsmPrimitive primitive = entry.getPrimitive();
-                if (primitive == null || !primitive.isUsable()) {
-                    continue;
-                }
                 primitive.accept((OsmPrimitiveVisitor) visitor);
             }
         }
@@ -480,10 +495,29 @@ final class StreetModeController {
         map.mapView.zoomTo(visitor);
         // Selection updates can trigger additional viewport reactions in JOSM.
         // For automatic checkbox-based zoom we keep selection untouched to avoid flicker.
-        if (selectFallbackWays && !fallbackStreetWays.isEmpty()) {
-            editDataSet.setSelected(fallbackStreetWays);
+        if (selectFallbackWays) {
+            List<OsmPrimitive> zoomSelection = !selectionTargets.isEmpty() ? selectionTargets : fallbackStreetWays;
+            if (!zoomSelection.isEmpty()) {
+                editDataSet.setSelected(zoomSelection);
+            }
             map.mapView.repaint();
         }
+    }
+
+    private StreetOption resolveStreetOptionForZoom(StreetOption streetOption,
+            StreetNameCollector.StreetIndex streetIndex) {
+        if (streetOption == null || !streetOption.isValid() || streetIndex == null) {
+            return null;
+        }
+        StreetOption byCluster = streetIndex.findByClusterId(streetOption.getClusterId());
+        if (byCluster != null && byCluster.isValid()) {
+            return byCluster;
+        }
+        StreetOption byDisplay = streetIndex.findByDisplayStreetName(streetOption.getDisplayStreetName());
+        if (byDisplay != null && byDisplay.isValid()) {
+            return byDisplay;
+        }
+        return streetIndex.resolveForBaseStreetAndPrimitive(streetOption.getBaseStreetName(), null);
     }
 
     static List<OsmPrimitive> collectStreetWayFallbackPrimitives(DataSet dataSet, String streetName) {
