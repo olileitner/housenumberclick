@@ -40,8 +40,6 @@ import org.openstreetmap.josm.tools.Logging;
  */
 final class StreetModeController {
 
-    private static final String LOG_PREFIX = "HouseNumberClick street diagnostics";
-
     /**
      * Immutable current address selection transferred from dialog to map mode, including optional city.
      */
@@ -234,10 +232,6 @@ final class StreetModeController {
             return;
         }
 
-        Logging.debug(LOG_PREFIX + ": activate selection base='" + normalize(selection.getStreetName())
-                + "', display='" + normalize(selection.getDisplayStreetName())
-                + "', cluster='" + normalize(selection.getStreetClusterId()) + "'.");
-
         navigationService.updateFromSelection(selection);
         syncDataSourceListenerBinding();
         registerCommandQueueListener();
@@ -245,8 +239,6 @@ final class StreetModeController {
 
         MapFrame map = MainApplication.getMap();
         if (map == null || map.mapView == null) {
-            Logging.info("HouseNumberClick StreetModeController.activate: map/mapView unavailable, street={0}, postcode={1}",
-                    navigationService.getCurrentStreet(), navigationService.getCurrentPostcode());
             return;
         }
 
@@ -256,7 +248,6 @@ final class StreetModeController {
             } catch (RuntimeException ex) {
                 Logging.warn("HouseNumberClick StreetModeController.activate: failed to create map mode, street={0}, postcode={1}",
                         navigationService.getCurrentStreet(), navigationService.getCurrentPostcode());
-                Logging.debug(ex);
                 new Notification(I18n.tr("Street Mode could not be started."))
                         .setDuration(Notification.TIME_SHORT)
                         .show();
@@ -689,25 +680,6 @@ final class StreetModeController {
         StreetNameCollector.StreetIndex streetIndex = getStreetIndex(editDataSet);
         StreetOption selectedStreetOption = resolveCurrentStreetOption(editDataSet, streetIndex);
         StreetSeedResolution seedResolution = resolveStreetSeedResolution(editDataSet, selectedStreetOption, streetIndex);
-        if (selectedStreetOption != null) {
-            List<Way> seededChainWays = streetIndex.getLocalStreetChainWays(selectedStreetOption, seedResolution.seedWay);
-            String fallbackDetails = "cluster-fallback".equals(seedResolution.source)
-                    ? ", resolvedVia=" + seedResolution.resolvedVia + ", seedWasNull=" + (seedResolution.seedWay == null)
-                    : "";
-            Logging.debug(LOG_PREFIX + ": overlay street-chain seed=" + seedResolution.source + fallbackDetails
-                    + ", seedWayId=" + (seedResolution.seedWay == null ? "none" : seedResolution.seedWay.getUniqueId())
-                    + ", chainWays=" + seededChainWays.size() + ", selected=" + formatStreetOption(selectedStreetOption) + ".");
-        }
-        if (selectedStreetOption == null) {
-            StreetOption storedOption = navigationService.getCurrentStreetOption();
-            Logging.debug(LOG_PREFIX + ": overlay refresh without resolved street; stored="
-                    + formatStreetOption(storedOption)
-                    + ", currentBase='" + normalize(navigationService.getCurrentStreet()) + "', currentDisplay='"
-                    + normalize(navigationService.getCurrentStreetDisplay()) + "', currentCluster='"
-                    + normalize(navigationService.getCurrentStreetClusterId()) + "'.");
-        } else {
-            Logging.debug(LOG_PREFIX + ": overlay refresh using " + formatStreetOption(selectedStreetOption) + ".");
-        }
         overlayManager.refreshOverlayLayer(
                 selectedStreetOption,
                 streetIndex,
@@ -906,7 +878,6 @@ final class StreetModeController {
         String currentStreet = normalize(navigationService.getCurrentStreet());
         String currentStreetKey = streetKey(currentStreet);
         if (!currentStreetKey.equals(lastReferenceSyncStreetKey)) {
-            Logging.debug("HouseNumberClick reference auto: current street changed to='" + currentStreet + "'.");
             lastReferenceSyncStreetKey = currentStreetKey;
         }
 
@@ -922,7 +893,6 @@ final class StreetModeController {
         }
 
         boolean incomplete = streetCompletenessHeuristic.isStreetPossiblyIncomplete(editDataSet, currentStreet);
-        Logging.debug("HouseNumberClick reference auto: street='" + currentStreet + "', incomplete=" + incomplete + ".");
         if (!incomplete) {
             removeVisibleReferenceLayer("street is complete");
             return;
@@ -938,17 +908,14 @@ final class StreetModeController {
             cached = referenceStreetCache.get(loadKey);
         }
         if (cached != null) {
-            Logging.debug("HouseNumberClick reference auto: cached reference reused for street='" + currentStreet + "'.");
             showReferenceForCurrentStreet(currentStreet, loadKey, cached);
             return;
         }
 
         if (isReferenceLoadInProgress(currentStreetKey)) {
-            Logging.debug("HouseNumberClick reference auto: auto-load skipped for street='" + currentStreet + "' (already running).");
             return;
         }
 
-        Logging.debug("HouseNumberClick reference auto: auto-load started for street='" + currentStreet + "'.");
         requestReferenceStreetLoad(currentStreet, false);
     }
 
@@ -971,7 +938,6 @@ final class StreetModeController {
             cached = referenceStreetCache.get(loadKey);
         }
         if (cached != null) {
-            Logging.debug("HouseNumberClick reference auto: cached reference reused for street='" + normalizedStreet + "'.");
             showReferenceForCurrentStreet(normalizedStreet, loadKey, cached);
             if (manualRequest) {
                 String loadedMessage = cached.getWays().isEmpty()
@@ -985,7 +951,6 @@ final class StreetModeController {
         }
 
         if (!tryStartReferenceLoad(loadKey)) {
-            Logging.debug("HouseNumberClick reference auto: auto-load skipped for street='" + normalizedStreet + "' (already running).");
             return;
         }
 
@@ -1013,7 +978,6 @@ final class StreetModeController {
                         normalizedStreet,
                         classifyReferenceLoadIssue(ex),
                         summarizeExceptionChain(ex));
-                Logging.debug(ex);
                 if (manualRequest) {
                     GuiHelper.runInEDT(() -> showReferenceLoadFailure(normalizedStreet));
                 }
@@ -1034,8 +998,6 @@ final class StreetModeController {
                 && !currentStreetKey.isEmpty()
                 && streetCompletenessHeuristic.isStreetPossiblyIncomplete(editDataSet, navigationService.getCurrentStreet());
         if (!loadKey.equals(currentKey) || !currentStreetIncomplete) {
-            Logging.debug("HouseNumberClick reference auto: auto-load skipped for street='" + streetName
-                    + "' (selection changed before completion).");
             return;
         }
         if (referenceData == null || referenceData.getWays().isEmpty()) {
@@ -1051,7 +1013,6 @@ final class StreetModeController {
             overlayManager.removeReferenceStreetLayer();
             return;
         }
-        Logging.debug("HouseNumberClick reference auto: visible reference removed because " + reason + ".");
         overlayManager.removeReferenceStreetLayer();
         visibleReferenceStreetKey = "";
     }
@@ -1275,60 +1236,38 @@ final class StreetModeController {
                 navigationService.getCurrentStreet()
         );
 
-        Logging.debug(LOG_PREFIX + ": resolve start stored=" + formatStreetOption(storedOption)
-                + ", fallbackBase='" + baseStreet + "', fallbackDisplay='" + displayStreet
-                + "', fallbackCluster='" + clusterId + "'.");
-
         if (!clusterId.isEmpty()) {
             StreetOption byCluster = effectiveStreetIndex.findByClusterId(clusterId);
             if (byCluster != null) {
-                Logging.debug(LOG_PREFIX + ": resolve path=cluster hit " + formatStreetOption(byCluster) + ".");
-                return writeBackResolvedStreetOptionIfNeeded(storedOption, byCluster, "cluster");
+                return writeBackResolvedStreetOptionIfNeeded(storedOption, byCluster);
             }
-            Logging.debug(LOG_PREFIX + ": resolve path=cluster miss cluster='" + clusterId + "'.");
         }
 
         if (!displayStreet.isEmpty()) {
             StreetOption byDisplay = effectiveStreetIndex.findByDisplayStreetName(displayStreet);
             if (byDisplay != null) {
-                Logging.debug(LOG_PREFIX + ": resolve path=display hit " + formatStreetOption(byDisplay) + ".");
-                return writeBackResolvedStreetOptionIfNeeded(storedOption, byDisplay, "display");
+                return writeBackResolvedStreetOptionIfNeeded(storedOption, byDisplay);
             }
-            Logging.debug(LOG_PREFIX + ": resolve path=display miss display='" + displayStreet + "'.");
         }
 
         if (!baseStreet.isEmpty()) {
             StreetOption byBase = effectiveStreetIndex.resolveForBaseStreetAndPrimitive(baseStreet, null);
             if (byBase != null) {
-                Logging.debug(LOG_PREFIX + ": resolve path=base hit " + formatStreetOption(byBase) + ".");
-                return writeBackResolvedStreetOptionIfNeeded(storedOption, byBase, "base");
+                return writeBackResolvedStreetOptionIfNeeded(storedOption, byBase);
             }
-            Logging.debug(LOG_PREFIX + ": resolve path=base miss base='" + baseStreet + "'.");
         }
 
-        Logging.debug(LOG_PREFIX + ": resolve failed (no street option resolved from current index).");
         return null;
     }
 
-    private StreetOption writeBackResolvedStreetOptionIfNeeded(StreetOption storedOption, StreetOption resolvedOption, String path) {
+    private StreetOption writeBackResolvedStreetOptionIfNeeded(StreetOption storedOption, StreetOption resolvedOption) {
         if (resolvedOption == null || !resolvedOption.isValid()) {
             return null;
         }
         if (!isSameStreetOptionIdentity(storedOption, resolvedOption)) {
             navigationService.setCurrentStreetOption(resolvedOption);
-            Logging.debug(LOG_PREFIX + ": navigation selection refreshed via " + path
-                    + " path -> " + formatStreetOption(resolvedOption) + ".");
         }
         return resolvedOption;
-    }
-
-    private String formatStreetOption(StreetOption option) {
-        if (option == null) {
-            return "(none)";
-        }
-        return "{base='" + normalize(option.getBaseStreetName())
-                + "', display='" + normalize(option.getDisplayStreetName())
-                + "', cluster='" + normalize(option.getClusterId()) + "'}";
     }
 
     private boolean isSameStreetOptionIdentity(StreetOption first, StreetOption second) {
@@ -1561,7 +1500,6 @@ final class StreetModeController {
                 UndoRedoHandler.getInstance().add(orthogonalizeCommand);
             }
         } catch (OrthogonalizeAction.InvalidUserInputException ex) {
-            Logging.debug(ex);
             showShortNotification("Rectangularize failed for the split result.");
         }
     }

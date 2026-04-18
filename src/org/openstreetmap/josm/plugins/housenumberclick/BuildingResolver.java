@@ -172,7 +172,6 @@ final class BuildingResolver {
             return value;
         } catch (NumberFormatException ex) {
             warnInvalidScanLimitOnce(key, normalized, defaultValue);
-            Logging.debug(ex);
             return defaultValue;
         }
     }

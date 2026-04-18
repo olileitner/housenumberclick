@@ -11,14 +11,11 @@ import org.openstreetmap.josm.gui.Notification;
 import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.gui.layer.LayerManager;
 import org.openstreetmap.josm.tools.I18n;
-import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Manages creation, refresh, visibility, and teardown of plugin-owned map overlay layers.
  */
 final class OverlayManager {
-
-    private static final String LOG_PREFIX = "HouseNumberClick overlay diagnostics";
 
     private HouseNumberOverlayLayer houseNumberOverlayLayer;
     private BuildingOverviewLayer buildingOverviewLayer;
@@ -36,20 +33,13 @@ final class OverlayManager {
             boolean separateEvenOddConnectionLinesEnabled
     ) {
         if (currentStreet == null || normalize(currentStreet.getBaseStreetName()).isEmpty()) {
-            Logging.debug(LOG_PREFIX + ": refresh skipped -> no resolved street option (overlay removed)." );
             removeOverlayLayer();
             return;
         }
 
-        Logging.debug(LOG_PREFIX + ": refresh requested for base='" + normalize(currentStreet.getBaseStreetName())
-                + "', display='" + normalize(currentStreet.getDisplayStreetName())
-                + "', cluster='" + normalize(currentStreet.getClusterId()) + "', labels=" + overlayEnabled
-                + ", lines=" + connectionLinesEnabled + ".");
-
         LayerManager layerManager = MainApplication.getLayerManager();
         MapFrame map = MainApplication.getMap();
         if (layerManager == null || map == null || map.mapView == null) {
-            Logging.debug(LOG_PREFIX + ": refresh aborted -> layerManager/map/mapView unavailable.");
             return;
         }
 

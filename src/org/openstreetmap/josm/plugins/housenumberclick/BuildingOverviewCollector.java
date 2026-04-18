@@ -13,7 +13,6 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.RelationMember;
 import org.openstreetmap.josm.data.osm.Way;
-import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Collects building diagnostics used by completeness and postcode overview layers,
@@ -54,13 +53,6 @@ final class BuildingOverviewCollector {
                         .addCandidate(candidate.duplicateAddressCityKey);
             }
         }
-        int duplicateKeysAboveOne = 0;
-        for (Map.Entry<String, Integer> entry : duplicateAddressCounts.entrySet()) {
-            if (entry.getValue() > 1) {
-                duplicateKeysAboveOne++;
-            }
-        }
-
         List<BuildingOverviewEntry> entries = new ArrayList<>(candidates.size());
         for (CandidateEntry candidate : candidates) {
             DuplicateAddressGroupStats duplicateGroup = duplicateAddressGroups.get(candidate.duplicateAddressBaseKey);
@@ -77,11 +69,6 @@ final class BuildingOverviewCollector {
                     candidate.hasMisplacedHouseNumber,
                     hasDuplicateExactAddress
             ));
-        }
-        if (Logging.isDebugEnabled()) {
-            Logging.debug("HouseNumberClick duplicate diagnostics: scanned=" + rawScannedPrimitives
-                    + ", canonicalized=" + candidates.size()
-                    + ", duplicateKeysOverOne=" + duplicateKeysAboveOne + ".");
         }
         return entries;
     }

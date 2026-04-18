@@ -23,7 +23,6 @@ import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.data.projection.Projection;
 import org.openstreetmap.josm.data.projection.ProjectionRegistry;
 import org.openstreetmap.josm.tools.Geometry;
-import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Collects and normalizes addressed buildings near the locally resolved selected street segment,
@@ -33,7 +32,6 @@ final class HouseNumberOverlayCollector {
 
     private static final Pattern HOUSE_NUMBER_PATTERN = Pattern.compile("^\\s*(\\d+)\\s*([^\\d].*)?$");
     private static final double MAX_BUILDING_DISTANCE_TO_SELECTED_STREET_METERS = 120.0;
-    private static final String LOG_PREFIX = "HouseNumberClick overlay diagnostics";
 
     List<HouseNumberOverlayEntry> collect(DataSet dataSet, StreetOption selectedStreet,
             StreetNameCollector.StreetIndex streetIndex, Way seedWayHint) {
@@ -251,20 +249,7 @@ final class HouseNumberOverlayCollector {
     }
 
     private void logCollectionResult(StreetOption selectedStreet, CollectionStats stats, int collected) {
-        if (selectedStreet == null) {
-            return;
-        }
-        Logging.debug(LOG_PREFIX + ": collect result base='" + normalize(selectedStreet.getBaseStreetName())
-                + "', display='" + normalize(selectedStreet.getDisplayStreetName())
-                + "', cluster='" + normalize(selectedStreet.getClusterId()) + "', scanned=" + stats.scannedPrimitives
-                + ", canonicalized=" + stats.canonicalizedPrimitives
-                + ", selectedStreetWays=" + stats.selectedStreetWays
-                + ", collected=" + collected
-                + ", rejectedNotAddressedForStreet=" + stats.rejectedNotAddressedForStreet
-                + ", rejectedByDistance=" + stats.rejectedByDistance
-                + ", rejectedMissingLabelPoint=" + stats.rejectedMissingLabelPoint
-                + ", rejectedCanonicalDuplicate=" + stats.rejectedCanonicalDuplicate
-                + ", acceptedMissingPostcode=" + stats.acceptedMissingPostcode + ".");
+        // Debug logging intentionally disabled.
     }
 
 

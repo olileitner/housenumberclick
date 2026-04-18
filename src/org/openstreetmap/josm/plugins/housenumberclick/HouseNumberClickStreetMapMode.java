@@ -54,7 +54,6 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
     private static final long DUPLICATE_CLICK_WINDOW_MILLIS = 120L;
     static final int DEFAULT_RELATION_SCAN_CANDIDATES = BuildingResolver.DEFAULT_RELATION_SCAN_CANDIDATES;
     static final int DEFAULT_WAY_SCAN_CANDIDATES = BuildingResolver.DEFAULT_WAY_SCAN_CANDIDATES;
-    private static final long SLOW_CLICK_LOG_THRESHOLD_MILLIS = 40L;
     private static final int SPLIT_DRAG_THRESHOLD_PIXELS = 6;
 
     private final StreetModeController controller;
@@ -92,7 +91,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
     private Window appFocusWindow;
 
     /**
-     * Captures per-click diagnostics for debug logging of resolver and interaction paths.
+     * Captures per-click outcome metadata for interaction flow handling.
      */
     private static final class ClickResolutionStats {
         private String outcome = "unknown";
@@ -456,7 +455,6 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
                 handleTerraceRightClick(e, stats);
             } catch (RuntimeException ex) {
                 Logging.warn("HouseNumberClick StreetMapMode.mouseReleased: failure while processing right-click terrace split");
-                Logging.debug(ex);
                 updateStatusLine(I18n.tr("Row-house split failed. See log for details."));
                 stats.outcome = "runtime-error";
             } finally {
@@ -472,8 +470,6 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
         }
 
         if (isDuplicateReleaseEvent(e)) {
-            Logging.debug("HouseNumberClick StreetMapMode.mouseReleased: duplicate release suppressed at {0},{1}",
-                    e.getX(), e.getY());
             return;
         }
 
@@ -496,7 +492,6 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
                     displayValue(postcode),
                     displayValue(houseNumber)
             );
-            Logging.debug(ex);
             updateStatusLine(I18n.tr("Address click failed. See log for details."));
             stats.outcome = "runtime-error";
         } finally {
@@ -994,8 +989,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             int hotspotX = 4;
             int hotspotY = 28;
             return toolkit.createCustomCursor(image, new Point(hotspotX, hotspotY), "hnc-split-cursor");
-        } catch (RuntimeException ex) {
-            Logging.debug(ex);
+        } catch (RuntimeException ignored) {
             return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
         }
     }
@@ -1036,8 +1030,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             g.dispose();
 
             return toolkit.createCustomCursor(image, new Point(hotspotX, hotspotY), "hnc-magnifier-cursor");
-        } catch (RuntimeException ex) {
-            Logging.debug(ex);
+        } catch (RuntimeException ignored) {
         }
         return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
     }
@@ -1093,8 +1086,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             g.dispose();
 
             return Toolkit.getDefaultToolkit().createCustomCursor(image, new Point(centerX, tipY), "hnc-house-number-cursor");
-        } catch (RuntimeException ex) {
-            Logging.debug(ex);
+        } catch (RuntimeException ignored) {
             return Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR);
         }
     }
@@ -1124,38 +1116,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
     }
 
     private void logClickDiagnostics(long startedAtNanos, MouseEvent e, ClickResolutionStats stats) {
-        long elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000L;
-        if (Logging.isDebugEnabled()) {
-            Logging.debug(
-                    "HouseNumberClick click-path: outcome={0}, source={1}, nearestCandidates={2}, relationChecked={3}/{4}, wayChecked={5}/{6}, relationLimitReached={7}, wayLimitReached={8}, control={9}, button={10}, modifiers={11}, x={12}, y={13}, durationMs={14}",
-                    stats.outcome,
-                    stats.resolution.getSource(),
-                    stats.resolution.getNearestCandidates(),
-                    stats.resolution.getRelationCandidatesChecked(),
-                    stats.resolution.getRelationScanLimit(),
-                    stats.resolution.getWayCandidatesChecked(),
-                    stats.resolution.getWayScanLimit(),
-                    stats.resolution.isRelationLimitReached(),
-                    stats.resolution.isWayLimitReached(),
-                    e.isControlDown(),
-                    e.getButton(),
-                    e.getModifiersEx(),
-                    e.getX(),
-                    e.getY(),
-                    elapsedMillis
-            );
-        }
-
-        if (elapsedMillis >= SLOW_CLICK_LOG_THRESHOLD_MILLIS) {
-            Logging.debug(
-                    "HouseNumberClick StreetMapMode.mouseReleased: slow click handling ({0} ms), source={1}, outcome={2}, x={3}, y={4}",
-                    elapsedMillis,
-                    stats.resolution.getSource(),
-                    stats.outcome,
-                    e.getX(),
-                    e.getY()
-            );
-        }
+        // Debug logging intentionally disabled to keep click handling lean.
     }
 
 

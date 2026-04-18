@@ -510,13 +510,6 @@ final class StreetNameCollector {
             List<List<Way>> rawComponents = splitIntoConnectedComponents(namedWays);
             List<List<Way>> mergedComponents = mergeConnectedComponents(rawComponents);
             mergedComponents.sort(Comparator.comparing(StreetNameCollector::computeComponentSortKey));
-            if (Logging.isDebugEnabled() && (rawComponents.size() > 1 || mergedComponents.size() > 1)) {
-                Logging.debug("HouseNumberClick cluster build: base='" + baseStreetName
-                        + "', rawComponents=" + rawComponents.size()
-                        + ", mergedGroups=" + mergedComponents.size()
-                        + ", rawSizes=" + formatComponentSizes(rawComponents)
-                        + ", mergedSizes=" + formatComponentSizes(mergedComponents) + ".");
-            }
 
             List<StreetOption> optionsForBaseStreet = new ArrayList<>();
             for (int i = 0; i < mergedComponents.size(); i++) {
@@ -851,30 +844,7 @@ final class StreetNameCollector {
     }
 
     private static void logMergeDecision(List<Way> firstGroup, List<Way> secondGroup, MergeDecision mergeDecision) {
-        if (!Logging.isDebugEnabled()) {
-            return;
-        }
-        if (mergeDecision == null) {
-            return;
-        }
-        Logging.debug("HouseNumberClick cluster merge: "
-                + (mergeDecision.accepted ? "accepted" : "rejected")
-                + " (" + mergeDecision.reason + "), sizes="
-                + (firstGroup == null ? 0 : firstGroup.size()) + "+"
-                + (secondGroup == null ? 0 : secondGroup.size())
-                + ", linkDistance=" + formatMetric(mergeDecision.linkDistanceMeters)
-                + "m, centroidDistance=" + formatMetric(mergeDecision.centroidDistanceMeters)
-                + "m, directionAlignment=" + formatMetric(mergeDecision.directionAlignment)
-                + ", connectorAlignment=" + formatMetric(mergeDecision.connectorAlignmentFirst)
-                + "/" + formatMetric(mergeDecision.connectorAlignmentSecond)
-                + ".");
-    }
-
-    private static String formatMetric(double value) {
-        if (!Double.isFinite(value)) {
-            return "n/a";
-        }
-        return String.format(Locale.ROOT, "%.1f", value);
+        // Debug logging intentionally disabled.
     }
 
     private static boolean areWaysSpatiallyConnected(Way first, Way second) {

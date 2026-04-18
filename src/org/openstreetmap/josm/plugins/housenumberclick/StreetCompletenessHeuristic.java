@@ -10,7 +10,6 @@ import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
-import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Estimates whether a street is likely incomplete to decide when reference street loading is useful.
@@ -47,7 +46,6 @@ final class StreetCompletenessHeuristic {
 
             if (isLikelyCutOffEndpoint(way.firstNode(), dataSourceBounds)
                     || isLikelyCutOffEndpoint(way.lastNode(), dataSourceBounds)) {
-                Logging.debug("HouseNumberClick completeness heuristic: cutoff-endpoint for street='" + normalizedStreet + "'.");
                 return true;
             }
         }

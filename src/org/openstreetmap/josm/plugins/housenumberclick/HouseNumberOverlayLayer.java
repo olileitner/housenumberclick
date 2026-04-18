@@ -30,7 +30,6 @@ import org.openstreetmap.josm.gui.dialogs.LayerListDialog;
 import org.openstreetmap.josm.gui.layer.Layer;
 import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.ImageProvider;
-import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Renders street-specific house-number highlights and optional connection lines in a dedicated layer.
@@ -463,21 +462,18 @@ final class HouseNumberOverlayLayer extends Layer {
     private void logPaintReasonOnce(String key, String message) {
         if (!key.equals(lastPaintDiagnosticKey)) {
             lastPaintDiagnosticKey = key;
-            Logging.debug(message);
         }
     }
 
     private void logHighlightReasonOnce(String key, String message) {
         if (!key.equals(lastHighlightDiagnosticKey)) {
             lastHighlightDiagnosticKey = key;
-            Logging.debug(message);
         }
     }
 
     private void logEntryReasonOnce(String key, String message) {
         if (!key.equals(lastEntryDiagnosticKey)) {
             lastEntryDiagnosticKey = key;
-            Logging.debug(message);
         }
     }
 }

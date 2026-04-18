@@ -18,7 +18,6 @@ import org.openstreetmap.josm.data.osm.PrimitiveId;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.gui.progress.NullProgressMonitor;
 import org.openstreetmap.josm.io.OverpassDownloadReader;
-import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Loads lightweight reference street geometries asynchronously with caching and debounce support.
@@ -129,14 +128,6 @@ final class ReferenceStreetFetchService {
         }
 
         Bounds expandedBounds = expand(bounds);
-        Logging.debug(String.format(
-                "Reference street fetch: street='%s', bounds=[%.6f,%.6f,%.6f,%.6f]",
-                normalizedStreet,
-                expandedBounds.getMinLat(),
-                expandedBounds.getMinLon(),
-                expandedBounds.getMaxLat(),
-                expandedBounds.getMaxLon()
-        ));
         String query = buildStreetReferenceQuery(normalizedStreet);
         String overpassServer = OverpassDownloadReader.OVERPASS_SERVER.get();
 
@@ -162,21 +153,8 @@ final class ReferenceStreetFetchService {
         }
 
         int downloadedStreetWayCount = collectStreetWays(downloaded, normalizedStreet).size();
-        int totalDownloadedWayCount = downloaded.getWays().size();
-        Logging.debug(String.format(
-                "Reference street fetch: street='%s', downloadedWays=%d, totalWaysInDataset=%d",
-                normalizedStreet,
-                downloadedStreetWayCount,
-                totalDownloadedWayCount
-        ));
 
         Set<Way> keptComponent = keepPlausibleConnectedComponent(downloaded, localEndpoints, localAllNodes, normalizedStreet);
-        Logging.debug(String.format(
-                "Reference street fetch: street='%s', keptWays=%d, removedWays=%d",
-                normalizedStreet,
-                keptComponent.size(),
-                Math.max(downloadedStreetWayCount - keptComponent.size(), 0)
-        ));
         if (keptComponent.isEmpty()) {
             return new DataSet();
         }
