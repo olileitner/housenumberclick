@@ -1012,10 +1012,16 @@ final class StreetModeController {
     }
 
     private void showReferenceForCurrentStreet(String streetName, ReferenceLoadKey loadKey, DataSet referenceData) {
-        String currentStreetKey = streetKey(navigationService.getCurrentStreet());
-        String currentContextKey = datasetContextKey(getActiveEditDataSet());
-        ReferenceLoadKey currentKey = ReferenceLoadKey.of(currentContextKey, currentStreetKey);
+        if (!isActive()) {
+            return;
+        }
         DataSet editDataSet = getActiveEditDataSet();
+        if (editDataSet == null) {
+            return;
+        }
+        String currentStreetKey = streetKey(navigationService.getCurrentStreet());
+        String currentContextKey = datasetContextKey(editDataSet);
+        ReferenceLoadKey currentKey = ReferenceLoadKey.of(currentContextKey, currentStreetKey);
         boolean currentStreetIncomplete = editDataSet != null
                 && !currentStreetKey.isEmpty()
                 && streetCompletenessHeuristic.isStreetPossiblyIncomplete(editDataSet, navigationService.getCurrentStreet());

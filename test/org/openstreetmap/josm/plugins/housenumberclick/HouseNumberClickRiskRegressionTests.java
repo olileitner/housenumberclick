@@ -782,6 +782,10 @@ public final class HouseNumberClickRiskRegressionTests {
                 "controller should expose a dedicated generation invalidation helper");
         assertTrue(source.contains("private boolean isReferenceLoadGenerationCurrent(long generation)"),
                 "controller should check generation freshness before applying async results");
+        assertTrue(source.contains("if (!isActive()) {"),
+                "reference display path should ignore late callbacks once street mode is inactive");
+        assertTrue(source.contains("if (editDataSet == null) {"),
+                "reference display path should abort when no active edit dataset exists");
     }
 
     private static void testStreetSelectionReResolutionOrder() throws Exception {
