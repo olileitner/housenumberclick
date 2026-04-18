@@ -517,8 +517,10 @@ final class StreetSelectionDialog {
             return;
         }
         enforcePlusOneForLetterHouseNumbers();
+        rememberLastDialogInputFocus();
         rememberCurrentValues();
         streetModeController.activate(buildCurrentSelection());
+        restoreLastDialogInputFocus();
     }
 
     private void onStreetSelectionChanged() {
