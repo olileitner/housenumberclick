@@ -62,11 +62,16 @@ final class AddressReadbackService {
         if (building == null) {
             return null;
         }
+        String readbackBuildingType = normalize(building.get("building"));
+        if (readbackBuildingType.isEmpty()) {
+            // Fallback to current UI/controller value only when the clicked object has no building tag.
+            readbackBuildingType = normalize(currentBuildingType);
+        }
         return new AddressReadbackResult(
                 building.get("addr:street"),
                 building.get("addr:postcode"),
                 building.get("addr:city"),
-                currentBuildingType,
+                readbackBuildingType,
                 building.get("addr:housenumber"),
                 "address-tags"
         );

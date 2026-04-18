@@ -168,14 +168,25 @@ public final class HouseNumberClickRiskRegressionTests {
         building.put("addr:postcode", " 12345 ");
         building.put("addr:city", " Sampletown ");
         building.put("addr:housenumber", " 77b ");
+        building.put("building", " garage ");
 
         AddressReadbackService.AddressReadbackResult result = service.readFromBuilding(building, "house");
         assertEquals("Example Street", result.getStreet(), "street should be trimmed from building tag");
         assertEquals("12345", result.getPostcode(), "postcode should be trimmed from building tag");
         assertEquals("Sampletown", result.getCity(), "city should be trimmed from building tag");
-        assertEquals("house", result.getBuildingType(), "building type should pass through unchanged");
+        assertEquals("garage", result.getBuildingType(), "building type should be read from clicked building tag");
         assertEquals("77b", result.getHouseNumber(), "house number should be trimmed from building tag");
         assertEquals("address-tags", result.getSource(), "source should mark address-tag readback");
+
+        building.remove("building");
+        AddressReadbackService.AddressReadbackResult fallbackResult = service.readFromBuilding(building, "house");
+        assertEquals("house", fallbackResult.getBuildingType(),
+                "building type should fall back to current value only when building tag is missing");
+
+        building.put("building", "   ");
+        AddressReadbackService.AddressReadbackResult blankTagFallbackResult = service.readFromBuilding(building, "residential");
+        assertEquals("residential", blankTagFallbackResult.getBuildingType(),
+                "building type should fall back to current value when building tag is blank");
     }
 
     private static void testAddressReadbackStreetFallback() {
