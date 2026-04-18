@@ -323,6 +323,9 @@ Do NOT:
 
 * always use `I18n.tr(...)`
 * keep README in sync
+* keep `i18n/POTFILES.in` in sync with all Java files that contain `I18n.tr(...)` usage
+* run `ant i18n-extract` and verify new/changed strings appear in `i18n/po/templates/HouseNumberClick.pot`
+* if `po/*.po` files are present, verify `ant i18n-lang` succeeds (use `-Di18n.pl=/path/to/i18n.pl` when `i18n/i18n.pl` is not available locally)
 
 ---
 

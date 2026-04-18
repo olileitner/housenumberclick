@@ -173,6 +173,12 @@ ant test
 ant release-artifact
 ```
 
+If `i18n/i18n.pl` is missing locally and you need `.lang` generation from `po/*.po`, run with an explicit override:
+
+```bash
+ant -Di18n.pl=/path/to/i18n.pl release-artifact
+```
+
 3. Create Git tag `v<version>` and GitHub release.
 4. Upload `dist/HouseNumberClick-<version>.jar` as release asset.
 5. For PluginsSource, use the direct GitHub release asset URL pattern:

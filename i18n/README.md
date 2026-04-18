@@ -33,3 +33,9 @@ The standard `ant dist` build now packages files from `i18n/lang/` into
 - JOSM `i18n.pl` conversion script at `i18n/i18n.pl`
   - alternatively: pass path with `-Di18n.pl=/path/to/i18n.pl`
 
+Example fallback invocation:
+
+```bash
+ant -Di18n.pl=/path/to/i18n.pl i18n-lang
+```
+
