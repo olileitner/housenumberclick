@@ -71,6 +71,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Rectangularize skips triangle split results", HouseNumberClickRiskRegressionTests::testRectangularizeCandidateGuard);
             run("Street mode blocks apply when postcode is not selected", HouseNumberClickRiskRegressionTests::testPostcodeSelectionGuard);
             run("Postcode overview source exposes three-state cycle", HouseNumberClickRiskRegressionTests::testPostcodeOverviewThreeStateCycleWiring);
+            run("Postcode overview cache and invalidation hooks exist", HouseNumberClickRiskRegressionTests::testPostcodeOverviewCacheInvalidationWiring);
             run("Postcode color mapping is deterministic", HouseNumberClickRiskRegressionTests::testPostcodeColorMappingIsDeterministic);
             run("Postcode legend uses top-5 deterministic ordering", HouseNumberClickRiskRegressionTests::testPostcodeLegendTopFiveOrdering);
             run("Postcode schematic clustering filters isolated and tiny groups", HouseNumberClickRiskRegressionTests::testPostcodeSchematicClusterFilteringRules);
@@ -1105,6 +1106,38 @@ public final class HouseNumberClickRiskRegressionTests {
                 "dialog postcode button should trigger cycle behavior");
         assertTrue(dialogSource.contains("SHOW_POSTCODE_SCHEMATIC_BUTTON_TEXT"),
                 "dialog should provide a dedicated label for switching to schematic postcode areas");
+    }
+
+    private static void testPostcodeOverviewCacheInvalidationWiring() throws Exception {
+        String postcodeLayerSource = readPluginSource("PostcodeOverviewLayer.java");
+        String overlaySource = readPluginSource("OverlayManager.java");
+
+        assertTrue(postcodeLayerSource.contains("void invalidateDataCache()"),
+                "postcode overview layer should expose explicit cache invalidation");
+        assertTrue(postcodeLayerSource.contains("refreshCacheIfNeeded(mapView);"),
+                "postcode overview paint path should rely on cache refresh hook");
+        assertTrue(postcodeLayerSource.contains("cachedSchematicRadiusBucket"),
+                "schematic area cache should be keyed by a zoom-derived radius bucket");
+        assertTrue(postcodeLayerSource.contains("cachedDataSize"),
+                "postcode overview cache should track lightweight dataset size for invalidation");
+        assertTrue(postcodeLayerSource.contains("computeDataSize(dataSet)"),
+                "cache refresh should compute current dataset size before deciding rebuild");
+        assertTrue(postcodeLayerSource.contains("getNodes().size() + dataSet.getWays().size() + dataSet.getRelations().size()"),
+                "dataset invalidation heuristic should use node/way/relation counts");
+        assertTrue(postcodeLayerSource.contains("dataChangeSequence"),
+                "postcode overview cache should track lightweight dataset event changes");
+        assertTrue(postcodeLayerSource.contains("addDataSetListener(dataSetListener)"),
+                "postcode overview should subscribe to dataset change events for in-place edit invalidation");
+        assertTrue(postcodeLayerSource.contains("currentDataChangeSequence != cachedDataChangeSequence"),
+                "cache refresh should invalidate when local dataset event sequence changes");
+        assertTrue(postcodeLayerSource.contains("boolean modeChanged = cachedOverviewMode != overviewMode"),
+                "cache refresh should enforce mode-consistent caches");
+        assertTrue(postcodeLayerSource.contains("if (cachedSchematicClustersByPostcode.isEmpty())"),
+                "schematic cache refresh should skip area rebuild when no dense clusters exist");
+        assertTrue(postcodeLayerSource.contains("rebuildBaseCache()"),
+                "postcode overview should separate base data rebuilding from paint rendering");
+        assertTrue(overlaySource.contains("postcodeOverviewLayer.invalidateDataCache();"),
+                "overlay manager invalidation should also invalidate postcode overview caches");
     }
 
     private static void testPostcodeSchematicClusterFilteringRules() {

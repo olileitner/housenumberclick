@@ -58,7 +58,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `OverlayManager` | `OverlayManager.java` | No | Manages creation, refresh, visibility, and teardown of plugin-owned map overlay layers, including the three-state postcode overview cycle (off/buildings/schematic areas). |
 | `OverviewManager` | `OverviewManager.java` | No | Coordinates overview dialogs and keeps their data synchronized with current plugin state. |
 | `PostcodeCollector` | `PostcodeCollector.java` | No | Utility for extracting visible postcode candidates from the active dataset. |
-| `PostcodeOverviewLayer` | `PostcodeOverviewLayer.java` | No | Map layer that visualizes postcode distribution for quick QA checks in building and schematic dense-area rendering modes. |
+| `PostcodeOverviewLayer` | `PostcodeOverviewLayer.java` | No | Map layer that visualizes postcode distribution for quick QA checks in building and schematic dense-area rendering modes, with dataset-aware cached preprocessing to keep repaint cost low. |
 | `ReferenceStreetFetchService` | `ReferenceStreetFetchService.java` | No | Loads lightweight reference street geometries asynchronously with caching and debounce support. |
 | `ReferenceStreetFetchService.ReferenceStreetContext` | `ReferenceStreetFetchService.java` | No | Immutable load context containing selected street and local dataset geometry anchors. |
 | `ReferenceStreetLayer` | `ReferenceStreetLayer.java` | No | Read-only overlay layer that renders fetched reference street geometry in a distinct style. |

@@ -12,6 +12,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import javax.swing.Action;
 import javax.swing.Icon;
@@ -24,6 +25,7 @@ import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Relation;
 import org.openstreetmap.josm.data.osm.RelationMember;
 import org.openstreetmap.josm.data.osm.Way;
+import org.openstreetmap.josm.data.osm.event.DataSetListenerAdapter;
 import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.gui.MapView;
 import org.openstreetmap.josm.gui.dialogs.LayerListDialog;
@@ -33,7 +35,7 @@ import org.openstreetmap.josm.tools.ImageProvider;
 
 /**
  * Map layer that visualizes postcode distribution for quick QA checks in building and
- * schematic dense-area rendering modes.
+ * schematic dense-area rendering modes, with dataset-aware cached preprocessing to keep repaint cost low.
  */
 final class PostcodeOverviewLayer extends Layer {
 
@@ -75,6 +77,20 @@ final class PostcodeOverviewLayer extends Layer {
     private final BuildingOverviewCollector collector;
     private final OverviewMode overviewMode;
 
+    private boolean cacheReady;
+    private List<BuildingOverviewCollector.BuildingOverviewEntry> cachedEntries = List.of();
+    private Map<String, Integer> cachedPostcodeCounts = Map.of();
+    private List<String> cachedLegendTopPostcodes = List.of();
+    private Map<String, List<List<LatLon>>> cachedSchematicClustersByPostcode = Map.of();
+    private Map<String, List<Area>> cachedSchematicAreasByPostcode = Map.of();
+    private int cachedSchematicRadiusBucket = -1;
+    private DataSet cachedDataSetReference;
+    private OverviewMode cachedOverviewMode;
+    private int cachedDataSize = -1;
+    private final AtomicLong dataChangeSequence = new AtomicLong();
+    private long cachedDataChangeSequence = Long.MIN_VALUE;
+    private final DataSetListenerAdapter dataSetListener = new DataSetListenerAdapter(event -> dataChangeSequence.incrementAndGet());
+
     PostcodeOverviewLayer(DataSet dataSet) {
         this(dataSet, OverviewMode.BUILDINGS);
     }
@@ -84,6 +100,9 @@ final class PostcodeOverviewLayer extends Layer {
         this.dataSet = dataSet;
         this.collector = new BuildingOverviewCollector();
         this.overviewMode = overviewMode != null ? overviewMode : OverviewMode.BUILDINGS;
+        if (this.dataSet != null) {
+            this.dataSet.addDataSetListener(dataSetListener);
+        }
     }
 
     @Override
@@ -92,8 +111,8 @@ final class PostcodeOverviewLayer extends Layer {
             return;
         }
 
-        List<BuildingOverviewCollector.BuildingOverviewEntry> entries = collector.collect(dataSet);
-        if (entries.isEmpty()) {
+        refreshCacheIfNeeded(mapView);
+        if (cachedEntries.isEmpty()) {
             return;
         }
 
@@ -101,25 +120,22 @@ final class PostcodeOverviewLayer extends Layer {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         if (overviewMode == OverviewMode.SCHEMATIC) {
-            drawSchematicAreas(g, mapView, entries);
+            drawCachedSchematicAreas(g);
         } else {
-            for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
+            for (BuildingOverviewCollector.BuildingOverviewEntry entry : cachedEntries) {
                 drawPrimitive(g, mapView, entry.getPrimitive());
             }
         }
-        drawLegend(g, mapView, entries, overviewMode);
+        drawLegend(g, mapView, cachedPostcodeCounts, cachedLegendTopPostcodes, overviewMode);
         g.dispose();
     }
 
-    private void drawLegend(Graphics2D g, MapView mapView, List<BuildingOverviewCollector.BuildingOverviewEntry> entries,
-            OverviewMode mode) {
+    private void drawLegend(Graphics2D g, MapView mapView, Map<String, Integer> postcodeCounts,
+            List<String> topPostcodes, OverviewMode mode) {
         if (mapView.getWidth() < 180 || mapView.getHeight() < 120) {
             return;
         }
-
-        Map<String, Integer> postcodeCounts = collectPostcodeCounts(entries);
         int missingCount = postcodeCounts.getOrDefault("", 0);
-        List<String> topPostcodes = sortPostcodesForLegend(postcodeCounts, TOP_POSTCODE_LEGEND_LIMIT);
         boolean schematicLegend = mode == OverviewMode.SCHEMATIC;
 
         String title = I18n.tr("Postcode");
@@ -219,39 +235,19 @@ final class PostcodeOverviewLayer extends Layer {
         }
     }
 
-    private void drawSchematicAreas(Graphics2D g, MapView mapView,
-            List<BuildingOverviewCollector.BuildingOverviewEntry> entries) {
-        if (mapView == null || entries == null || entries.isEmpty()) {
+    private void drawCachedSchematicAreas(Graphics2D g) {
+        if (cachedSchematicAreasByPostcode.isEmpty()) {
             return;
         }
-
-        Map<String, List<LatLon>> centersByPostcode = collectPostcodeCenters(entries);
-        if (centersByPostcode.isEmpty()) {
-            return;
-        }
-
-        double metersPer100Pixel = mapView.getDist100Pixel();
-        if (metersPer100Pixel <= 0.0) {
-            return;
-        }
-        double pixelsPerMeter = 100.0 / metersPer100Pixel;
-        double radiusPixels = Math.max(5.0, SCHEMATIC_BUFFER_RADIUS_METERS * pixelsPerMeter);
-
-        for (Map.Entry<String, List<LatLon>> entry : centersByPostcode.entrySet()) {
+        for (Map.Entry<String, List<Area>> entry : cachedSchematicAreasByPostcode.entrySet()) {
             String postcode = entry.getKey();
-            List<List<LatLon>> clusters = clusterDensePoints(
-                    entry.getValue(),
-                    ISOLATION_DISTANCE_METERS,
-                    MIN_SCHEMATIC_CLUSTER_SIZE
-            );
-            if (clusters.isEmpty()) {
+            List<Area> areas = entry.getValue();
+            if (areas == null || areas.isEmpty()) {
                 continue;
             }
-
             Color fillColor = resolveColorForPostcode(postcode);
             Color outlineColor = new Color(fillColor.getRed(), fillColor.getGreen(), fillColor.getBlue(), 255);
-            for (List<LatLon> cluster : clusters) {
-                Area area = buildClusterArea(mapView, cluster, radiusPixels);
+            for (Area area : areas) {
                 if (area == null || area.isEmpty()) {
                     continue;
                 }
@@ -416,6 +412,127 @@ final class PostcodeOverviewLayer extends Layer {
         return clusters;
     }
 
+    void invalidateDataCache() {
+        cacheReady = false;
+        cachedEntries = List.of();
+        cachedPostcodeCounts = Map.of();
+        cachedLegendTopPostcodes = List.of();
+        cachedSchematicClustersByPostcode = Map.of();
+        cachedSchematicAreasByPostcode = Map.of();
+        cachedSchematicRadiusBucket = -1;
+        cachedDataSetReference = null;
+        cachedOverviewMode = null;
+        cachedDataSize = -1;
+        cachedDataChangeSequence = Long.MIN_VALUE;
+    }
+
+    private void refreshCacheIfNeeded(MapView mapView) {
+        int currentDataSize = computeDataSize(dataSet);
+        long currentDataChangeSequence = dataChangeSequence.get();
+        boolean modeChanged = cachedOverviewMode != overviewMode;
+        boolean dataChanged = cachedDataSetReference != dataSet
+                || currentDataSize != cachedDataSize
+                || currentDataChangeSequence != cachedDataChangeSequence;
+        if (!cacheReady || modeChanged || dataChanged) {
+            invalidateDataCache();
+            rebuildBaseCache();
+            cacheReady = true;
+            cachedDataSetReference = dataSet;
+            cachedOverviewMode = overviewMode;
+            cachedDataSize = currentDataSize;
+            cachedDataChangeSequence = currentDataChangeSequence;
+        }
+        if (overviewMode == OverviewMode.SCHEMATIC) {
+            refreshSchematicAreaCacheIfNeeded(mapView);
+        }
+    }
+
+    private void rebuildBaseCache() {
+        cachedEntries = collector.collect(dataSet);
+        cachedPostcodeCounts = collectPostcodeCounts(cachedEntries);
+        cachedLegendTopPostcodes = sortPostcodesForLegend(cachedPostcodeCounts, TOP_POSTCODE_LEGEND_LIMIT);
+
+        if (overviewMode != OverviewMode.SCHEMATIC) {
+            cachedSchematicClustersByPostcode = Map.of();
+            cachedSchematicAreasByPostcode = Map.of();
+            cachedSchematicRadiusBucket = -1;
+            return;
+        }
+
+        Map<String, List<LatLon>> centersByPostcode = collectPostcodeCenters(cachedEntries);
+        Map<String, List<List<LatLon>>> clustersByPostcode = new HashMap<>();
+        for (Map.Entry<String, List<LatLon>> entry : centersByPostcode.entrySet()) {
+            List<List<LatLon>> clusters = clusterDensePoints(
+                    entry.getValue(),
+                    ISOLATION_DISTANCE_METERS,
+                    MIN_SCHEMATIC_CLUSTER_SIZE
+            );
+            if (!clusters.isEmpty()) {
+                clustersByPostcode.put(entry.getKey(), clusters);
+            }
+        }
+        cachedSchematicClustersByPostcode = clustersByPostcode;
+        cachedSchematicAreasByPostcode = Map.of();
+        cachedSchematicRadiusBucket = -1;
+    }
+
+    private void refreshSchematicAreaCacheIfNeeded(MapView mapView) {
+        if (mapView == null) {
+            return;
+        }
+        int radiusBucket = computeSchematicRadiusBucket(mapView);
+        if (radiusBucket <= 0) {
+            cachedSchematicAreasByPostcode = Map.of();
+            cachedSchematicRadiusBucket = radiusBucket;
+            return;
+        }
+        if (radiusBucket == cachedSchematicRadiusBucket && !cachedSchematicAreasByPostcode.isEmpty()) {
+            return;
+        }
+        if (cachedSchematicClustersByPostcode.isEmpty()) {
+            cachedSchematicAreasByPostcode = Map.of();
+            cachedSchematicRadiusBucket = radiusBucket;
+            return;
+        }
+
+        Map<String, List<Area>> areasByPostcode = new HashMap<>();
+        double radiusPixels = radiusBucket / 10.0;
+        for (Map.Entry<String, List<List<LatLon>>> entry : cachedSchematicClustersByPostcode.entrySet()) {
+            List<Area> areas = new ArrayList<>();
+            for (List<LatLon> cluster : entry.getValue()) {
+                Area area = buildClusterArea(mapView, cluster, radiusPixels);
+                if (area != null && !area.isEmpty()) {
+                    areas.add(area);
+                }
+            }
+            if (!areas.isEmpty()) {
+                areasByPostcode.put(entry.getKey(), areas);
+            }
+        }
+        cachedSchematicAreasByPostcode = areasByPostcode;
+        cachedSchematicRadiusBucket = radiusBucket;
+    }
+
+    private int computeSchematicRadiusBucket(MapView mapView) {
+        if (mapView == null) {
+            return -1;
+        }
+        double metersPer100Pixel = mapView.getDist100Pixel();
+        if (metersPer100Pixel <= 0.0) {
+            return -1;
+        }
+        double pixelsPerMeter = 100.0 / metersPer100Pixel;
+        double radiusPixels = Math.max(5.0, SCHEMATIC_BUFFER_RADIUS_METERS * pixelsPerMeter);
+        return (int) Math.round(radiusPixels * 10.0);
+    }
+
+    private int computeDataSize(DataSet dataSet) {
+        if (dataSet == null) {
+            return 0;
+        }
+        return dataSet.getNodes().size() + dataSet.getWays().size() + dataSet.getRelations().size();
+    }
+
     private static boolean hasNeighborWithin(List<LatLon> points, int index, double maxDistanceMeters) {
         LatLon candidate = points.get(index);
         if (candidate == null) {
@@ -555,6 +672,14 @@ final class PostcodeOverviewLayer extends Layer {
                 layerListDialog.createShowHideLayerAction(),
                 layerListDialog.createDeleteLayerAction()
         };
+    }
+
+    @Override
+    public synchronized void destroy() {
+        if (dataSet != null) {
+            dataSet.removeDataSetListener(dataSetListener);
+        }
+        super.destroy();
     }
 
     private String normalize(String value) {

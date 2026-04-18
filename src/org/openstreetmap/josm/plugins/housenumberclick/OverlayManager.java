@@ -114,6 +114,9 @@ final class OverlayManager {
         if (houseNumberOverlayLayer != null) {
             houseNumberOverlayLayer.invalidateDataCache();
         }
+        if (postcodeOverviewLayer != null) {
+            postcodeOverviewLayer.invalidateDataCache();
+        }
     }
 
     void setCompletenessMissingField(BuildingOverviewLayer.MissingField missingField) {
