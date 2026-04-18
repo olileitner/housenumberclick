@@ -135,3 +135,17 @@ STOP and fix it before publishing.
 
 A broken release is worse than a delayed release.
 
+## 11) Doc Sync Check (Mandatory)
+
+Before merging release-process documentation changes, verify this file stays aligned with:
+
+- `JOSM_PLUGIN_RELEASE.md`
+
+At minimum, keep these topics consistent across both files:
+
+- non-interactive release command rules
+- annotated tag rule (`git tag -a ...`)
+- versioned-jar-only upload rule
+- i18n fallback guidance (`-Di18n.pl=/path/to/i18n.pl` when applicable)
+- version/tag/asset/release-notes consistency checks
+

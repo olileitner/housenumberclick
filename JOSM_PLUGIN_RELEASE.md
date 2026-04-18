@@ -107,3 +107,17 @@ Before any release, all of the following MUST match exactly:
 
 Any mismatch can break update behavior.
 
+## 6) Doc Sync Check (Mandatory)
+
+Before merging release-process documentation changes, verify this file stays aligned with:
+
+- `RELEASE_STEPS.md`
+
+At minimum, keep these topics consistent across both files:
+
+- non-interactive release command rules
+- annotated tag rule (`git tag -a ...`)
+- versioned-jar-only upload rule
+- i18n fallback guidance (`-Di18n.pl=/path/to/i18n.pl` when applicable)
+- version/tag/asset/release-notes consistency checks
+
