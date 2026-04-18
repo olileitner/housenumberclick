@@ -78,6 +78,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Alt+digit sets row-house parts through controller", HouseNumberClickRiskRegressionTests::testAltDigitSetsTerracePartsShortcut);
             run("Alt+digit shortcut requires plain Alt", HouseNumberClickRiskRegressionTests::testAltDigitShortcutRequiresPlainAlt);
             run("Primary apply restores map focus for undo shortcuts", HouseNumberClickRiskRegressionTests::testPrimaryApplyRestoresMapFocusForUndoShortcuts);
+            run("Overlay self-heal check is wired into interaction flow", HouseNumberClickRiskRegressionTests::testOverlaySelfHealInteractionHooks);
             run("Row-house parts dialog sync avoids document mutation during notifications", HouseNumberClickRiskRegressionTests::testRowHousePartsDialogSyncDefersDocumentMutation);
             run("Ctrl cursor uses custom magnifier without arrow asset fallback", HouseNumberClickRiskRegressionTests::testCtrlCursorUsesCustomMagnifier);
             run("Split cursor hotspot keeps scalp tip shifted left", HouseNumberClickRiskRegressionTests::testSplitCursorHotspotShiftedLeft);
@@ -658,6 +659,31 @@ public final class HouseNumberClickRiskRegressionTests {
                 "successful primary apply should restore map focus so Ctrl+Z reaches JOSM undo");
         assertTrue(source.contains("map.mapView.requestFocusInWindow();"),
                 "map focus restore should request focus on mapView");
+    }
+
+    private static void testOverlaySelfHealInteractionHooks() throws Exception {
+        String modeSource = readPluginSource("HouseNumberClickStreetMapMode.java");
+        String controllerSource = readPluginSource("StreetModeController.java");
+        String overlayManagerSource = readPluginSource("OverlayManager.java");
+
+        assertTrue(modeSource.contains("controller.ensureOverlayPresentIfEnabled();"),
+                "street mode should trigger overlay self-heal checks during active interaction flow");
+        assertTrue(modeSource.contains("public void mousePressed(MouseEvent e)"),
+                "street mode should still own mouse press handling in single-mode architecture");
+        assertTrue(modeSource.contains("public void mouseReleased(MouseEvent e)"),
+                "street mode should still own mouse release handling in single-mode architecture");
+        assertTrue(modeSource.contains("handleApplicationWindowGainedFocus"),
+                "street mode should re-check overlay visibility when application focus returns");
+
+        assertTrue(controllerSource.contains("void ensureOverlayPresentIfEnabled()"),
+                "controller should expose a guard entrypoint for restoring missing/hidden overlays");
+        assertTrue(controllerSource.contains("!overlayManager.isOverlayLayerMissingOrHidden()"),
+                "overlay guard should short-circuit when overlay is already present and visible");
+
+        assertTrue(overlayManagerSource.contains("boolean isOverlayLayerMissingOrHidden()"),
+                "overlay manager should provide a missing/hidden check for the overlay layer");
+        assertTrue(overlayManagerSource.contains("void showOverlayLayerIfPresent()"),
+                "overlay manager should provide a visibility restore helper for existing overlay layer instances");
     }
 
     private static void testRowHousePartsDialogSyncDefersDocumentMutation() throws Exception {

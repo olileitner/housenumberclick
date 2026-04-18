@@ -275,6 +275,36 @@ final class OverlayManager {
         houseNumberOverlayLayer = null;
     }
 
+    boolean isOverlayLayerMissingOrHidden() {
+        LayerManager layerManager = MainApplication.getLayerManager();
+        if (houseNumberOverlayLayer == null || layerManager == null) {
+            return true;
+        }
+        if (!layerManager.containsLayer(houseNumberOverlayLayer)) {
+            return true;
+        }
+        return !houseNumberOverlayLayer.isVisible();
+    }
+
+    void showOverlayLayerIfPresent() {
+        LayerManager layerManager = MainApplication.getLayerManager();
+        MapFrame map = MainApplication.getMap();
+        if (houseNumberOverlayLayer == null || layerManager == null) {
+            return;
+        }
+        if (!layerManager.containsLayer(houseNumberOverlayLayer)) {
+            return;
+        }
+        if (!houseNumberOverlayLayer.isVisible()) {
+            houseNumberOverlayLayer.setVisible(true);
+        }
+        ensureReferenceLayerBelowOverlay(layerManager);
+        ensureOverlayLayerAboveOverviewLayers(layerManager);
+        if (map != null && map.mapView != null) {
+            map.mapView.repaint();
+        }
+    }
+
     private void removeBuildingOverviewLayer() {
         LayerManager layerManager = MainApplication.getLayerManager();
         if (layerManager == null) {

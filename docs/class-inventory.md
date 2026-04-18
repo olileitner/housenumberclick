@@ -37,7 +37,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `DuplicateAddressOverviewLayer` | `DuplicateAddressOverviewLayer.java` | No | Map layer that highlights buildings with duplicate exact address keys. |
 | `HouseNumberClickAction` | `HouseNumberClickAction.java` | Yes | Main toolbar/menu action that opens the street selection dialog and activates street mode. |
 | `HouseNumberClickPlugin` | `HouseNumberClickPlugin.java` | Yes | Plugin entry point that wires the menu action and performs one-time toolbar migration. |
-| `HouseNumberClickStreetMapMode` | `HouseNumberClickStreetMapMode.java` | Yes | Single active map mode that handles address apply/readback (including city-aware apply values) and temporary split gestures. |
+| `HouseNumberClickStreetMapMode` | `HouseNumberClickStreetMapMode.java` | Yes | Single active map mode that handles address apply/readback (including city-aware apply values), temporary split gestures, and interaction-time overlay self-healing checks. |
 | `HouseNumberClickStreetMapMode.ClickResolutionStats` | `HouseNumberClickStreetMapMode.java` | Yes | Captures per-click outcome metadata for interaction flow handling. |
 | `HouseNumberOverlayCollector` | `HouseNumberOverlayCollector.java` | No | Collects and normalizes addressed buildings near the locally resolved selected street segment, canonicalizing relation/outer-way representations of the same real building. |
 | `HouseNumberOverlayCollector.CollectionStats` | `HouseNumberOverlayCollector.java` | No | Aggregated rejection counters used for overlay collection diagnostics. |
@@ -72,7 +72,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `StreetHouseNumberCountCollector.DuplicateAddressGroupStats` | `StreetHouseNumberCountCollector.java` | No | Aggregated duplicate-match statistics for one street+postcode+housenumber group in one street cluster. |
 | `StreetHouseNumberCountDialog` | `StreetHouseNumberCountDialog.java` | No | Dialog that lists streets with address counts, selection shortcuts, and rescan controls. |
 | `StreetHouseNumberCountRow` | `StreetHouseNumberCountRow.java` | No | Row model for per-street house-number counts, including duplicate marker information. |
-| `StreetModeController` | `StreetModeController.java` | Yes | Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays, explicit street-selection zoom behavior with full selected-street framing, spatially disambiguated street readback selection, and split/address operations including city-aware address propagation. |
+| `StreetModeController` | `StreetModeController.java` | Yes | Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays (including self-healing overlay presence checks while active), explicit street-selection zoom behavior with full selected-street framing, spatially disambiguated street readback selection, and split/address operations including city-aware address propagation. |
 | `StreetModeController.AddressSelection` | `StreetModeController.java` | Yes | Immutable current address selection transferred from dialog to map mode, including optional city. |
 | `StreetModeController.ReferenceLoadKey` | `StreetModeController.java` | Yes | Cache/load key combining dataset identity and normalized street name. |
 | `StreetModeController.StreetSeedResolution` | `StreetModeController.java` | Yes | Resolved operational seed for local same-name street-chain expansion. |

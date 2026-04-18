@@ -33,8 +33,8 @@ import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
 /**
- * Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays,
- * explicit street-selection zoom behavior with full selected-street framing,
+ * Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays
+ * (including self-healing overlay presence checks while active), explicit street-selection zoom behavior with full selected-street framing,
  * spatially disambiguated street readback selection, and split/address operations including city-aware
  * address propagation.
  */
@@ -384,6 +384,17 @@ final class StreetModeController {
         this.connectionLinesEnabled = overlayEnabled && connectionLinesEnabled;
         this.separateEvenOddConnectionLinesEnabled = this.connectionLinesEnabled && separateEvenOddLinesEnabled;
         refreshOverlayLayer();
+    }
+
+    void ensureOverlayPresentIfEnabled() {
+        if (!isActive() || !houseNumberOverlayEnabled) {
+            return;
+        }
+        if (!overlayManager.isOverlayLayerMissingOrHidden()) {
+            return;
+        }
+        refreshOverlayLayer();
+        overlayManager.showOverlayLayerIfPresent();
     }
 
     void setHouseNumberOverviewEnabled(boolean enabled) {

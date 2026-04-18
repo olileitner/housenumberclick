@@ -46,8 +46,8 @@ import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.Logging;
 
 /**
- * Single active map mode that handles address apply/readback (including city-aware apply values)
- * and temporary split gestures.
+ * Single active map mode that handles address apply/readback (including city-aware apply values),
+ * temporary split gestures, and interaction-time overlay self-healing checks.
  */
 final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPaintable {
 
@@ -181,6 +181,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
             map.mapView.requestFocusInWindow();
         }
         controller.notifyModeStateChanged(true);
+        controller.ensureOverlayPresentIfEnabled();
         refreshModePresentation(null);
     }
 
@@ -386,6 +387,7 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
         if (!isModeActiveOnMap(MainApplication.getMap())) {
             return;
         }
+        controller.ensureOverlayPresentIfEnabled();
         updateHouseNumberCursor();
     }
 
@@ -438,6 +440,8 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
 
     @Override
     public void mouseReleased(MouseEvent e) {
+        controller.ensureOverlayPresentIfEnabled();
+
         if (isSplitReleaseEvent(e)) {
             handleInlineSplitRelease(e);
             return;
@@ -501,6 +505,8 @@ final class HouseNumberClickStreetMapMode extends MapMode implements MapViewPain
 
     @Override
     public void mousePressed(MouseEvent e) {
+        controller.ensureOverlayPresentIfEnabled();
+
         if (e == null || !SwingUtilities.isLeftMouseButton(e)) {
             return;
         }
