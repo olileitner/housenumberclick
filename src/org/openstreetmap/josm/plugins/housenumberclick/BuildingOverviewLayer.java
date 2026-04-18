@@ -33,10 +33,11 @@ final class BuildingOverviewLayer extends Layer {
      * Selected required address field used to focus completeness-missing highlighting.
      */
     enum MissingField {
-        ANY,
+        BASIC,
         STREET,
         POSTCODE,
-        HOUSE_NUMBER
+        HOUSE_NUMBER,
+        CITY
     }
 
     private static final Color ADDRESSED_FILL_COLOR = new Color(86, 180, 233, 190);
@@ -85,7 +86,7 @@ final class BuildingOverviewLayer extends Layer {
         }
 
         String title = I18n.tr("Completeness");
-        String complete = I18n.tr("Address complete");
+        String complete = completeLegendLabel();
         String incomplete = missingLegendLabel();
         String noAddressData = I18n.tr("No Address Data");
 
@@ -138,6 +139,7 @@ final class BuildingOverviewLayer extends Layer {
                     entry.hasMissingStreet(),
                     entry.hasMissingPostcode(),
                     entry.hasMissingHouseNumber(),
+                    entry.hasMissingCity(),
                     entry.hasMissingRequiredAddressFields()
             );
             return;
@@ -151,6 +153,7 @@ final class BuildingOverviewLayer extends Layer {
                     entry.hasMissingStreet(),
                     entry.hasMissingPostcode(),
                     entry.hasMissingHouseNumber(),
+                    entry.hasMissingCity(),
                     entry.hasMissingRequiredAddressFields()
             );
         }
@@ -161,6 +164,7 @@ final class BuildingOverviewLayer extends Layer {
             boolean hasMissingStreet,
             boolean hasMissingPostcode,
             boolean hasMissingHouseNumber,
+            boolean hasMissingCity,
             boolean hasMissingRequiredAddressFields) {
         if (relation == null || !relation.isUsable()) {
             return;
@@ -182,6 +186,7 @@ final class BuildingOverviewLayer extends Layer {
                     hasMissingStreet,
                     hasMissingPostcode,
                     hasMissingHouseNumber,
+                    hasMissingCity,
                     hasMissingRequiredAddressFields
             );
         }
@@ -192,6 +197,7 @@ final class BuildingOverviewLayer extends Layer {
             boolean hasMissingStreet,
             boolean hasMissingPostcode,
             boolean hasMissingHouseNumber,
+            boolean hasMissingCity,
             boolean hasMissingRequiredAddressFields) {
         Path2D polygon = buildScreenPolygon(mapView, way);
         if (polygon == null) {
@@ -203,6 +209,7 @@ final class BuildingOverviewLayer extends Layer {
                 hasMissingStreet,
                 hasMissingPostcode,
                 hasMissingHouseNumber,
+                hasMissingCity,
                 hasMissingRequiredAddressFields
         );
         if (fillColor == null) {
@@ -217,11 +224,17 @@ final class BuildingOverviewLayer extends Layer {
             boolean hasMissingStreet,
             boolean hasMissingPostcode,
             boolean hasMissingHouseNumber,
+            boolean hasMissingCity,
             boolean hasMissingRequiredAddressFields) {
         if (hasNoAddressData) {
             return NO_ADDRESS_DATA_COLOR;
         }
-        if (hasMissingRequiredAddressFields && hasSelectedMissingField(hasMissingStreet, hasMissingPostcode, hasMissingHouseNumber)) {
+        if (hasSelectedMissingField(
+                hasMissingStreet,
+                hasMissingPostcode,
+                hasMissingHouseNumber,
+                hasMissingCity
+        )) {
             return UNADDRESSED_FILL_COLOR;
         }
         if (!hasMissingRequiredAddressFields) {
@@ -230,28 +243,49 @@ final class BuildingOverviewLayer extends Layer {
         return null;
     }
 
-    private boolean hasSelectedMissingField(boolean hasMissingStreet, boolean hasMissingPostcode, boolean hasMissingHouseNumber) {
+    private boolean hasSelectedMissingField(boolean hasMissingStreet, boolean hasMissingPostcode,
+            boolean hasMissingHouseNumber, boolean hasMissingCity) {
         switch (missingField) {
-            case ANY:
+            case BASIC:
                 return hasMissingStreet || hasMissingPostcode || hasMissingHouseNumber;
             case STREET:
                 return hasMissingStreet;
             case HOUSE_NUMBER:
                 return hasMissingHouseNumber;
+            case CITY:
+                return hasMissingCity;
             case POSTCODE:
             default:
                 return hasMissingPostcode;
         }
     }
 
+    private String completeLegendLabel() {
+        switch (missingField) {
+            case BASIC:
+                return I18n.tr("Basic address keys present");
+            case STREET:
+                return I18n.tr("Street present");
+            case HOUSE_NUMBER:
+                return I18n.tr("House number present");
+            case CITY:
+                return I18n.tr("City present");
+            case POSTCODE:
+            default:
+                return I18n.tr("Postcode present");
+        }
+    }
+
     private String missingLegendLabel() {
         switch (missingField) {
-            case ANY:
+            case BASIC:
                 return I18n.tr("Address incomplete");
             case STREET:
                 return I18n.tr("Street missing");
             case HOUSE_NUMBER:
                 return I18n.tr("House number missing");
+            case CITY:
+                return I18n.tr("City missing");
             case POSTCODE:
             default:
                 return I18n.tr("Postcode missing");
@@ -298,7 +332,7 @@ final class BuildingOverviewLayer extends Layer {
 
     @Override
     public String getToolTipText() {
-        if (missingField == MissingField.ANY) {
+        if (missingField == MissingField.BASIC) {
             return I18n.tr("Completeness overview (complete / incomplete / no address data)");
         }
         return I18n.tr("Completeness overview (complete / selected missing field / no address data)");
