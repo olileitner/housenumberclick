@@ -675,7 +675,7 @@ final class PostcodeOverviewLayer extends Layer {
     }
 
     @Override
-    public synchronized void destroy() {
+    public void destroy() {
         if (dataSet != null) {
             dataSet.removeDataSetListener(dataSetListener);
         }
