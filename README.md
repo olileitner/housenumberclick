@@ -6,13 +6,13 @@ HouseNumberClick is a JOSM plugin for fast, street-focused house-number tagging 
 
 - Class inventory (including core-class markers): `docs/class-inventory.md`
 
-## What's New in 1.1.6
+## What's New in 1.1.7
 
-- Single-mode interaction is finalized (`HouseNumberClickStreetMapMode` only), including inline split gestures.
-- Split workflows stay inline: `Alt+Left click+Drag` to split building, `Alt+Right click` to split to row houses, and `Alt+1..9` to set number of parts.
-- Alt-based split readiness is hardened against global modifier shortcuts and missing key-release edge cases.
-- Address workflow now includes optional `City`: left-click applies `addr:city` when filled, `Ctrl+Click` reads `addr:city` from buildings, and overwrite warnings include city conflicts with separate suppression.
-- Build/release documentation is aligned with the current Ant + GitHub Releases flow.
+- Street readback for same-name roads is now more robust: nearest-cluster resolution is prioritized and stale seed hints are avoided.
+- Auto-zoom behavior is more predictable: full selected-street framing, AutoZoom-respecting table interactions, and zoom limited to explicit street changes.
+- Analysis tooling expanded: duplicate overview layer, refined completeness/postcode analysis presentation, and clearer duplicate semantics by scope.
+- City-aware address handling is now fully integrated across apply, readback, and overwrite warnings.
+- House-number overlay reliability improved with canonicalization and active self-heal checks when labels are enabled.
 
 ## Who This Is For
 
