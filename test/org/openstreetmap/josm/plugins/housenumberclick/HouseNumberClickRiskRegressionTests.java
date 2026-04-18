@@ -84,6 +84,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Split cursor hotspot keeps scalp tip shifted left", HouseNumberClickRiskRegressionTests::testSplitCursorHotspotShiftedLeft);
             run("Split map mode is line-split only", HouseNumberClickRiskRegressionTests::testSplitMapModeIsLineSplitOnly);
             run("Reference cache is invalidated on data source changes", HouseNumberClickRiskRegressionTests::testReferenceCacheInvalidationOnDataSourceChange);
+            run("Reference async results are generation-guarded across lifecycle", HouseNumberClickRiskRegressionTests::testReferenceLoadGenerationGuardOnLifecycle);
 
             run("Street selection is re-resolved against current street index", HouseNumberClickRiskRegressionTests::testStreetSelectionReResolutionOrder);
             run("Readback street selection stays spatially disambiguated for same-name streets", HouseNumberClickRiskRegressionTests::testReadbackStreetSelectionUsesSpatialDisambiguation);
@@ -767,6 +768,20 @@ public final class HouseNumberClickRiskRegressionTests {
                 "reference cache should be cleared on data source changes");
         assertTrue(source.contains("referenceStreetLoadsInProgress.clear();"),
                 "in-progress reference loads should be reset on data source changes");
+    }
+
+    private static void testReferenceLoadGenerationGuardOnLifecycle() throws Exception {
+        String source = readPluginSource("StreetModeController.java");
+        assertTrue(source.contains("private final AtomicLong referenceLoadGeneration = new AtomicLong();"),
+                "controller should maintain a generation token for async reference-load lifecycle isolation");
+        assertTrue(source.contains("invalidateReferenceLoadGeneration();"),
+                "lifecycle cleanup should invalidate reference-load generation");
+        assertTrue(source.contains("if (!isReferenceLoadGenerationCurrent(loadGeneration)) {"),
+                "async reference-load callbacks should drop stale generation results");
+        assertTrue(source.contains("private void invalidateReferenceLoadGeneration()"),
+                "controller should expose a dedicated generation invalidation helper");
+        assertTrue(source.contains("private boolean isReferenceLoadGenerationCurrent(long generation)"),
+                "controller should check generation freshness before applying async results");
     }
 
     private static void testStreetSelectionReResolutionOrder() throws Exception {

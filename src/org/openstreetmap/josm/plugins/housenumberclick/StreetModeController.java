@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.actions.OrthogonalizeAction;
@@ -114,6 +115,7 @@ final class StreetModeController {
     private final StreetCompletenessHeuristic streetCompletenessHeuristic = new StreetCompletenessHeuristic();
     private final Map<ReferenceLoadKey, DataSet> referenceStreetCache = new HashMap<>();
     private final Set<ReferenceLoadKey> referenceStreetLoadsInProgress = new HashSet<>();
+    private final AtomicLong referenceLoadGeneration = new AtomicLong();
     private boolean rectangularizeAfterLineSplit;
     private int configuredTerraceParts = 2;
     private BuildingOverviewLayer.MissingField completenessMissingField = BuildingOverviewLayer.MissingField.POSTCODE;
@@ -775,6 +777,7 @@ final class StreetModeController {
     void onMainDialogClosed() {
         // Closing the main dialog should also close dependent views and clear visual overlays.
         invalidateStreetIndexCache();
+        invalidateReferenceLoadGeneration();
         hideHouseNumberOverview();
         hideStreetHouseNumberCounts();
         overviewManager.resetSessionPositioningState();
@@ -844,6 +847,7 @@ final class StreetModeController {
     }
 
     private void invalidateReferenceStreetStateForDataSourceChange() {
+        invalidateReferenceLoadGeneration();
         synchronized (referenceStreetCache) {
             referenceStreetCache.clear();
         }
@@ -966,14 +970,21 @@ final class StreetModeController {
         }
 
         ReferenceStreetFetchService.ReferenceStreetContext context = buildReferenceStreetContext(editDataSet, normalizedStreet, loadKey.datasetContextKey);
+        long loadGeneration = referenceLoadGeneration.get();
 
         Thread loadThread = new Thread(() -> {
             try {
                 DataSet referenceData = referenceStreetFetchService.loadReferenceStreet(context);
+                if (!isReferenceLoadGenerationCurrent(loadGeneration)) {
+                    return;
+                }
                 synchronized (referenceStreetCache) {
                     referenceStreetCache.put(loadKey, referenceData != null ? referenceData : new DataSet());
                 }
                 GuiHelper.runInEDT(() -> {
+                    if (!isReferenceLoadGenerationCurrent(loadGeneration)) {
+                        return;
+                    }
                     showReferenceForCurrentStreet(normalizedStreet, loadKey, referenceData);
                     if (manualRequest) {
                         String loadedMessage = referenceData == null || referenceData.getWays().isEmpty()
@@ -989,7 +1000,7 @@ final class StreetModeController {
                         normalizedStreet,
                         classifyReferenceLoadIssue(ex),
                         summarizeExceptionChain(ex));
-                if (manualRequest) {
+                if (manualRequest && isReferenceLoadGenerationCurrent(loadGeneration)) {
                     GuiHelper.runInEDT(() -> showReferenceLoadFailure(normalizedStreet));
                 }
             } finally {
@@ -1017,6 +1028,14 @@ final class StreetModeController {
         }
         overlayManager.showReferenceStreetLayer(streetName, referenceData);
         visibleReferenceStreetKey = currentStreetKey;
+    }
+
+    private void invalidateReferenceLoadGeneration() {
+        referenceLoadGeneration.incrementAndGet();
+    }
+
+    private boolean isReferenceLoadGenerationCurrent(long generation) {
+        return referenceLoadGeneration.get() == generation;
     }
 
     private void removeVisibleReferenceLayer(String reason) {
