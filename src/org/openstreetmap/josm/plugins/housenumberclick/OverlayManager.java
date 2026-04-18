@@ -13,9 +13,28 @@ import org.openstreetmap.josm.gui.layer.LayerManager;
 import org.openstreetmap.josm.tools.I18n;
 
 /**
- * Manages creation, refresh, visibility, and teardown of plugin-owned map overlay layers.
+ * Manages creation, refresh, visibility, and teardown of plugin-owned map overlay layers,
+ * including the three-state postcode overview cycle (off/buildings/schematic areas).
  */
 final class OverlayManager {
+
+    enum PostcodeOverviewMode {
+        OFF,
+        BUILDINGS,
+        SCHEMATIC;
+
+        PostcodeOverviewMode next() {
+            switch (this) {
+                case OFF:
+                    return BUILDINGS;
+                case BUILDINGS:
+                    return SCHEMATIC;
+                case SCHEMATIC:
+                default:
+                    return OFF;
+            }
+        }
+    }
 
     private HouseNumberOverlayLayer houseNumberOverlayLayer;
     private BuildingOverviewLayer buildingOverviewLayer;
@@ -23,6 +42,7 @@ final class OverlayManager {
     private PostcodeOverviewLayer postcodeOverviewLayer;
     private ReferenceStreetLayer referenceStreetLayer;
     private BuildingOverviewLayer.MissingField completenessMissingField = BuildingOverviewLayer.MissingField.POSTCODE;
+    private PostcodeOverviewMode postcodeOverviewMode = PostcodeOverviewMode.OFF;
 
     void refreshOverlayLayer(
             StreetOption currentStreet,
@@ -138,6 +158,10 @@ final class OverlayManager {
     }
 
     void createPostcodeOverviewLayer() {
+        createPostcodeOverviewLayer(PostcodeOverviewMode.BUILDINGS);
+    }
+
+    void createPostcodeOverviewLayer(PostcodeOverviewMode mode) {
         LayerManager layerManager = MainApplication.getLayerManager();
         if (layerManager == null) {
             return;
@@ -160,7 +184,13 @@ final class OverlayManager {
         removeBuildingOverviewLayer();
         removeDuplicateAddressOverviewLayer();
         removePostcodeOverviewLayer();
-        postcodeOverviewLayer = new PostcodeOverviewLayer(editDataSet);
+        PostcodeOverviewMode effectiveMode = mode != null && mode != PostcodeOverviewMode.OFF
+                ? mode
+                : PostcodeOverviewMode.BUILDINGS;
+        postcodeOverviewLayer = new PostcodeOverviewLayer(editDataSet, effectiveMode == PostcodeOverviewMode.SCHEMATIC
+                ? PostcodeOverviewLayer.OverviewMode.SCHEMATIC
+                : PostcodeOverviewLayer.OverviewMode.BUILDINGS);
+        postcodeOverviewMode = effectiveMode;
         layerManager.addLayer(postcodeOverviewLayer, false);
         ensureOverlayLayerAboveOverviewLayers(layerManager);
 
@@ -232,7 +262,12 @@ final class OverlayManager {
     }
 
     void togglePostcodeOverviewLayer() {
-        if (isPostcodeOverviewLayerVisible()) {
+        cyclePostcodeOverviewLayer();
+    }
+
+    void cyclePostcodeOverviewLayer() {
+        PostcodeOverviewMode targetMode = postcodeOverviewMode.next();
+        if (targetMode == PostcodeOverviewMode.OFF) {
             removePostcodeOverviewLayer();
             MapFrame map = MainApplication.getMap();
             if (map != null && map.mapView != null) {
@@ -240,7 +275,11 @@ final class OverlayManager {
             }
             return;
         }
-        createPostcodeOverviewLayer();
+        createPostcodeOverviewLayer(targetMode);
+    }
+
+    PostcodeOverviewMode getPostcodeOverviewMode() {
+        return postcodeOverviewMode;
     }
 
     boolean isBuildingOverviewLayerVisible() {
@@ -325,6 +364,7 @@ final class OverlayManager {
         LayerManager layerManager = MainApplication.getLayerManager();
         if (layerManager == null) {
             postcodeOverviewLayer = null;
+            postcodeOverviewMode = PostcodeOverviewMode.OFF;
             return;
         }
 
@@ -335,6 +375,7 @@ final class OverlayManager {
             }
         }
         postcodeOverviewLayer = null;
+        postcodeOverviewMode = PostcodeOverviewMode.OFF;
     }
 
     private void removeDuplicateAddressOverviewLayer() {

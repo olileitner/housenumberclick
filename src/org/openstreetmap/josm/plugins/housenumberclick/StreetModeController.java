@@ -35,8 +35,8 @@ import org.openstreetmap.josm.tools.Logging;
 /**
  * Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays
  * (including self-healing overlay presence checks while active), explicit street-selection zoom behavior with full selected-street framing,
- * spatially disambiguated street readback selection, and split/address operations including city/country-aware
- * address propagation.
+ * spatially disambiguated street readback selection, split/address operations including city/country-aware
+ * address propagation, and the three-state postcode overview cycle.
  */
 final class StreetModeController {
 
@@ -674,7 +674,11 @@ final class StreetModeController {
     }
 
     void togglePostcodeOverviewLayer() {
-        overlayManager.togglePostcodeOverviewLayer();
+        cyclePostcodeOverviewLayer();
+    }
+
+    void cyclePostcodeOverviewLayer() {
+        overlayManager.cyclePostcodeOverviewLayer();
     }
 
     void toggleDuplicateAddressOverviewLayer() {
@@ -683,6 +687,10 @@ final class StreetModeController {
 
     boolean isPostcodeOverviewLayerVisible() {
         return overlayManager.isPostcodeOverviewLayerVisible();
+    }
+
+    OverlayManager.PostcodeOverviewMode getPostcodeOverviewMode() {
+        return overlayManager.getPostcodeOverviewMode();
     }
 
     boolean isDuplicateAddressOverviewLayerVisible() {

@@ -42,7 +42,7 @@ import org.openstreetmap.josm.tools.I18n;
 /**
  * Main configuration dialog where users pick street/address settings (street, postcode, house number, city,
  * country code, building type) and receive disambiguated readback updates, while street auto-zoom is limited
- * to explicit street-selection actions.
+ * to explicit street-selection actions and postcode overview is cycled through off/buildings/schematic states.
  */
 final class StreetSelectionDialog {
 
@@ -120,6 +120,7 @@ final class StreetSelectionDialog {
     private static final String SHOW_DUPLICATE_BUTTON_TEXT = I18n.tr("Show duplicates");
     private static final String HIDE_DUPLICATE_BUTTON_TEXT = I18n.tr("Hide duplicates");
     private static final String SHOW_POSTCODE_BUTTON_TEXT = I18n.tr("Show All Postcodes");
+    private static final String SHOW_POSTCODE_SCHEMATIC_BUTTON_TEXT = I18n.tr("Show Postcode Areas");
     private static final String HIDE_POSTCODE_BUTTON_TEXT = I18n.tr("Hide All Postcodes");
     private static final List<String> COMMON_BUILDING_TYPES = Arrays.asList(
             "yes", "apartments", "residential", "house", "detached", "terrace", "garage", "garages",
@@ -1215,7 +1216,7 @@ final class StreetSelectionDialog {
     }
 
     private void onCreatePostcodeOverviewRequested() {
-        streetModeController.togglePostcodeOverviewLayer();
+        streetModeController.cyclePostcodeOverviewLayer();
         refreshOverviewButtonLabel();
         refreshDuplicateOverviewButtonLabel();
         refreshPostcodeOverviewButtonLabel();
@@ -1251,11 +1252,16 @@ final class StreetSelectionDialog {
         if (createPostcodeOverviewButton == null) {
             return;
         }
-        createPostcodeOverviewButton.setText(
-                streetModeController.isPostcodeOverviewLayerVisible()
-                        ? HIDE_POSTCODE_BUTTON_TEXT
-                        : SHOW_POSTCODE_BUTTON_TEXT
-        );
+        OverlayManager.PostcodeOverviewMode mode = streetModeController.getPostcodeOverviewMode();
+        if (mode == OverlayManager.PostcodeOverviewMode.BUILDINGS) {
+            createPostcodeOverviewButton.setText(SHOW_POSTCODE_SCHEMATIC_BUTTON_TEXT);
+            return;
+        }
+        if (mode == OverlayManager.PostcodeOverviewMode.SCHEMATIC) {
+            createPostcodeOverviewButton.setText(HIDE_POSTCODE_BUTTON_TEXT);
+            return;
+        }
+        createPostcodeOverviewButton.setText(SHOW_POSTCODE_BUTTON_TEXT);
     }
 
     private void refreshDuplicateOverviewButtonLabel() {

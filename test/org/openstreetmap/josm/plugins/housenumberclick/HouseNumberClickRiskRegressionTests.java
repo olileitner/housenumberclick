@@ -70,8 +70,11 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
             run("Rectangularize skips triangle split results", HouseNumberClickRiskRegressionTests::testRectangularizeCandidateGuard);
             run("Street mode blocks apply when postcode is not selected", HouseNumberClickRiskRegressionTests::testPostcodeSelectionGuard);
+            run("Postcode overview source exposes three-state cycle", HouseNumberClickRiskRegressionTests::testPostcodeOverviewThreeStateCycleWiring);
             run("Postcode color mapping is deterministic", HouseNumberClickRiskRegressionTests::testPostcodeColorMappingIsDeterministic);
             run("Postcode legend uses top-5 deterministic ordering", HouseNumberClickRiskRegressionTests::testPostcodeLegendTopFiveOrdering);
+            run("Postcode schematic clustering filters isolated and tiny groups", HouseNumberClickRiskRegressionTests::testPostcodeSchematicClusterFilteringRules);
+            run("Postcode schematic clustering keeps 500m boundary neighbors", HouseNumberClickRiskRegressionTests::testPostcodeSchematicBoundaryDistanceInclusion);
             run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
             run("Street grouping bridges endpoint-to-segment gaps", HouseNumberClickRiskRegressionTests::testStreetGroupingBridgesEndpointToSegmentGaps);
             run("Street grouping merges collinear components after raw split", HouseNumberClickRiskRegressionTests::testStreetGroupingMergesCollinearComponentsAfterRawSplit);
@@ -1083,6 +1086,58 @@ public final class HouseNumberClickRiskRegressionTests {
         assertEquals(5, top.size(), "legend should return exactly top five postcodes when enough are present");
         assertEquals(List.of("10000", "30000", "20000", "50000", "60000"), top,
                 "legend ordering should be count desc and deterministic by postcode for equal counts");
+    }
+
+    private static void testPostcodeOverviewThreeStateCycleWiring() throws Exception {
+        String dialogSource = readPluginSource("StreetSelectionDialog.java");
+        String controllerSource = readPluginSource("StreetModeController.java");
+        String overlaySource = readPluginSource("OverlayManager.java");
+
+        assertTrue(overlaySource.contains("enum PostcodeOverviewMode"),
+                "overlay manager should define a dedicated postcode overview mode enum");
+        assertTrue(overlaySource.contains("OFF") && overlaySource.contains("BUILDINGS") && overlaySource.contains("SCHEMATIC"),
+                "postcode mode enum should expose off, buildings, and schematic states");
+        assertTrue(overlaySource.contains("void cyclePostcodeOverviewLayer()"),
+                "overlay manager should expose postcode cycle entrypoint");
+        assertTrue(controllerSource.contains("void cyclePostcodeOverviewLayer()"),
+                "controller should expose postcode cycle method for the dialog");
+        assertTrue(dialogSource.contains("streetModeController.cyclePostcodeOverviewLayer();"),
+                "dialog postcode button should trigger cycle behavior");
+        assertTrue(dialogSource.contains("SHOW_POSTCODE_SCHEMATIC_BUTTON_TEXT"),
+                "dialog should provide a dedicated label for switching to schematic postcode areas");
+    }
+
+    private static void testPostcodeSchematicClusterFilteringRules() {
+        List<LatLon> points = new ArrayList<>();
+        LatLon base = new LatLon(52.0, 13.0);
+
+        // Dense cluster (size 4) should survive.
+        points.add(base);
+        points.add(offsetMeters(base, 40.0, 0.0));
+        points.add(offsetMeters(base, 0.0, 40.0));
+        points.add(offsetMeters(base, 40.0, 40.0));
+
+        // Isolated single building should be removed.
+        points.add(offsetMeters(base, 1500.0, 0.0));
+
+        // Small cluster (size 3) should be removed by min cluster size.
+        LatLon smallBase = offsetMeters(base, 3000.0, 0.0);
+        points.add(smallBase);
+        points.add(offsetMeters(smallBase, 35.0, 0.0));
+        points.add(offsetMeters(smallBase, 0.0, 35.0));
+
+        List<List<LatLon>> clusters = PostcodeOverviewLayer.clusterDensePoints(points, 500.0, 4);
+        assertEquals(1, clusters.size(), "only the dense cluster should remain after filtering");
+        assertEquals(4, clusters.get(0).size(), "the retained dense cluster should keep all four members");
+    }
+
+    private static void testPostcodeSchematicBoundaryDistanceInclusion() {
+        LatLon base = new LatLon(48.0, 11.0);
+        LatLon boundary = offsetMeters(base, 499.0, 0.0);
+        List<List<LatLon>> clusters = PostcodeOverviewLayer.clusterDensePoints(List.of(base, boundary), 500.0, 2);
+
+        assertEquals(1, clusters.size(), "points within the 500m threshold should be treated as neighbors");
+        assertEquals(2, clusters.get(0).size(), "boundary-distance cluster should include both points");
     }
 
     private static void testCompletenessLegendLabelsPresent() throws Exception {
@@ -2201,5 +2256,12 @@ public final class HouseNumberClickRiskRegressionTests {
                 ),
                 true
         );
+    }
+
+    private static LatLon offsetMeters(LatLon origin, double northMeters, double eastMeters) {
+        double latOffset = northMeters / 111_132.0;
+        double lonScale = Math.cos(Math.toRadians(origin.lat()));
+        double lonOffset = lonScale == 0.0 ? 0.0 : eastMeters / (111_320.0 * lonScale);
+        return new LatLon(origin.lat() + latOffset, origin.lon() + lonOffset);
     }
 }

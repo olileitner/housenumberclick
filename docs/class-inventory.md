@@ -55,10 +55,10 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `IntersectionPoint` | `IntersectionPoint.java` | No | Represents one detected intersection between a split line and a building outline segment. |
 | `IntersectionScanResult` | `IntersectionScanResult.java` | No | Result container for intersection scanning, including success state, message, and points. |
 | `NavigationService` | `NavigationService.java` | No | Stores and updates current street navigation state shared between dialog and map interactions. |
-| `OverlayManager` | `OverlayManager.java` | No | Manages creation, refresh, visibility, and teardown of plugin-owned map overlay layers. |
+| `OverlayManager` | `OverlayManager.java` | No | Manages creation, refresh, visibility, and teardown of plugin-owned map overlay layers, including the three-state postcode overview cycle (off/buildings/schematic areas). |
 | `OverviewManager` | `OverviewManager.java` | No | Coordinates overview dialogs and keeps their data synchronized with current plugin state. |
 | `PostcodeCollector` | `PostcodeCollector.java` | No | Utility for extracting visible postcode candidates from the active dataset. |
-| `PostcodeOverviewLayer` | `PostcodeOverviewLayer.java` | No | Map layer that visualizes postcode distribution and mismatches for quick QA checks. |
+| `PostcodeOverviewLayer` | `PostcodeOverviewLayer.java` | No | Map layer that visualizes postcode distribution for quick QA checks in building and schematic dense-area rendering modes. |
 | `ReferenceStreetFetchService` | `ReferenceStreetFetchService.java` | No | Loads lightweight reference street geometries asynchronously with caching and debounce support. |
 | `ReferenceStreetFetchService.ReferenceStreetContext` | `ReferenceStreetFetchService.java` | No | Immutable load context containing selected street and local dataset geometry anchors. |
 | `ReferenceStreetLayer` | `ReferenceStreetLayer.java` | No | Read-only overlay layer that renders fetched reference street geometry in a distinct style. |
@@ -73,7 +73,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `StreetHouseNumberCountCollector.DuplicateAddressGroupStats` | `StreetHouseNumberCountCollector.java` | No | Aggregated duplicate-match statistics for one street+postcode+housenumber group in one street cluster. |
 | `StreetHouseNumberCountDialog` | `StreetHouseNumberCountDialog.java` | No | Dialog that lists streets with address counts, selection shortcuts, and rescan controls. |
 | `StreetHouseNumberCountRow` | `StreetHouseNumberCountRow.java` | No | Row model for per-street house-number counts, including duplicate marker information. |
-| `StreetModeController` | `StreetModeController.java` | Yes | Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays (including self-healing overlay presence checks while active), explicit street-selection zoom behavior with full selected-street framing, spatially disambiguated street readback selection, and split/address operations including city/country-aware address propagation. |
+| `StreetModeController` | `StreetModeController.java` | Yes | Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays (including self-healing overlay presence checks while active), explicit street-selection zoom behavior with full selected-street framing, spatially disambiguated street readback selection, split/address operations including city/country-aware address propagation, and the three-state postcode overview cycle. |
 | `StreetModeController.AddressSelection` | `StreetModeController.java` | Yes | Immutable current address selection transferred from dialog to map mode, including optional city/country. |
 | `StreetModeController.ReferenceLoadKey` | `StreetModeController.java` | Yes | Cache/load key combining dataset identity and normalized street name. |
 | `StreetModeController.StreetSeedResolution` | `StreetModeController.java` | Yes | Resolved operational seed for local same-name street-chain expansion. |
@@ -84,7 +84,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `StreetNameCollector.MergeDecision` | `StreetNameCollector.java` | No | Decision payload for one merge evaluation, including metrics for debug logging. |
 | `StreetNameCollector.StreetIndex` | `StreetNameCollector.java` | No | Immutable lookup/index for disambiguated street clusters in the current dataset/view scope. |
 | `StreetOption` | `StreetOption.java` | No | Immutable street descriptor used to separate OSM base street names from UI disambiguation labels. |
-| `StreetSelectionDialog` | `StreetSelectionDialog.java` | No | Main configuration dialog where users pick street/address settings (street, postcode, house number, city, country code, building type) and receive disambiguated readback updates, while street auto-zoom is limited to explicit street-selection actions. |
+| `StreetSelectionDialog` | `StreetSelectionDialog.java` | No | Main configuration dialog where users pick street/address settings (street, postcode, house number, city, country code, building type) and receive disambiguated readback updates, while street auto-zoom is limited to explicit street-selection actions and postcode overview is cycled through off/buildings/schematic states. |
 | `TerraceSplitRequest` | `TerraceSplitRequest.java` | No | Input object for row-house splitting that currently carries the requested part count. |
 | `TerraceSplitResult` | `TerraceSplitResult.java` | No | Result object for row-house split execution with status message and resulting ways. |
 | `TerraceSplitService` | `TerraceSplitService.java` | No | Splits row-house buildings into configured parts based on click position and geometry orientation. |

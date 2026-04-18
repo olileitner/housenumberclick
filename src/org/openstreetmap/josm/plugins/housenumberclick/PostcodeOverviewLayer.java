@@ -4,6 +4,8 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.RenderingHints;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -15,6 +17,7 @@ import javax.swing.Action;
 import javax.swing.Icon;
 
 import org.openstreetmap.josm.data.Bounds;
+import org.openstreetmap.josm.data.coor.LatLon;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.Node;
 import org.openstreetmap.josm.data.osm.OsmPrimitive;
@@ -29,9 +32,15 @@ import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.ImageProvider;
 
 /**
- * Map layer that visualizes postcode distribution and mismatches for quick QA checks.
+ * Map layer that visualizes postcode distribution for quick QA checks in building and
+ * schematic dense-area rendering modes.
  */
 final class PostcodeOverviewLayer extends Layer {
+
+    enum OverviewMode {
+        BUILDINGS,
+        SCHEMATIC
+    }
 
     private static final Color MISSING_POSTCODE_COLOR = BuildingOverviewLayer.NO_ADDRESS_DATA_COLOR;
     private static final Color LEGEND_BACKGROUND_COLOR = new Color(248, 248, 248, 215);
@@ -40,6 +49,9 @@ final class PostcodeOverviewLayer extends Layer {
     private static final int LEGEND_SWATCH_SIZE = 11;
     static final int TOP_POSTCODE_LEGEND_LIMIT = 5;
     private static final int POSTCODE_FILL_ALPHA = 190;
+    private static final double ISOLATION_DISTANCE_METERS = 500.0;
+    private static final int MIN_SCHEMATIC_CLUSTER_SIZE = 4;
+    private static final double SCHEMATIC_BUFFER_RADIUS_METERS = 120.0;
     private static final Color[] POSTCODE_PALETTE = new Color[] {
             new Color(86, 180, 233),
             new Color(230, 159, 0),
@@ -61,11 +73,17 @@ final class PostcodeOverviewLayer extends Layer {
 
     private final DataSet dataSet;
     private final BuildingOverviewCollector collector;
+    private final OverviewMode overviewMode;
 
     PostcodeOverviewLayer(DataSet dataSet) {
+        this(dataSet, OverviewMode.BUILDINGS);
+    }
+
+    PostcodeOverviewLayer(DataSet dataSet, OverviewMode overviewMode) {
         super(I18n.tr("Postcode overview"));
         this.dataSet = dataSet;
         this.collector = new BuildingOverviewCollector();
+        this.overviewMode = overviewMode != null ? overviewMode : OverviewMode.BUILDINGS;
     }
 
     @Override
@@ -82,14 +100,19 @@ final class PostcodeOverviewLayer extends Layer {
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
-            drawPrimitive(g, mapView, entry.getPrimitive());
+        if (overviewMode == OverviewMode.SCHEMATIC) {
+            drawSchematicAreas(g, mapView, entries);
+        } else {
+            for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
+                drawPrimitive(g, mapView, entry.getPrimitive());
+            }
         }
-        drawLegend(g, mapView, entries);
+        drawLegend(g, mapView, entries, overviewMode);
         g.dispose();
     }
 
-    private void drawLegend(Graphics2D g, MapView mapView, List<BuildingOverviewCollector.BuildingOverviewEntry> entries) {
+    private void drawLegend(Graphics2D g, MapView mapView, List<BuildingOverviewCollector.BuildingOverviewEntry> entries,
+            OverviewMode mode) {
         if (mapView.getWidth() < 180 || mapView.getHeight() < 120) {
             return;
         }
@@ -97,9 +120,10 @@ final class PostcodeOverviewLayer extends Layer {
         Map<String, Integer> postcodeCounts = collectPostcodeCounts(entries);
         int missingCount = postcodeCounts.getOrDefault("", 0);
         List<String> topPostcodes = sortPostcodesForLegend(postcodeCounts, TOP_POSTCODE_LEGEND_LIMIT);
+        boolean schematicLegend = mode == OverviewMode.SCHEMATIC;
 
         String title = I18n.tr("Postcode");
-        int contentRows = 1 + topPostcodes.size();
+        int contentRows = 1 + topPostcodes.size() + (schematicLegend ? 1 : 0);
         int legendHeight = LEGEND_PADDING * 2 + LEGEND_ROW_HEIGHT + (contentRows * LEGEND_ROW_HEIGHT);
         int legendWidth = Math.max(210, g.getFontMetrics().stringWidth(title) + 80);
         int legendX = Math.max(8, mapView.getWidth() - legendWidth - 10);
@@ -122,6 +146,12 @@ final class PostcodeOverviewLayer extends Layer {
             int count = postcodeCounts.getOrDefault(postcode, 0);
             drawLegendRow(g, textBaseX, rowY, resolveColorForPostcode(postcode),
                     I18n.tr("{0} ({1})", postcode, count));
+        }
+
+        if (schematicLegend) {
+            rowY += LEGEND_ROW_HEIGHT;
+            g.setColor(Color.BLACK);
+            g.drawString(I18n.tr("Schematic: dense postcode areas"), textBaseX, rowY);
         }
     }
 
@@ -187,6 +217,223 @@ final class PostcodeOverviewLayer extends Layer {
         if (primitive instanceof Relation) {
             drawRelation(g, mapView, (Relation) primitive, resolveFillColor(primitive));
         }
+    }
+
+    private void drawSchematicAreas(Graphics2D g, MapView mapView,
+            List<BuildingOverviewCollector.BuildingOverviewEntry> entries) {
+        if (mapView == null || entries == null || entries.isEmpty()) {
+            return;
+        }
+
+        Map<String, List<LatLon>> centersByPostcode = collectPostcodeCenters(entries);
+        if (centersByPostcode.isEmpty()) {
+            return;
+        }
+
+        double metersPer100Pixel = mapView.getDist100Pixel();
+        if (metersPer100Pixel <= 0.0) {
+            return;
+        }
+        double pixelsPerMeter = 100.0 / metersPer100Pixel;
+        double radiusPixels = Math.max(5.0, SCHEMATIC_BUFFER_RADIUS_METERS * pixelsPerMeter);
+
+        for (Map.Entry<String, List<LatLon>> entry : centersByPostcode.entrySet()) {
+            String postcode = entry.getKey();
+            List<List<LatLon>> clusters = clusterDensePoints(
+                    entry.getValue(),
+                    ISOLATION_DISTANCE_METERS,
+                    MIN_SCHEMATIC_CLUSTER_SIZE
+            );
+            if (clusters.isEmpty()) {
+                continue;
+            }
+
+            Color fillColor = resolveColorForPostcode(postcode);
+            Color outlineColor = new Color(fillColor.getRed(), fillColor.getGreen(), fillColor.getBlue(), 255);
+            for (List<LatLon> cluster : clusters) {
+                Area area = buildClusterArea(mapView, cluster, radiusPixels);
+                if (area == null || area.isEmpty()) {
+                    continue;
+                }
+                g.setColor(fillColor);
+                g.fill(area);
+                g.setColor(outlineColor);
+                g.draw(area);
+            }
+        }
+    }
+
+    private Area buildClusterArea(MapView mapView, List<LatLon> cluster, double radiusPixels) {
+        if (mapView == null || cluster == null || cluster.isEmpty() || radiusPixels <= 0.0) {
+            return null;
+        }
+        Area merged = new Area();
+        for (LatLon center : cluster) {
+            if (center == null) {
+                continue;
+            }
+            Point point = mapView.getPoint(center);
+            if (point == null) {
+                continue;
+            }
+            merged.add(new Area(new Ellipse2D.Double(
+                    point.x - radiusPixels,
+                    point.y - radiusPixels,
+                    radiusPixels * 2.0,
+                    radiusPixels * 2.0
+            )));
+        }
+        return merged;
+    }
+
+    private Map<String, List<LatLon>> collectPostcodeCenters(List<BuildingOverviewCollector.BuildingOverviewEntry> entries) {
+        Map<String, List<LatLon>> byPostcode = new HashMap<>();
+        for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
+            if (entry == null) {
+                continue;
+            }
+            OsmPrimitive primitive = entry.getPrimitive();
+            String postcode = normalize(primitive == null ? null : primitive.get("addr:postcode"));
+            if (postcode.isEmpty()) {
+                continue;
+            }
+            LatLon center = computePrimitiveCenter(primitive);
+            if (center == null) {
+                continue;
+            }
+            byPostcode.computeIfAbsent(postcode, ignored -> new ArrayList<>()).add(center);
+        }
+        return byPostcode;
+    }
+
+    private LatLon computePrimitiveCenter(OsmPrimitive primitive) {
+        List<LatLon> coordinates = new ArrayList<>();
+        if (primitive instanceof Way) {
+            collectWayCoordinates((Way) primitive, coordinates);
+        } else if (primitive instanceof Relation) {
+            collectRelationCoordinates((Relation) primitive, coordinates);
+        }
+        if (coordinates.isEmpty()) {
+            return null;
+        }
+
+        double latSum = 0.0;
+        double lonSum = 0.0;
+        int count = 0;
+        for (LatLon coordinate : coordinates) {
+            if (coordinate == null) {
+                continue;
+            }
+            latSum += coordinate.lat();
+            lonSum += coordinate.lon();
+            count++;
+        }
+        if (count == 0) {
+            return null;
+        }
+        return new LatLon(latSum / count, lonSum / count);
+    }
+
+    private void collectRelationCoordinates(Relation relation, List<LatLon> coordinates) {
+        if (relation == null || !relation.isUsable() || coordinates == null) {
+            return;
+        }
+        for (RelationMember member : relation.getMembers()) {
+            if (member == null || !member.isWay()) {
+                continue;
+            }
+            String role = normalize(member.getRole());
+            if (!role.isEmpty() && !"outer".equals(role)) {
+                continue;
+            }
+            collectWayCoordinates(member.getWay(), coordinates);
+        }
+    }
+
+    private void collectWayCoordinates(Way way, List<LatLon> coordinates) {
+        if (way == null || !way.isUsable() || coordinates == null || !way.isClosed() || way.getNodesCount() < 4) {
+            return;
+        }
+        for (Node node : way.getNodes()) {
+            if (node == null || !node.isUsable() || node.getCoor() == null) {
+                continue;
+            }
+            coordinates.add(node.getCoor());
+        }
+    }
+
+    static List<List<LatLon>> clusterDensePoints(List<LatLon> points, double neighborDistanceMeters, int minClusterSize) {
+        if (points == null || points.isEmpty() || neighborDistanceMeters <= 0.0 || minClusterSize <= 0) {
+            return List.of();
+        }
+
+        List<LatLon> filtered = new ArrayList<>();
+        for (int i = 0; i < points.size(); i++) {
+            LatLon candidate = points.get(i);
+            if (candidate == null || !hasNeighborWithin(points, i, neighborDistanceMeters)) {
+                continue;
+            }
+            filtered.add(candidate);
+        }
+        if (filtered.isEmpty()) {
+            return List.of();
+        }
+
+        List<List<LatLon>> clusters = new ArrayList<>();
+        boolean[] visited = new boolean[filtered.size()];
+        for (int start = 0; start < filtered.size(); start++) {
+            if (visited[start]) {
+                continue;
+            }
+            List<LatLon> cluster = new ArrayList<>();
+            List<Integer> queue = new ArrayList<>();
+            queue.add(start);
+            visited[start] = true;
+
+            for (int q = 0; q < queue.size(); q++) {
+                int currentIndex = queue.get(q);
+                LatLon current = filtered.get(currentIndex);
+                cluster.add(current);
+                for (int other = 0; other < filtered.size(); other++) {
+                    if (visited[other]) {
+                        continue;
+                    }
+                    LatLon candidate = filtered.get(other);
+                    if (candidate == null || current == null) {
+                        continue;
+                    }
+                    if (current.greatCircleDistance(candidate) <= neighborDistanceMeters) {
+                        visited[other] = true;
+                        queue.add(other);
+                    }
+                }
+            }
+
+            if (cluster.size() >= minClusterSize) {
+                clusters.add(cluster);
+            }
+        }
+        return clusters;
+    }
+
+    private static boolean hasNeighborWithin(List<LatLon> points, int index, double maxDistanceMeters) {
+        LatLon candidate = points.get(index);
+        if (candidate == null) {
+            return false;
+        }
+        for (int i = 0; i < points.size(); i++) {
+            if (i == index) {
+                continue;
+            }
+            LatLon other = points.get(i);
+            if (other == null) {
+                continue;
+            }
+            if (candidate.greatCircleDistance(other) <= maxDistanceMeters) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private Color resolveFillColor(OsmPrimitive primitive) {
