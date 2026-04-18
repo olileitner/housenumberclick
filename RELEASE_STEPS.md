@@ -64,6 +64,12 @@ git --no-pager show v<version>
 
 Ensure tag points to the intended release commit.
 
+Automation note:
+
+- Pushing `v<version>` also triggers `.github/workflows/release.yml`.
+- Use either the manual `gh release create ...` flow below or the tag-triggered workflow as your release publisher.
+- Do not publish twice for the same tag.
+
 ## 5) Create GitHub Release
 
 ```bash
