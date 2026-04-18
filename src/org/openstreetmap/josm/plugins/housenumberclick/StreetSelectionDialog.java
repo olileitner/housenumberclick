@@ -401,6 +401,14 @@ final class StreetSelectionDialog {
         );
     }
 
+    void onEditLayerUnavailable() {
+        if (dialog.isVisible()) {
+            closeDialog();
+            return;
+        }
+        streetModeController.onMainDialogClosed();
+    }
+
     void showDialog(DataSet activeDataSet, List<StreetOption> streetOptions, List<String> detectedPostcodes) {
         if (streetOptions == null || streetOptions.isEmpty()) {
             JOptionPane.showMessageDialog(

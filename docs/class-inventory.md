@@ -35,7 +35,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `DialogController` | `DialogController.java` | No | Keeps dialog-side configuration state normalized and synchronized with controller callbacks. |
 | `DialogState` | `DialogState.java` | No | Immutable snapshot of the dialog input values used to compare and restore UI state. |
 | `DuplicateAddressOverviewLayer` | `DuplicateAddressOverviewLayer.java` | No | Map layer that highlights buildings with duplicate exact address keys. |
-| `HouseNumberClickAction` | `HouseNumberClickAction.java` | Yes | Main toolbar/menu action that opens the street selection dialog and activates street mode. |
+| `HouseNumberClickAction` | `HouseNumberClickAction.java` | Yes | Main toolbar/menu action that follows JOSM tool availability (enabled only with an editable dataset/layer), opens the street selection dialog, and activates street mode. |
 | `HouseNumberClickPlugin` | `HouseNumberClickPlugin.java` | Yes | Plugin entry point that wires the menu action and performs one-time toolbar migration. |
 | `HouseNumberClickStreetMapMode` | `HouseNumberClickStreetMapMode.java` | Yes | Single active map mode that handles address apply/readback (including city-aware apply values), temporary split gestures, and interaction-time overlay self-healing checks. |
 | `HouseNumberClickStreetMapMode.ClickResolutionStats` | `HouseNumberClickStreetMapMode.java` | Yes | Captures per-click outcome metadata for interaction flow handling. |

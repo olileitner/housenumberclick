@@ -9,7 +9,8 @@ import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.tools.I18n;
 
 /**
- * Main toolbar/menu action that opens the street selection dialog and activates street mode.
+ * Main toolbar/menu action that follows JOSM tool availability (enabled only with an editable
+ * dataset/layer), opens the street selection dialog, and activates street mode.
  */
 public class HouseNumberClickAction extends JosmAction {
 
@@ -20,11 +21,31 @@ public class HouseNumberClickAction extends JosmAction {
         super(I18n.tr("HouseNumberClick"), "housenumberclick", I18n.tr("Open HouseNumberClick street dialog"), null, true);
         this.streetModeController = new StreetModeController();
         this.streetSelectionDialog = new StreetSelectionDialog(streetModeController);
+        updateEnabledState();
+    }
+
+    @Override
+    protected boolean listenToLayerChange() {
+        return true;
+    }
+
+    @Override
+    protected void updateEnabledState() {
+        boolean wasEnabled = isEnabled();
+        boolean hasEditDataSet = MainApplication.getLayerManager() != null
+                && MainApplication.getLayerManager().getEditDataSet() != null;
+        setEnabled(hasEditDataSet);
+        if (wasEnabled && !hasEditDataSet) {
+            // Edit-layer loss must always tear down active mode/dialog artifacts.
+            streetSelectionDialog.onEditLayerUnavailable();
+        }
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        DataSet dataSet = MainApplication.getLayerManager().getEditDataSet();
+        DataSet dataSet = MainApplication.getLayerManager() != null
+                ? MainApplication.getLayerManager().getEditDataSet()
+                : null;
         if (dataSet == null) {
             StreetSelectionDialog.showNoDataSetMessage();
             return;
