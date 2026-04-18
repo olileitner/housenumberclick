@@ -113,6 +113,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Street grouping keeps parallel nearby roads separated", HouseNumberClickRiskRegressionTests::testStreetGroupingKeepsParallelNearbyRoadsSeparated);
             run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
             run("Street auto-zoom uses full-dataset street index", HouseNumberClickRiskRegressionTests::testStreetAutoZoomUsesFullDataSetStreetIndex);
+            run("Street counts duplicate marker applies conditional city rule", HouseNumberClickRiskRegressionTests::testStreetHouseNumberCountCollectorConditionalCityRule);
             run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
             run("Building overview duplicate detection applies conditional city rule", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorConditionalCityRule);
             run("Building overview duplicate detection ignores relation/outer self-duplicates", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorIgnoresRelationOuterSelfDuplicate);
@@ -1190,6 +1191,49 @@ public final class HouseNumberClickRiskRegressionTests {
                 "street collector should expose a scope-aware index builder for zoom paths");
     }
 
+    private static void testStreetHouseNumberCountCollectorConditionalCityRule() {
+        StreetHouseNumberCountCollector collector = new StreetHouseNumberCountCollector();
+
+        DataSet onlyDifferentCities = new DataSet();
+        onlyDifferentCities.addPrimitiveRecursive(createOpenStreetWay("Example Street", true));
+        Way cityAOnly = createClosedBuildingWithSize("Example Street", "8", 0.0002);
+        cityAOnly.put("addr:postcode", "12345");
+        cityAOnly.put("addr:city", "Alpha City");
+        Way cityBOnly = createClosedBuildingWithSize("Example Street", "8", 0.0002);
+        cityBOnly.put("addr:postcode", "12345");
+        cityBOnly.put("addr:city", "Beta City");
+        onlyDifferentCities.addPrimitiveRecursive(cityAOnly);
+        onlyDifferentCities.addPrimitiveRecursive(cityBOnly);
+
+        StreetNameCollector.StreetIndex mismatchIndex = StreetNameCollector.collectStreetIndex(onlyDifferentCities);
+        List<StreetHouseNumberCountRow> mismatchRows = collector.collectRows(onlyDifferentCities, mismatchIndex);
+        StreetHouseNumberCountRow mismatchRow = findStreetCountRowByDisplayName(mismatchRows, "Example Street");
+        assertTrue(mismatchRow != null, "street count row for Example Street should exist");
+        assertFalse(mismatchRow.hasDuplicate(),
+                "street count duplicate marker must stay false when all matching addresses have conflicting city values");
+
+        DataSet withMissingCityBridge = new DataSet();
+        withMissingCityBridge.addPrimitiveRecursive(createOpenStreetWay("Example Street", true));
+        Way cityA = createClosedBuildingWithSize("Example Street", "8", 0.0002);
+        cityA.put("addr:postcode", "12345");
+        cityA.put("addr:city", "Alpha City");
+        Way cityB = createClosedBuildingWithSize("Example Street", "8", 0.0002);
+        cityB.put("addr:postcode", "12345");
+        cityB.put("addr:city", "Beta City");
+        Way cityMissing = createClosedBuildingWithSize("Example Street", "8", 0.0002);
+        cityMissing.put("addr:postcode", "12345");
+        withMissingCityBridge.addPrimitiveRecursive(cityA);
+        withMissingCityBridge.addPrimitiveRecursive(cityB);
+        withMissingCityBridge.addPrimitiveRecursive(cityMissing);
+
+        StreetNameCollector.StreetIndex bridgeIndex = StreetNameCollector.collectStreetIndex(withMissingCityBridge);
+        List<StreetHouseNumberCountRow> bridgeRows = collector.collectRows(withMissingCityBridge, bridgeIndex);
+        StreetHouseNumberCountRow bridgeRow = findStreetCountRowByDisplayName(bridgeRows, "Example Street");
+        assertTrue(bridgeRow != null, "street count row for Example Street should exist with missing-city bridge");
+        assertTrue(bridgeRow.hasDuplicate(),
+                "street count duplicate marker must be true when same base address has at least one missing-city counterpart");
+    }
+
     private static void testBuildingOverviewCollectorFilteringAndClassification() {
         DataSet dataSet = new DataSet();
 
@@ -1407,6 +1451,21 @@ public final class HouseNumberClickRiskRegressionTests {
         way.put("highway", "residential");
         way.put("name", streetName);
         return way;
+    }
+
+    private static StreetHouseNumberCountRow findStreetCountRowByDisplayName(
+            List<StreetHouseNumberCountRow> rows,
+            String displayStreetName
+    ) {
+        if (rows == null || displayStreetName == null) {
+            return null;
+        }
+        for (StreetHouseNumberCountRow row : rows) {
+            if (row != null && displayStreetName.equals(row.getDisplayStreetName())) {
+                return row;
+            }
+        }
+        return null;
     }
 
     private static Way createOpenNonHighwayWay(String streetName, boolean withBuildingTag) {

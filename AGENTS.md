@@ -74,6 +74,12 @@ Important:
 * reads street/postcode/house number/building type and `addr:city` from building tags
 * fallback: street detection via highways
 
+### Duplicate checks (scope-specific)
+
+* Global duplicate analysis (`Show duplicates`, `Show all street counts` duplicate marker) uses conditional city matching.
+* Local selected-street house-number overlay duplicate highlighting stays city-agnostic (`street+postcode+housenumber`).
+* Do not silently mix global and local duplicate key strategies.
+
 ### Line Split (Alt + Drag)
 
 * handled entirely inside `HouseNumberClickStreetMapMode`

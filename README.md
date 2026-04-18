@@ -108,9 +108,9 @@ This significantly reduces friction when mapping long streets or dense residenti
 
 - `Show house number labels`: overlay of house numbers for the selected street.
 - `Show connection lines`: connects mapped numbers in sorted order; `Separate even / odd` splits parity paths.
-- Duplicate house numbers are highlighted in the overlay.
+- Duplicate house numbers are highlighted in the selected-street overlay using `street+postcode+housenumber` (local check, city is intentionally ignored).
 - `Show overview panel (selected street)`: odd/even table with gap markers (`•` for missing base numbers); table click zooms to target object(s).
-- `Show all street counts`: list of all known streets and current counts; row click zooms to selected street.
+- `Show all street counts`: list of all known streets and current counts; row click zooms to selected street. Duplicate marker `(dup)` follows the same conditional city rule as `Show duplicates`.
 - `Show completeness` / `Hide completeness`: `Completeness overview` layer:
   - `Address complete` (bright blue),
   - `Address incomplete` (bright orange),

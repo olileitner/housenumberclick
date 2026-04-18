@@ -68,7 +68,8 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `SplitCommandBuilder.PreparedNodeCommands` | `SplitCommandBuilder.java` | No | Bundle returned from node preparation containing new split nodes, updated ring, and commands. |
 | `SplitContext` | `SplitContext.java` | No | Lightweight context values that split services propagate into newly created building parts. |
 | `StreetCompletenessHeuristic` | `StreetCompletenessHeuristic.java` | No | Estimates whether a street is likely incomplete to decide when reference street loading is useful. |
-| `StreetHouseNumberCountCollector` | `StreetHouseNumberCountCollector.java` | No | Collects per-street address counts and completeness indicators across the current dataset. |
+| `StreetHouseNumberCountCollector` | `StreetHouseNumberCountCollector.java` | No | Collects per-street address counts and completeness indicators across the current dataset, using conditional city-aware duplicate detection for street-count duplicate markers. |
+| `StreetHouseNumberCountCollector.DuplicateAddressGroupStats` | `StreetHouseNumberCountCollector.java` | No | Aggregated duplicate-match statistics for one street+postcode+housenumber group in one street cluster. |
 | `StreetHouseNumberCountDialog` | `StreetHouseNumberCountDialog.java` | No | Dialog that lists streets with address counts, selection shortcuts, and rescan controls. |
 | `StreetHouseNumberCountRow` | `StreetHouseNumberCountRow.java` | No | Row model for per-street house-number counts, including duplicate marker information. |
 | `StreetModeController` | `StreetModeController.java` | Yes | Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays, explicit street-selection zoom behavior with full selected-street framing, spatially disambiguated street readback selection, and split/address operations including city-aware address propagation. |
