@@ -1,5 +1,20 @@
 # AGENTS.md
 
+## Quick Reference
+
+Use this section for fast orientation only.
+
+- This is a single-mapmode plugin; keep `HouseNumberClickStreetMapMode` as the only active map mode.
+- Treat split as inline gestures only (`Alt+Drag`, `Alt+Right Click`), never as a separate mode.
+- Keep responsibility boundaries: dialog config-only, controller state owner, map mode interaction owner, services logic owner.
+- Do not block JOSM core shortcuts, especially `Ctrl+*` and `Ctrl+Shift+*`.
+- Use JOSM command-based edits (`ChangePropertyCommand`, `SplitWayCommand`, `SequenceCommand`), keep split rollback-safe.
+- Preserve duplicate scope rules: global checks use conditional city matching; local selected-street overlay stays city-agnostic.
+- Keep release flow non-interactive, use annotated `v<version>` tags, prefer tag-triggered `.github/workflows/release.yml`, avoid double-publishing.
+- For UI string changes, keep `i18n/POTFILES.in` and POT extraction in sync; run `ant i18n-extract`.
+
+On any ambiguity or conflict, the detailed sections below are the authoritative rules.
+
 ## Project Snapshot
 
 * This is a JOSM plugin (`HouseNumberClick`) for high-speed address tagging and building split workflows.
