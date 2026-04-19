@@ -4,7 +4,6 @@ import org.openstreetmap.josm.gui.MainApplication;
 import org.openstreetmap.josm.gui.preferences.ToolbarPreferences;
 import org.openstreetmap.josm.plugins.Plugin;
 import org.openstreetmap.josm.plugins.PluginInformation;
-import org.openstreetmap.josm.spi.preferences.Config;
 
 /**
  * Plugin entry point that wires the menu action and performs one-time toolbar migration.
@@ -12,7 +11,6 @@ import org.openstreetmap.josm.spi.preferences.Config;
 public class HouseNumberClickPlugin extends Plugin {
 
     private static final String TOOLBAR_ID = "housenumberclick";
-    private static final String TOOLBAR_MIGRATION_PREF = "housenumberclick.toolbar.button.added.v1";
 
     public HouseNumberClickPlugin(PluginInformation info) {
         super(info);
@@ -22,7 +20,7 @@ public class HouseNumberClickPlugin extends Plugin {
     }
 
     private void ensureToolbarButtonAddedOnce() {
-        if (Config.getPref().getBoolean(TOOLBAR_MIGRATION_PREF, false)) {
+        if (HouseNumberClickPreferences.TOOLBAR_BUTTON_ADDED.get()) {
             return;
         }
 
@@ -32,6 +30,6 @@ public class HouseNumberClickPlugin extends Plugin {
         }
 
         toolbar.addCustomButton(TOOLBAR_ID, -1, false);
-        Config.getPref().putBoolean(TOOLBAR_MIGRATION_PREF, true);
+        HouseNumberClickPreferences.TOOLBAR_BUTTON_ADDED.put(true);
     }
 }

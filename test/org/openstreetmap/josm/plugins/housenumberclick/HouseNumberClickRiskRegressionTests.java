@@ -66,6 +66,10 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Terrace split result order is deterministic", HouseNumberClickRiskRegressionTests::testTerraceSplitOrderIsDeterministic);
             run("Scan limit defaults are used when unset", HouseNumberClickRiskRegressionTests::testScanLimitDefaultsWhenUnset);
             run("Invalid scan limit preferences fall back to defaults", HouseNumberClickRiskRegressionTests::testInvalidScanLimitPreferencesFallBack);
+            run("Central settings expose expected default values", HouseNumberClickRiskRegressionTests::testCentralSettingsDefaults);
+            run("Central settings persist and restore values", HouseNumberClickRiskRegressionTests::testCentralSettingsRoundTrip);
+            run("Overlay mode invalid value falls back to default", HouseNumberClickRiskRegressionTests::testOverlayModeInvalidFallback);
+            run("Overlay legacy bool preference migrates to integer mode", HouseNumberClickRiskRegressionTests::testOverlayModeLegacyMigration);
             run("Duplicate click detection blocks true duplicates", HouseNumberClickRiskRegressionTests::testDuplicateClicksAreDetected);
             run("Duplicate click detection keeps rapid distinct clicks", HouseNumberClickRiskRegressionTests::testRapidDistinctClicksAreKept);
             run("Address tag removal command clears addr keys", HouseNumberClickRiskRegressionTests::testRemoveAddressTagsClearsAddrKeys);
@@ -722,6 +726,57 @@ public final class HouseNumberClickRiskRegressionTests {
                 BuildingResolver.getConfiguredWayScanLimit(),
                 "invalid way limit should fall back to default"
         );
+    }
+
+    private static void testCentralSettingsDefaults() {
+        clearCentralSettingsPrefs();
+        assertEquals(HouseNumberClickPreferences.OverlayMode.CLASSIC, HouseNumberClickPreferences.getOverlayMode(),
+                "overlay mode should default to CLASSIC when unset");
+        assertTrue(HouseNumberClickPreferences.SHOW_CONNECTION_LINES.get(),
+                "connection-lines checkbox default should be true");
+        assertTrue(HouseNumberClickPreferences.ZOOM_TO_SELECTED_STREET.get(),
+                "auto-zoom checkbox default should be true");
+        assertEquals(BuildingOverviewLayer.MissingField.POSTCODE, HouseNumberClickPreferences.getCompletenessMissingField(),
+                "completeness missing-field default should be POSTCODE");
+    }
+
+    private static void testCentralSettingsRoundTrip() {
+        clearCentralSettingsPrefs();
+
+        HouseNumberClickPreferences.setOverlayMode(HouseNumberClickPreferences.OverlayMode.CLUSTERED);
+        HouseNumberClickPreferences.SHOW_CONNECTION_LINES.put(false);
+        HouseNumberClickPreferences.ZOOM_TO_SELECTED_STREET.put(false);
+        HouseNumberClickPreferences.HOUSE_NUMBER_INCREMENT_STEP.put(-2);
+        HouseNumberClickPreferences.setCompletenessMissingField(BuildingOverviewLayer.MissingField.ALL);
+
+        assertEquals(HouseNumberClickPreferences.OverlayMode.CLUSTERED, HouseNumberClickPreferences.getOverlayMode(),
+                "overlay mode should round-trip through IntegerProperty");
+        assertFalse(HouseNumberClickPreferences.SHOW_CONNECTION_LINES.get(),
+                "boolean settings should round-trip through BooleanProperty");
+        assertFalse(HouseNumberClickPreferences.ZOOM_TO_SELECTED_STREET.get(),
+                "second boolean setting should round-trip through BooleanProperty");
+        assertEquals(-2, HouseNumberClickPreferences.HOUSE_NUMBER_INCREMENT_STEP.get(),
+                "integer settings should round-trip through IntegerProperty");
+        assertEquals(BuildingOverviewLayer.MissingField.ALL, HouseNumberClickPreferences.getCompletenessMissingField(),
+                "completeness missing-field should persist and restore");
+    }
+
+    private static void testOverlayModeInvalidFallback() {
+        clearCentralSettingsPrefs();
+        HouseNumberClickPreferences.OVERLAY_MODE.put(99);
+        assertEquals(HouseNumberClickPreferences.OverlayMode.CLASSIC, HouseNumberClickPreferences.getOverlayMode(),
+                "invalid overlay mode values should fall back to CLASSIC");
+    }
+
+    private static void testOverlayModeLegacyMigration() {
+        clearCentralSettingsPrefs();
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "showOverlay", "false");
+        HouseNumberClickPreferences.OVERLAY_MODE_MIGRATION_DONE.put(false);
+
+        assertEquals(HouseNumberClickPreferences.OverlayMode.OFF, HouseNumberClickPreferences.getOverlayMode(),
+                "legacy showOverlay=false should migrate to integer overlay OFF mode");
+        assertEquals(null, Config.getPref().get(HouseNumberClickPreferences.PREFIX + "showOverlay", null),
+                "legacy showOverlay key should be removed after migration");
     }
 
     private static void testDuplicateClicksAreDetected() throws Exception {
@@ -1383,8 +1438,8 @@ public final class HouseNumberClickRiskRegressionTests {
                 "dialog should propagate numbered-only scope changes into controller state");
         assertTrue(dialogSource.contains("streetModeController.zoomToCurrentStreet();"),
                 "toggling numbered-only scope should immediately re-zoom when auto-zoom is enabled");
-        assertTrue(dialogSource.contains("rememberedZoomToNumberedBuildingsOnlyEnabled = true"),
-                "numbered-only scope toggle should default to enabled");
+        assertTrue(dialogSource.contains("HouseNumberClickPreferences.ZOOM_TO_NUMBERED_BUILDINGS_ONLY.get()"),
+                "numbered-only scope toggle should initialize from persistent preference defaults");
 
         assertTrue(controllerSource.contains("private boolean zoomToNumberedBuildingsOnlyEnabled = true;"),
                 "controller should keep numbered-only auto-zoom scope enabled by default");
@@ -1915,6 +1970,24 @@ public final class HouseNumberClickRiskRegressionTests {
     private static void clearTestPrefs() {
         Config.getPref().put(RELATION_SCAN_LIMIT_KEY, null);
         Config.getPref().put(WAY_SCAN_LIMIT_KEY, null);
+        clearCentralSettingsPrefs();
+    }
+
+    private static void clearCentralSettingsPrefs() {
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "overlay.mode", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "showOverlay", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "overlay.mode.migrated.v1", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.showConnectionLines", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.showSeparateEvenOddLines", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.showHouseNumberOverview", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.showStreetHouseNumberCounts", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.zoomToSelectedStreet", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.zoomToNumberedBuildingsOnly", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.splitMakeRectangular", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.applyTypeToAll", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.houseNumberIncrementStep", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.terraceParts", null);
+        Config.getPref().put(HouseNumberClickPreferences.PREFIX + "dialog.completenessMissingField", null);
     }
 
     private static void ensurePreferences() {

@@ -11,6 +11,7 @@ import java.awt.Insets;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.event.KeyEvent;
+import java.awt.event.ItemEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
@@ -42,8 +43,8 @@ import org.openstreetmap.josm.tools.I18n;
 /**
  * Main configuration dialog where users pick street/address settings (street, postcode, house number, city,
  * country code, building type) and receive disambiguated readback updates, while street auto-zoom is limited
- * to explicit street-selection actions with configurable zoom scope, and postcode overview is cycled through
- * off/buildings/schematic states.
+ * to explicit street-selection actions with configurable zoom scope, postcode overview is cycled through
+ * off/buildings/schematic states, and user-facing display/split options persist across JOSM sessions.
  */
 final class StreetSelectionDialog {
 
@@ -97,17 +98,19 @@ final class StreetSelectionDialog {
     private String rememberedCountry;
     private String rememberedBuildingType;
     private String rememberedHouseNumber = INITIAL_HOUSE_NUMBER;
-    private int rememberedIncrementStep = 1;
+    private int rememberedIncrementStep = HouseNumberClickPreferences
+            .normalizeIncrementStep(HouseNumberClickPreferences.HOUSE_NUMBER_INCREMENT_STEP.get());
     private boolean rememberedHouseNumberLayerEnabled = true;
-    private boolean rememberedConnectionLinesEnabled = true;
-    private boolean rememberedConnectionLinesPreference = true;
-    private boolean rememberedSeparateEvenOddLinesEnabled = true;
-    private boolean rememberedSeparateEvenOddLinesPreference = true;
-    private boolean rememberedHouseNumberOverviewEnabled;
-    private boolean rememberedStreetHouseNumberCountsEnabled;
-    private boolean rememberedZoomToSelectedStreetEnabled = true;
-    private boolean rememberedZoomToNumberedBuildingsOnlyEnabled = true;
-    private boolean rememberedSplitMakeRectangular;
+    private boolean rememberedConnectionLinesEnabled = HouseNumberClickPreferences.SHOW_CONNECTION_LINES.get();
+    private boolean rememberedConnectionLinesPreference = HouseNumberClickPreferences.SHOW_CONNECTION_LINES.get();
+    private boolean rememberedSeparateEvenOddLinesEnabled = HouseNumberClickPreferences.SHOW_SEPARATE_EVEN_ODD_LINES.get();
+    private boolean rememberedSeparateEvenOddLinesPreference = HouseNumberClickPreferences.SHOW_SEPARATE_EVEN_ODD_LINES.get();
+    private boolean rememberedHouseNumberOverviewEnabled = HouseNumberClickPreferences.SHOW_HOUSE_NUMBER_OVERVIEW.get();
+    private boolean rememberedStreetHouseNumberCountsEnabled = HouseNumberClickPreferences.SHOW_STREET_HOUSE_NUMBER_COUNTS.get();
+    private boolean rememberedZoomToSelectedStreetEnabled = HouseNumberClickPreferences.ZOOM_TO_SELECTED_STREET.get();
+    private boolean rememberedZoomToNumberedBuildingsOnlyEnabled = HouseNumberClickPreferences.ZOOM_TO_NUMBERED_BUILDINGS_ONLY.get();
+    private boolean rememberedSplitMakeRectangular = HouseNumberClickPreferences.SPLIT_MAKE_RECTANGULAR.get();
+    private boolean rememberedApplyTypeToAll = HouseNumberClickPreferences.APPLY_TYPE_TO_ALL.get();
     private boolean updatingInputs;
     private boolean streetSelectionChangedByNavigation;
     private DataSet rememberedDataSet;
@@ -136,6 +139,9 @@ final class StreetSelectionDialog {
     StreetSelectionDialog(StreetModeController streetModeController) {
         this.streetModeController = streetModeController;
         this.streetNavigationKeyDispatcher = this::handleGlobalStreetNavigationKeyEvent;
+        loadPersistentDialogSettings();
+        this.streetModeController.setConfiguredTerraceParts(rememberedTerraceParts());
+        this.streetModeController.setCompletenessMissingField(HouseNumberClickPreferences.getCompletenessMissingField());
 
         Frame owner = MainApplication.getMainFrame();
         this.dialog = new JDialog(owner, I18n.tr("HouseNumberClick"), false);
@@ -194,7 +200,7 @@ final class StreetSelectionDialog {
         this.buildingTypeCombo = createBuildingTypeCombo();
         this.buildingTypeCombo.setToolTipText(I18n.tr("Set a building type. Use 'Apply type to all' to keep it for multiple clicks."));
         this.applyTypeToAllCheckbox = new JCheckBox(I18n.tr("Apply type to all"));
-        this.applyTypeToAllCheckbox.setSelected(false);
+        this.applyTypeToAllCheckbox.setSelected(rememberedApplyTypeToAll);
         this.applyTypeToAllCheckbox.setToolTipText(I18n.tr("Keep the selected building type after a successful click."));
         this.applyTypeToAllCheckbox.addActionListener(e -> onApplyTypeToAllSelectionChanged());
         this.streetModeController.setHouseNumberUpdateListener(this::updateHouseNumberFromMode);
@@ -227,12 +233,17 @@ final class StreetSelectionDialog {
         completenessFieldGroup.add(completenessHouseNumberRadioButton);
         completenessFieldGroup.add(completenessCityRadioButton);
         completenessFieldGroup.add(completenessAllRadioButton);
-        applyCompletenessRadioSelection(streetModeController.getCompletenessMissingField());
-        this.completenessPostcodeRadioButton.addActionListener(e -> onCompletenessMissingFieldChanged());
-        this.completenessStreetRadioButton.addActionListener(e -> onCompletenessMissingFieldChanged());
-        this.completenessHouseNumberRadioButton.addActionListener(e -> onCompletenessMissingFieldChanged());
-        this.completenessCityRadioButton.addActionListener(e -> onCompletenessMissingFieldChanged());
-        this.completenessAllRadioButton.addActionListener(e -> onCompletenessMissingFieldChanged());
+        applyCompletenessRadioSelection(HouseNumberClickPreferences.getCompletenessMissingField());
+        java.awt.event.ItemListener completenessSelectionListener = e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                onCompletenessMissingFieldChanged();
+            }
+        };
+        this.completenessPostcodeRadioButton.addItemListener(completenessSelectionListener);
+        this.completenessStreetRadioButton.addItemListener(completenessSelectionListener);
+        this.completenessHouseNumberRadioButton.addItemListener(completenessSelectionListener);
+        this.completenessCityRadioButton.addItemListener(completenessSelectionListener);
+        this.completenessAllRadioButton.addItemListener(completenessSelectionListener);
 
         this.createOverviewButton = new JButton(SHOW_OVERVIEW_BUTTON_TEXT);
         this.createOverviewButton.addActionListener(e -> onCreateOverviewRequested());
@@ -303,7 +314,7 @@ final class StreetSelectionDialog {
         this.splitMakeRectangularCheckbox.setSelected(rememberedSplitMakeRectangular);
         this.splitMakeRectangularCheckbox.addActionListener(e -> onSplitMakeRectangularSelectionChanged());
         this.streetModeController.setRectangularizeAfterLineSplit(this.splitMakeRectangularCheckbox.isSelected());
-        this.rowHousePartsField = new JTextField("2", 4);
+        this.rowHousePartsField = new JTextField(Integer.toString(rememberedTerraceParts()), 4);
         this.rowHousePartsField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent e) {
@@ -463,6 +474,7 @@ final class StreetSelectionDialog {
         populateCountryOptions(likelyCountryCodes);
         setSelectedPostcode(rememberedPostcode);
         buildingTypeCombo.getEditor().setItem(firstNonEmpty(rememberedBuildingType, ""));
+        applyTypeToAllCheckbox.setSelected(rememberedApplyTypeToAll);
         houseNumberField.setText(firstNonEmpty(rememberedHouseNumber, INITIAL_HOUSE_NUMBER));
         cityField.setText(firstNonEmpty(rememberedCity, ""));
         setSelectedCountry(firstNonEmpty(rememberedCountry, detectedCountry));
@@ -606,6 +618,8 @@ final class StreetSelectionDialog {
                 return;
             }
             houseNumberIncrementStep = incrementStep;
+            rememberedIncrementStep = houseNumberIncrementStep;
+            savePersistentDialogSettings();
             notifyAddressChanged();
         });
         return button;
@@ -723,6 +737,8 @@ final class StreetSelectionDialog {
         if (decision != JOptionPane.YES_OPTION) {
             applyTypeToAllCheckbox.setSelected(false);
         }
+        rememberCurrentValues();
+        savePersistentDialogSettings();
     }
 
     private void onOverlayLayerSelectionChanged() {
@@ -750,6 +766,7 @@ final class StreetSelectionDialog {
         }
         updateOverlayOptionsEnablement(overlayEnabled, showConnectionLinesCheckbox.isSelected());
         rememberCurrentValues();
+        savePersistentDialogSettings();
         notifyOverlaySettingsChanged();
         focusMapViewIfStreetModeActive();
     }
@@ -768,6 +785,7 @@ final class StreetSelectionDialog {
         }
         updateOverlayOptionsEnablement(showHouseNumberLayerCheckbox.isSelected(), connectionLinesEnabled);
         rememberCurrentValues();
+        savePersistentDialogSettings();
         notifyOverlaySettingsChanged();
         focusMapViewIfStreetModeActive();
     }
@@ -778,6 +796,7 @@ final class StreetSelectionDialog {
         }
         rememberedSeparateEvenOddLinesPreference = showSeparateEvenOddConnectionLinesCheckbox.isSelected();
         rememberCurrentValues();
+        savePersistentDialogSettings();
         notifyOverlaySettingsChanged();
         focusMapViewIfStreetModeActive();
     }
@@ -787,6 +806,7 @@ final class StreetSelectionDialog {
             return;
         }
         rememberCurrentValues();
+        savePersistentDialogSettings();
         notifyHouseNumberOverviewChanged();
         focusMapViewIfStreetModeActive();
     }
@@ -797,6 +817,7 @@ final class StreetSelectionDialog {
         }
         updateZoomScopeOptionEnablement();
         rememberCurrentValues();
+        savePersistentDialogSettings();
         notifyZoomToSelectedStreetChanged();
         focusMapViewIfStreetModeActive();
     }
@@ -806,6 +827,7 @@ final class StreetSelectionDialog {
             return;
         }
         rememberCurrentValues();
+        savePersistentDialogSettings();
         notifyZoomToNumberedBuildingsOnlyChanged();
         if (zoomToSelectedStreetCheckbox != null && zoomToSelectedStreetCheckbox.isSelected()) {
             streetModeController.zoomToCurrentStreet();
@@ -818,6 +840,7 @@ final class StreetSelectionDialog {
             return;
         }
         rememberCurrentValues();
+        savePersistentDialogSettings();
         notifyStreetHouseNumberCountsChanged();
         focusMapViewIfStreetModeActive();
     }
@@ -886,6 +909,7 @@ final class StreetSelectionDialog {
 
     private void closeDialog() {
         rememberCurrentValues();
+        savePersistentDialogSettings();
         dialog.setVisible(false);
         unregisterStreetNavigationDispatcher();
         streetModeController.onMainDialogClosed();
@@ -1190,6 +1214,7 @@ final class StreetSelectionDialog {
             return;
         }
         rememberCurrentValues();
+        savePersistentDialogSettings();
         streetModeController.setRectangularizeAfterLineSplit(splitMakeRectangularCheckbox.isSelected());
         focusMapViewIfStreetModeActive();
     }
@@ -1201,6 +1226,7 @@ final class StreetSelectionDialog {
         int parts = parseTerraceParts(rowHousePartsField.getText());
         if (parts >= 2) {
             streetModeController.setConfiguredTerraceParts(parts);
+            savePersistentDialogSettings();
         }
     }
 
@@ -1258,6 +1284,7 @@ final class StreetSelectionDialog {
             return;
         }
         streetModeController.setCompletenessMissingField(getSelectedCompletenessMissingField());
+        savePersistentDialogSettings();
         if (streetModeController.isBuildingOverviewLayerVisible()) {
             streetModeController.createBuildingOverviewLayer();
         }
@@ -1373,6 +1400,59 @@ final class StreetSelectionDialog {
         plusTwoIncrementButton.setSelected(normalizedStep == 2);
     }
 
+    private void loadPersistentDialogSettings() {
+        rememberedIncrementStep = HouseNumberClickPreferences
+                .normalizeIncrementStep(HouseNumberClickPreferences.HOUSE_NUMBER_INCREMENT_STEP.get());
+        rememberedConnectionLinesPreference = HouseNumberClickPreferences.SHOW_CONNECTION_LINES.get();
+        rememberedSeparateEvenOddLinesPreference = HouseNumberClickPreferences.SHOW_SEPARATE_EVEN_ODD_LINES.get();
+        rememberedHouseNumberOverviewEnabled = HouseNumberClickPreferences.SHOW_HOUSE_NUMBER_OVERVIEW.get();
+        rememberedStreetHouseNumberCountsEnabled = HouseNumberClickPreferences.SHOW_STREET_HOUSE_NUMBER_COUNTS.get();
+        rememberedZoomToSelectedStreetEnabled = HouseNumberClickPreferences.ZOOM_TO_SELECTED_STREET.get();
+        rememberedZoomToNumberedBuildingsOnlyEnabled = HouseNumberClickPreferences.ZOOM_TO_NUMBERED_BUILDINGS_ONLY.get();
+        rememberedSplitMakeRectangular = HouseNumberClickPreferences.SPLIT_MAKE_RECTANGULAR.get();
+        rememberedApplyTypeToAll = HouseNumberClickPreferences.APPLY_TYPE_TO_ALL.get();
+
+        HouseNumberClickPreferences.OverlayMode overlayMode = HouseNumberClickPreferences.getOverlayMode();
+        rememberedHouseNumberLayerEnabled = overlayMode != HouseNumberClickPreferences.OverlayMode.OFF;
+        rememberedConnectionLinesEnabled = overlayMode == HouseNumberClickPreferences.OverlayMode.CLUSTERED;
+        rememberedSeparateEvenOddLinesEnabled = rememberedConnectionLinesEnabled && rememberedSeparateEvenOddLinesPreference;
+    }
+
+    private void savePersistentDialogSettings() {
+        HouseNumberClickPreferences.HOUSE_NUMBER_INCREMENT_STEP.put(
+                HouseNumberClickPreferences.normalizeIncrementStep(rememberedIncrementStep)
+        );
+        HouseNumberClickPreferences.SHOW_CONNECTION_LINES.put(rememberedConnectionLinesPreference);
+        HouseNumberClickPreferences.SHOW_SEPARATE_EVEN_ODD_LINES.put(rememberedSeparateEvenOddLinesPreference);
+        HouseNumberClickPreferences.SHOW_HOUSE_NUMBER_OVERVIEW.put(rememberedHouseNumberOverviewEnabled);
+        HouseNumberClickPreferences.SHOW_STREET_HOUSE_NUMBER_COUNTS.put(rememberedStreetHouseNumberCountsEnabled);
+        HouseNumberClickPreferences.ZOOM_TO_SELECTED_STREET.put(rememberedZoomToSelectedStreetEnabled);
+        HouseNumberClickPreferences.ZOOM_TO_NUMBERED_BUILDINGS_ONLY.put(rememberedZoomToNumberedBuildingsOnlyEnabled);
+        HouseNumberClickPreferences.SPLIT_MAKE_RECTANGULAR.put(rememberedSplitMakeRectangular);
+        HouseNumberClickPreferences.APPLY_TYPE_TO_ALL.put(rememberedApplyTypeToAll);
+        HouseNumberClickPreferences.TERRACE_PARTS.put(
+                HouseNumberClickPreferences.normalizeTerraceParts(streetModeController.getConfiguredTerraceParts())
+        );
+        HouseNumberClickPreferences.setCompletenessMissingField(streetModeController.getCompletenessMissingField());
+        HouseNumberClickPreferences.setOverlayMode(
+                resolveOverlayModeForPersistence(rememberedHouseNumberLayerEnabled, rememberedConnectionLinesEnabled)
+        );
+    }
+
+    private HouseNumberClickPreferences.OverlayMode resolveOverlayModeForPersistence(boolean overlayEnabled, boolean connectionLinesEnabled) {
+        if (!overlayEnabled) {
+            return HouseNumberClickPreferences.OverlayMode.OFF;
+        }
+        if (connectionLinesEnabled) {
+            return HouseNumberClickPreferences.OverlayMode.CLUSTERED;
+        }
+        return HouseNumberClickPreferences.OverlayMode.CLASSIC;
+    }
+
+    private int rememberedTerraceParts() {
+        return HouseNumberClickPreferences.normalizeTerraceParts(HouseNumberClickPreferences.TERRACE_PARTS.get());
+    }
+
     private void rememberCurrentValues() {
         rememberedStreet = getSelectedStreet();
         rememberedPostcode = getSelectedPostcode();
@@ -1395,6 +1475,8 @@ final class StreetSelectionDialog {
                 && zoomToNumberedBuildingsOnlyCheckbox.isSelected();
         rememberedSplitMakeRectangular = splitMakeRectangularCheckbox != null
                 && splitMakeRectangularCheckbox.isSelected();
+        rememberedApplyTypeToAll = applyTypeToAllCheckbox != null
+                && applyTypeToAllCheckbox.isSelected();
         if (rememberedHouseNumberLayerEnabled) {
             rememberedConnectionLinesPreference = rememberedConnectionLinesEnabled;
             if (rememberedConnectionLinesEnabled) {
@@ -1462,6 +1544,8 @@ final class StreetSelectionDialog {
         updatingInputs = true;
         showHouseNumberOverviewCheckbox.setSelected(enabled);
         updatingInputs = wasUpdatingInputs;
+        rememberCurrentValues();
+        savePersistentDialogSettings();
     }
 
     private void updateStreetHouseNumberCountsCheckboxFromController(boolean enabled) {
@@ -1472,6 +1556,8 @@ final class StreetSelectionDialog {
         updatingInputs = true;
         showStreetHouseNumberCountsCheckbox.setSelected(enabled);
         updatingInputs = wasUpdatingInputs;
+        rememberCurrentValues();
+        savePersistentDialogSettings();
     }
 
     private void notifyZoomToSelectedStreetChanged() {
@@ -1648,17 +1734,6 @@ final class StreetSelectionDialog {
         rememberedCountry = null;
         rememberedBuildingType = null;
         rememberedHouseNumber = INITIAL_HOUSE_NUMBER;
-        rememberedIncrementStep = 1;
-        rememberedHouseNumberLayerEnabled = true;
-        rememberedConnectionLinesEnabled = true;
-        rememberedConnectionLinesPreference = true;
-        rememberedSeparateEvenOddLinesEnabled = true;
-        rememberedSeparateEvenOddLinesPreference = true;
-        rememberedHouseNumberOverviewEnabled = false;
-        rememberedStreetHouseNumberCountsEnabled = false;
-        rememberedZoomToSelectedStreetEnabled = true;
-        rememberedZoomToNumberedBuildingsOnlyEnabled = true;
-        rememberedSplitMakeRectangular = false;
         lastSelectedStreet = null;
     }
 
