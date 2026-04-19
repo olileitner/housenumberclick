@@ -1,6 +1,6 @@
 package org.openstreetmap.josm.plugins.housenumberclick;
 
-import java.awt.BorderLayout;
+import java.util.Collections;
 
 import org.openstreetmap.josm.gui.dialogs.ToggleDialog;
 import org.openstreetmap.josm.tools.I18n;
@@ -21,12 +21,12 @@ final class StreetCountsToggleDialog extends ToggleDialog {
                 200
         );
         this.panel = panel;
-        setLayout(new BorderLayout());
-        add(panel, BorderLayout.CENTER);
+        createLayout(panel, false, Collections.emptyList());
     }
 
     StreetCountsPanel getPanel() {
         return panel;
     }
 }
+
 

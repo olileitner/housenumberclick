@@ -1446,8 +1446,16 @@ public final class HouseNumberClickRiskRegressionTests {
 
         assertTrue(countsToggleSource.contains("I18n.tr(\"Street Counts\")"),
                 "street counts sidebar dialog should expose the Street Counts title");
-        assertTrue(numbersToggleSource.contains("I18n.tr(\"Street Numbers\")"),
-                "street numbers sidebar dialog should expose the Street Numbers title");
+        assertTrue(numbersToggleSource.contains("I18n.tr(\"House Numbers\")"),
+                "house numbers sidebar dialog should expose the House Numbers title");
+        assertTrue(countsToggleSource.contains("\"housenumberclick\""),
+                "street counts sidebar dialog should use the plugin icon key");
+        assertTrue(numbersToggleSource.contains("\"housenumberclick\""),
+                "house numbers sidebar dialog should use the plugin icon key");
+        assertTrue(countsToggleSource.contains("createLayout(panel, false, Collections.emptyList())"),
+                "street counts sidebar dialog should use ToggleDialog layout helper so header/title bar stays visible");
+        assertTrue(numbersToggleSource.contains("createLayout(panel, false, Collections.emptyList())"),
+                "house numbers sidebar dialog should use ToggleDialog layout helper so header/title bar stays visible");
         assertTrue(countsPanelSource.contains("HouseNumberClick is closed. Open the main dialog to use this view."),
                 "street counts panel should render inactive hint text instead of blank content");
         assertTrue(numbersPanelSource.contains("HouseNumberClick is closed. Open the main dialog to use this view."),
