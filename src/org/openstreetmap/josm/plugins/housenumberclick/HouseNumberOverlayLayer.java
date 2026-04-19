@@ -22,6 +22,7 @@ import javax.swing.Icon;
 import org.openstreetmap.josm.data.Bounds;
 import org.openstreetmap.josm.data.osm.DataSet;
 import org.openstreetmap.josm.data.osm.Node;
+import org.openstreetmap.josm.data.osm.OsmPrimitive;
 import org.openstreetmap.josm.data.osm.Way;
 import org.openstreetmap.josm.data.osm.visitor.BoundingXYVisitor;
 import org.openstreetmap.josm.gui.MainApplication;
@@ -32,7 +33,8 @@ import org.openstreetmap.josm.tools.I18n;
 import org.openstreetmap.josm.tools.ImageProvider;
 
 /**
- * Renders street-specific house-number highlights and optional connection lines in a dedicated layer.
+ * Renders street-specific house-number highlights with optional directly connected driveway context and
+ * optional connection lines in a dedicated layer.
  */
 final class HouseNumberOverlayLayer extends Layer {
 
@@ -54,6 +56,8 @@ final class HouseNumberOverlayLayer extends Layer {
     private static final Color TEXT_COLOR = new Color(10, 10, 10, 230);
     private static final Color STREET_HIGHLIGHT_COLOR = new Color(245, 210, 45, 190);
     private static final float STREET_HIGHLIGHT_WIDTH = 14.0f;
+    private static final Color DRIVEWAY_HIGHLIGHT_COLOR = new Color(245, 210, 45, 95);
+    private static final float DRIVEWAY_HIGHLIGHT_WIDTH = 8.0f;
     private static final long CACHE_REFRESH_INTERVAL_NANOS = 500_000_000L;
 
     private final HouseNumberOverlayCollector collector;
@@ -189,42 +193,78 @@ final class HouseNumberOverlayLayer extends Layer {
                 : StreetNameCollector.collectStreetIndex(dataSet);
         List<Way> highlightedStreetWays = streetIndex.getLocalStreetChainWays(selectedStreet, selectedSeedWayHint);
         Set<Way> highlightedStreetWaySet = new LinkedHashSet<>(highlightedStreetWays);
-        g.setColor(STREET_HIGHLIGHT_COLOR);
-        g.setStroke(new BasicStroke(STREET_HIGHLIGHT_WIDTH, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        int sameBaseHighwayWays = 0;
-        int highlightedWays = 0;
-        for (Way way : dataSet.getWays()) {
-            if (way == null || !way.isUsable() || !way.hasKey("highway")) {
-                continue;
-            }
-            if (!normalize(way.get("name")).equalsIgnoreCase(selectedStreet.getBaseStreetName())) {
-                continue;
-            }
-            sameBaseHighwayWays++;
-            if (!highlightedStreetWaySet.contains(way)) {
-                continue;
-            }
-            highlightedWays++;
-            drawWayHighlight(g, mapView, way);
-        }
+        Set<Way> highlightedDrivewayWays = collectDirectDrivewayHighlightWays(highlightedStreetWaySet);
+
+        drawHighlightedWaysWithStyle(g, mapView, highlightedDrivewayWays, DRIVEWAY_HIGHLIGHT_COLOR, DRIVEWAY_HIGHLIGHT_WIDTH);
+        drawHighlightedWaysWithStyle(g, mapView, highlightedStreetWaySet, STREET_HIGHLIGHT_COLOR, STREET_HIGHLIGHT_WIDTH);
 
         String selectedCluster = normalize(selectedStreet.getClusterId());
-        if (sameBaseHighwayWays == 0) {
+        if (highlightedStreetWaySet.isEmpty()) {
             logHighlightReasonOnce("highlight:none-base:" + selectedCluster,
-                    LOG_PREFIX + ": highlight skipped -> no highway ways found for base='"
-                            + normalize(selectedStreet.getBaseStreetName()) + "'.");
+                    LOG_PREFIX + ": highlight skipped -> no local street-chain ways found for selected cluster='"
+                            + selectedCluster + "'.");
             return;
         }
-        if (highlightedWays == 0) {
-            logHighlightReasonOnce("highlight:none-local-chain:" + selectedCluster + ":" + sameBaseHighwayWays,
-                    LOG_PREFIX + ": highlight skipped -> base ways found=" + sameBaseHighwayWays
-                            + ", but 0 matched local street chain for selected cluster='" + selectedCluster + "'.");
+        logHighlightReasonOnce("highlight:ok:" + selectedCluster + ":" + highlightedStreetWaySet.size()
+                        + ":driveways:" + highlightedDrivewayWays.size(),
+                LOG_PREFIX + ": highlighted " + highlightedStreetWaySet.size() + " primary street way(s) for selected cluster='"
+                        + selectedCluster + "' (localChainWays=" + highlightedStreetWays.size()
+                        + ", directDriveways=" + highlightedDrivewayWays.size() + ").");
+    }
+
+    private void drawHighlightedWaysWithStyle(Graphics2D g, MapView mapView, Set<Way> ways, Color color, float lineWidth) {
+        if (ways == null || ways.isEmpty()) {
             return;
         }
-        logHighlightReasonOnce("highlight:ok:" + selectedCluster + ":" + highlightedWays,
-                LOG_PREFIX + ": highlighted " + highlightedWays + " way(s) for selected cluster='"
-                        + selectedCluster + "' (base matches=" + sameBaseHighwayWays
-                        + ", localChainWays=" + highlightedStreetWays.size() + ").");
+        g.setColor(color);
+        g.setStroke(new BasicStroke(lineWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (Way way : ways) {
+            drawWayHighlight(g, mapView, way);
+        }
+    }
+
+    static Set<Way> collectDirectDrivewayHighlightWays(Set<Way> highlightedStreetWays) {
+        if (highlightedStreetWays == null || highlightedStreetWays.isEmpty()) {
+            return Set.of();
+        }
+        Set<Node> highlightedStreetNodes = new HashSet<>();
+        for (Way way : highlightedStreetWays) {
+            if (way == null || !way.isUsable()) {
+                continue;
+            }
+            for (Node node : way.getNodes()) {
+                if (node != null && node.isUsable()) {
+                    highlightedStreetNodes.add(node);
+                }
+            }
+        }
+
+        LinkedHashSet<Way> drivewayWays = new LinkedHashSet<>();
+        for (Node streetNode : highlightedStreetNodes) {
+            if (streetNode.getDataSet() == null) {
+                continue;
+            }
+            for (OsmPrimitive referrer : streetNode.getReferrers()) {
+                if (!(referrer instanceof Way candidateWay)
+                        || highlightedStreetWays.contains(candidateWay)
+                        || !isDirectDriveway(candidateWay)) {
+                    continue;
+                }
+                drivewayWays.add(candidateWay);
+            }
+        }
+        return drivewayWays;
+    }
+
+    private static boolean isDirectDriveway(Way candidateWay) {
+        return candidateWay != null
+                && candidateWay.isUsable()
+                && candidateWay.hasTag("highway", "service")
+                && "driveway".equalsIgnoreCase(normalizeStatic(candidateWay.get("service")));
+    }
+
+    private static String normalizeStatic(String value) {
+        return value == null ? "" : value.trim();
     }
 
     private void drawWayHighlight(Graphics2D g, MapView mapView, Way way) {

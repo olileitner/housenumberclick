@@ -45,7 +45,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `HouseNumberOverlayCollector.CollectionStats` | `HouseNumberOverlayCollector.java` | No | Aggregated rejection counters used for overlay collection diagnostics. |
 | `HouseNumberOverlayCollector.ParsedHouseNumber` | `HouseNumberOverlayCollector.java` | No | Parsed representation of a house number split into sortable numeric and suffix parts. |
 | `HouseNumberOverlayEntry` | `HouseNumberOverlayEntry.java` | No | Value object describing one rendered house-number label entry in the overlay layer. |
-| `HouseNumberOverlayLayer` | `HouseNumberOverlayLayer.java` | No | Renders street-specific house-number highlights and optional connection lines in a dedicated layer. |
+| `HouseNumberOverlayLayer` | `HouseNumberOverlayLayer.java` | No | Renders street-specific house-number highlights with optional directly connected driveway context and optional connection lines in a dedicated layer. |
 | `HouseNumberOverviewCollector` | `HouseNumberOverviewCollector.java` | No | Aggregates and orders house numbers for the selected disambiguated street cluster. |
 | `HouseNumberOverviewCollector.BaseNumberGroup` | `HouseNumberOverviewCollector.java` | No | Groups occurrences of one base number and tracks both grouped primitives and exact-duplicate primitives for duplicate zoom. |
 | `HouseNumberOverviewCollector.OverviewCellData` | `HouseNumberOverviewCollector.java` | No | Intermediate formatted cell data used while composing final overview rows. |

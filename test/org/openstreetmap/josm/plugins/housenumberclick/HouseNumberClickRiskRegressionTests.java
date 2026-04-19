@@ -6,7 +6,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.openstreetmap.josm.data.Preferences;
 import org.openstreetmap.josm.data.coor.LatLon;
@@ -87,6 +89,10 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Street grouping bridges endpoint-to-segment gaps", HouseNumberClickRiskRegressionTests::testStreetGroupingBridgesEndpointToSegmentGaps);
             run("Street grouping merges collinear components after raw split", HouseNumberClickRiskRegressionTests::testStreetGroupingMergesCollinearComponentsAfterRawSplit);
             run("Selected street option keeps full merged local chain", HouseNumberClickRiskRegressionTests::testSelectedStreetOptionKeepsFullMergedLocalChain);
+            run("Directly connected driveway is highlighted as secondary way", HouseNumberClickRiskRegressionTests::testDirectlyConnectedDrivewayIsHighlighted);
+            run("Parking aisle is excluded from secondary driveway highlight", HouseNumberClickRiskRegressionTests::testParkingAisleIsNotHighlightedAsDriveway);
+            run("Service way without driveway value is excluded from secondary highlight", HouseNumberClickRiskRegressionTests::testServiceWithoutDrivewayIsNotHighlighted);
+            run("Non-direct driveway is not highlighted", HouseNumberClickRiskRegressionTests::testIndirectDrivewayIsNotHighlighted);
             run("Street grouping keeps distant same-name roads separated", HouseNumberClickRiskRegressionTests::testStreetGroupingKeepsDistantSameNameRoadsSeparated);
             run("Street grouping keeps parallel nearby roads separated", HouseNumberClickRiskRegressionTests::testStreetGroupingKeepsParallelNearbyRoadsSeparated);
             run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
@@ -1611,6 +1617,88 @@ public final class HouseNumberClickRiskRegressionTests {
         assertTrue(localChain.contains(secondPart), "local chain should include second merged way");
     }
 
+    private static void testDirectlyConnectedDrivewayIsHighlighted() {
+        DataSet dataSet = new DataSet();
+        Node streetStart = new Node(new LatLon(0.0, 0.0));
+        Node sharedNode = new Node(new LatLon(0.0, 0.0001));
+        Node streetEnd = new Node(new LatLon(0.0, 0.0002));
+        Way streetWay = createWayWithTags(List.of(streetStart, sharedNode, streetEnd), "residential", null, "Example Street");
+
+        Node drivewayTail = new Node(new LatLon(0.0001, 0.0001));
+        Way driveway = createWayWithTags(List.of(sharedNode, drivewayTail), "service", "driveway", null);
+        dataSet.addPrimitiveRecursive(streetWay);
+        dataSet.addPrimitiveRecursive(driveway);
+
+        Set<Way> highlightedStreetWays = new LinkedHashSet<>();
+        highlightedStreetWays.add(streetWay);
+        Set<Way> secondaryWays = HouseNumberOverlayLayer.collectDirectDrivewayHighlightWays(highlightedStreetWays);
+
+        assertEquals(Set.of(driveway), secondaryWays,
+                "directly connected highway=service + service=driveway should be included as secondary highlight");
+    }
+
+    private static void testParkingAisleIsNotHighlightedAsDriveway() {
+        DataSet dataSet = new DataSet();
+        Node streetStart = new Node(new LatLon(0.0, 0.0));
+        Node sharedNode = new Node(new LatLon(0.0, 0.0001));
+        Node streetEnd = new Node(new LatLon(0.0, 0.0002));
+        Way streetWay = createWayWithTags(List.of(streetStart, sharedNode, streetEnd), "residential", null, "Example Street");
+
+        Node aisleTail = new Node(new LatLon(0.0001, 0.0001));
+        Way parkingAisle = createWayWithTags(List.of(sharedNode, aisleTail), "service", "parking_aisle", null);
+        dataSet.addPrimitiveRecursive(streetWay);
+        dataSet.addPrimitiveRecursive(parkingAisle);
+
+        Set<Way> highlightedStreetWays = new LinkedHashSet<>();
+        highlightedStreetWays.add(streetWay);
+        Set<Way> secondaryWays = HouseNumberOverlayLayer.collectDirectDrivewayHighlightWays(highlightedStreetWays);
+
+        assertTrue(secondaryWays.isEmpty(), "service=parking_aisle must not be included in driveway highlight");
+    }
+
+    private static void testServiceWithoutDrivewayIsNotHighlighted() {
+        DataSet dataSet = new DataSet();
+        Node streetStart = new Node(new LatLon(0.0, 0.0));
+        Node sharedNode = new Node(new LatLon(0.0, 0.0001));
+        Node streetEnd = new Node(new LatLon(0.0, 0.0002));
+        Way streetWay = createWayWithTags(List.of(streetStart, sharedNode, streetEnd), "residential", null, "Example Street");
+
+        Node serviceTail = new Node(new LatLon(0.0001, 0.0001));
+        Way genericService = createWayWithTags(List.of(sharedNode, serviceTail), "service", null, null);
+        dataSet.addPrimitiveRecursive(streetWay);
+        dataSet.addPrimitiveRecursive(genericService);
+
+        Set<Way> highlightedStreetWays = new LinkedHashSet<>();
+        highlightedStreetWays.add(streetWay);
+        Set<Way> secondaryWays = HouseNumberOverlayLayer.collectDirectDrivewayHighlightWays(highlightedStreetWays);
+
+        assertTrue(secondaryWays.isEmpty(), "highway=service without service=driveway must not be included");
+    }
+
+    private static void testIndirectDrivewayIsNotHighlighted() {
+        DataSet dataSet = new DataSet();
+        Node streetStart = new Node(new LatLon(0.0, 0.0));
+        Node sharedStreetNode = new Node(new LatLon(0.0, 0.0001));
+        Node streetEnd = new Node(new LatLon(0.0, 0.0002));
+        Way streetWay = createWayWithTags(List.of(streetStart, sharedStreetNode, streetEnd), "residential", null, "Example Street");
+
+        Node bridgeEnd = new Node(new LatLon(0.0001, 0.0001));
+        Way yardService = createWayWithTags(List.of(sharedStreetNode, bridgeEnd), "service", "yard", null);
+
+        Node drivewayTail = new Node(new LatLon(0.0002, 0.0001));
+        Way indirectDriveway = createWayWithTags(List.of(bridgeEnd, drivewayTail), "service", "driveway", null);
+        dataSet.addPrimitiveRecursive(streetWay);
+        dataSet.addPrimitiveRecursive(yardService);
+        dataSet.addPrimitiveRecursive(indirectDriveway);
+
+        Set<Way> highlightedStreetWays = new LinkedHashSet<>();
+        highlightedStreetWays.add(streetWay);
+        Set<Way> secondaryWays = HouseNumberOverlayLayer.collectDirectDrivewayHighlightWays(highlightedStreetWays);
+
+        assertFalse(secondaryWays.contains(indirectDriveway), "second-hop driveway must not be included in secondary highlight");
+        assertTrue(secondaryWays.isEmpty(), "indirect driveway topology should produce no driveway highlight");
+    }
+
     private static void testStreetGroupingKeepsParallelNearbyRoadsSeparated() {
         DataSet dataSet = new DataSet();
 
@@ -1932,6 +2020,21 @@ public final class HouseNumberClickRiskRegressionTests {
         way.setNodes(List.of(new Node(first), new Node(second)));
         way.put("highway", "residential");
         way.put("name", streetName);
+        return way;
+    }
+
+    private static Way createWayWithTags(List<Node> nodes, String highwayValue, String serviceValue, String nameValue) {
+        Way way = new Way();
+        way.setNodes(nodes);
+        if (highwayValue != null) {
+            way.put("highway", highwayValue);
+        }
+        if (serviceValue != null) {
+            way.put("service", serviceValue);
+        }
+        if (nameValue != null) {
+            way.put("name", nameValue);
+        }
         return way;
     }
 
