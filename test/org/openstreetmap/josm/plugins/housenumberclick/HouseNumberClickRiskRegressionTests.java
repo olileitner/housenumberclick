@@ -1381,6 +1381,8 @@ public final class HouseNumberClickRiskRegressionTests {
                 "display section should offer a compact numbered-only scope toggle next to auto-zoom");
         assertTrue(dialogSource.contains("notifyZoomToNumberedBuildingsOnlyChanged"),
                 "dialog should propagate numbered-only scope changes into controller state");
+        assertTrue(dialogSource.contains("streetModeController.zoomToCurrentStreet();"),
+                "toggling numbered-only scope should immediately re-zoom when auto-zoom is enabled");
         assertTrue(dialogSource.contains("rememberedZoomToNumberedBuildingsOnlyEnabled = true"),
                 "numbered-only scope toggle should default to enabled");
 

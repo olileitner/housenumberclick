@@ -807,6 +807,9 @@ final class StreetSelectionDialog {
         }
         rememberCurrentValues();
         notifyZoomToNumberedBuildingsOnlyChanged();
+        if (zoomToSelectedStreetCheckbox != null && zoomToSelectedStreetCheckbox.isSelected()) {
+            streetModeController.zoomToCurrentStreet();
+        }
         focusMapViewIfStreetModeActive();
     }
 
