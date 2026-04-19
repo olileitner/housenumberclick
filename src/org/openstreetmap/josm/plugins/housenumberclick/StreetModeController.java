@@ -34,9 +34,10 @@ import org.openstreetmap.josm.tools.Logging;
 
 /**
  * Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays
- * (including self-healing overlay presence checks while active), explicit street-selection zoom behavior with full selected-street framing,
- * spatially disambiguated street readback selection, split/address operations including city/country-aware
- * address propagation, and the three-state postcode overview cycle.
+ * (including self-healing overlay presence checks while active and full teardown cleanup),
+ * explicit street-selection zoom behavior with full selected-street framing, spatially disambiguated
+ * street readback selection, split/address operations including city/country-aware address
+ * propagation, and the three-state postcode overview cycle.
  */
 final class StreetModeController {
 
@@ -799,8 +800,8 @@ final class StreetModeController {
         hideHouseNumberOverview();
         hideStreetHouseNumberCounts();
         overviewManager.resetSessionPositioningState();
-        overlayManager.removeOverlayLayer();
-        removeVisibleReferenceLayer("main dialog closed");
+        overlayManager.removeAllPluginLayers();
+        visibleReferenceStreetKey = "";
         synchronized (referenceStreetCache) {
             referenceStreetCache.clear();
         }

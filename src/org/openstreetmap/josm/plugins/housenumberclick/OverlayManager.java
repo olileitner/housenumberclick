@@ -14,7 +14,8 @@ import org.openstreetmap.josm.tools.I18n;
 
 /**
  * Manages creation, refresh, visibility, and teardown of plugin-owned map overlay layers,
- * including the three-state postcode overview cycle (off/buildings/schematic areas).
+ * including centralized full cleanup and the three-state postcode overview cycle
+ * (off/buildings/schematic areas).
  */
 final class OverlayManager {
 
@@ -342,6 +343,18 @@ final class OverlayManager {
         }
         ensureReferenceLayerBelowOverlay(layerManager);
         ensureOverlayLayerAboveOverviewLayers(layerManager);
+        if (map != null && map.mapView != null) {
+            map.mapView.repaint();
+        }
+    }
+
+    void removeAllPluginLayers() {
+        removeOverlayLayer();
+        removeReferenceStreetLayer();
+        removeBuildingOverviewLayer();
+        removePostcodeOverviewLayer();
+        removeDuplicateAddressOverviewLayer();
+        MapFrame map = MainApplication.getMap();
         if (map != null && map.mapView != null) {
             map.mapView.repaint();
         }

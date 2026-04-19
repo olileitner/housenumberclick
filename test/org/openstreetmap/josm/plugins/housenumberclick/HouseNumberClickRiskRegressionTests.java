@@ -74,6 +74,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Street mode blocks apply when postcode is not selected", HouseNumberClickRiskRegressionTests::testPostcodeSelectionGuard);
             run("Postcode overview source exposes three-state cycle", HouseNumberClickRiskRegressionTests::testPostcodeOverviewThreeStateCycleWiring);
             run("Postcode overview cache and invalidation hooks exist", HouseNumberClickRiskRegressionTests::testPostcodeOverviewCacheInvalidationWiring);
+            run("Layer-loss cleanup removes all plugin overlays", HouseNumberClickRiskRegressionTests::testLayerLossCleanupRemovesAllPluginOverlays);
             run("Postcode color mapping is deterministic", HouseNumberClickRiskRegressionTests::testPostcodeColorMappingIsDeterministic);
             run("Postcode legend uses top-5 deterministic ordering", HouseNumberClickRiskRegressionTests::testPostcodeLegendTopFiveOrdering);
             run("Postcode schematic clustering filters isolated and tiny groups", HouseNumberClickRiskRegressionTests::testPostcodeSchematicClusterFilteringRules);
@@ -1093,6 +1094,26 @@ public final class HouseNumberClickRiskRegressionTests {
         StreetModeController controller = new StreetModeController();
         controller.onMainDialogClosed();
         assertTrue(true, "main dialog close cleanup should complete without exceptions");
+    }
+
+    private static void testLayerLossCleanupRemovesAllPluginOverlays() throws Exception {
+        String controllerSource = readPluginSource("StreetModeController.java");
+        String overlayManagerSource = readPluginSource("OverlayManager.java");
+
+        assertTrue(controllerSource.contains("overlayManager.removeAllPluginLayers();"),
+                "main dialog close cleanup should remove all plugin layers through a single teardown entrypoint");
+        assertTrue(overlayManagerSource.contains("void removeAllPluginLayers()"),
+                "overlay manager should provide a centralized remove-all helper for plugin layers");
+        assertTrue(overlayManagerSource.contains("removeOverlayLayer();"),
+                "centralized cleanup should include house-number overlay removal");
+        assertTrue(overlayManagerSource.contains("removeReferenceStreetLayer();"),
+                "centralized cleanup should include reference-street overlay removal");
+        assertTrue(overlayManagerSource.contains("removeBuildingOverviewLayer();"),
+                "centralized cleanup should include completeness overview removal");
+        assertTrue(overlayManagerSource.contains("removePostcodeOverviewLayer();"),
+                "centralized cleanup should include postcode overview removal");
+        assertTrue(overlayManagerSource.contains("removeDuplicateAddressOverviewLayer();"),
+                "centralized cleanup should include duplicate overview removal");
     }
 
     private static void testRescanRefreshEntrypointIsSafe() {
