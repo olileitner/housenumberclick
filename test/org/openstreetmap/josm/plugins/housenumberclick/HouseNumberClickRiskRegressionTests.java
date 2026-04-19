@@ -86,6 +86,8 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Street grouping keeps distant same-name roads separated", HouseNumberClickRiskRegressionTests::testStreetGroupingKeepsDistantSameNameRoadsSeparated);
             run("Street grouping keeps parallel nearby roads separated", HouseNumberClickRiskRegressionTests::testStreetGroupingKeepsParallelNearbyRoadsSeparated);
             run("Street zoom fallback collects only usable named highway ways", HouseNumberClickRiskRegressionTests::testStreetZoomFallbackWayMatching);
+            run("Street-table selection respects auto-zoom option", HouseNumberClickRiskRegressionTests::testStreetTableSelectionRespectsAutoZoomOption);
+            run("Auto-zoom scope toggle wiring exists", HouseNumberClickRiskRegressionTests::testAutoZoomScopeToggleWiring);
             run("Street counts duplicate marker applies conditional city rule", HouseNumberClickRiskRegressionTests::testStreetHouseNumberCountCollectorConditionalCityRule);
             run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
             run("Building overview duplicate detection applies conditional city rule", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorConditionalCityRule);
@@ -1369,6 +1371,25 @@ public final class HouseNumberClickRiskRegressionTests {
                 "street-table selection should only zoom when AutoZoom option is enabled");
         assertTrue(controllerSource.contains("zoomToStreet(selectedStreetOption);"),
                 "street-table selection should still zoom to selected street when AutoZoom is enabled");
+    }
+
+    private static void testAutoZoomScopeToggleWiring() throws Exception {
+        String dialogSource = readPluginSource("StreetSelectionDialog.java");
+        String controllerSource = readPluginSource("StreetModeController.java");
+
+        assertTrue(dialogSource.contains("new JCheckBox(I18n.tr(\"Numbered only\"))"),
+                "display section should offer a compact numbered-only scope toggle next to auto-zoom");
+        assertTrue(dialogSource.contains("notifyZoomToNumberedBuildingsOnlyChanged"),
+                "dialog should propagate numbered-only scope changes into controller state");
+        assertTrue(dialogSource.contains("rememberedZoomToNumberedBuildingsOnlyEnabled = true"),
+                "numbered-only scope toggle should default to enabled");
+
+        assertTrue(controllerSource.contains("private boolean zoomToNumberedBuildingsOnlyEnabled = true;"),
+                "controller should keep numbered-only auto-zoom scope enabled by default");
+        assertTrue(controllerSource.contains("void setZoomToNumberedBuildingsOnlyEnabled(boolean enabled)"),
+                "controller should expose a setter for numbered-only auto-zoom scope");
+        assertTrue(controllerSource.contains("if (!zoomToNumberedBuildingsOnlyEnabled)"),
+                "zoom path should branch between full-street and numbered-only bounds");
     }
 
     private static void testOverviewDialogCloseUpdatesMainDialogCheckboxes() throws Exception {

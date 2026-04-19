@@ -38,6 +38,7 @@ HouseNumberClick is a JOSM plugin for fast, street-focused house-number tagging 
 - `Ctrl+Click` reads existing address values from buildings, including `addr:city`; if no building is hit, nearby street name can be read.
 - Conflict warning protects against unintended overwrite of existing address data, including city conflicts.
 - Optional `Auto-zoom to selected street` zooms to mapped house-number buildings of the selected street.
+- `Numbered only` (next to Auto-zoom) controls zoom scope: when enabled, auto-zoom targets only buildings with `addr:housenumber`; when disabled, full selected-street framing is used.
 - The `HouseNumberClick` action follows JOSM tool behavior: it is enabled only while an editable data layer/dataset is available.
 
 ## Split and Row-House Tools

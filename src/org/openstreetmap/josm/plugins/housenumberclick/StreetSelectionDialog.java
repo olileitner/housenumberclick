@@ -42,7 +42,8 @@ import org.openstreetmap.josm.tools.I18n;
 /**
  * Main configuration dialog where users pick street/address settings (street, postcode, house number, city,
  * country code, building type) and receive disambiguated readback updates, while street auto-zoom is limited
- * to explicit street-selection actions and postcode overview is cycled through off/buildings/schematic states.
+ * to explicit street-selection actions with configurable zoom scope, and postcode overview is cycled through
+ * off/buildings/schematic states.
  */
 final class StreetSelectionDialog {
 
@@ -82,6 +83,7 @@ final class StreetSelectionDialog {
     private final JCheckBox showHouseNumberOverviewCheckbox;
     private final JCheckBox showStreetHouseNumberCountsCheckbox;
     private final JCheckBox zoomToSelectedStreetCheckbox;
+    private final JCheckBox zoomToNumberedBuildingsOnlyCheckbox;
     private final JCheckBox splitMakeRectangularCheckbox;
     private final JButton rowHousePartsMinusButton;
     private final JButton rowHousePartsPlusButton;
@@ -104,6 +106,7 @@ final class StreetSelectionDialog {
     private boolean rememberedHouseNumberOverviewEnabled;
     private boolean rememberedStreetHouseNumberCountsEnabled;
     private boolean rememberedZoomToSelectedStreetEnabled = true;
+    private boolean rememberedZoomToNumberedBuildingsOnlyEnabled = true;
     private boolean rememberedSplitMakeRectangular;
     private boolean updatingInputs;
     private boolean streetSelectionChangedByNavigation;
@@ -246,12 +249,18 @@ final class StreetSelectionDialog {
         this.showHouseNumberOverviewCheckbox = new JCheckBox(I18n.tr("Show overview panel (selected street)"));
         this.showStreetHouseNumberCountsCheckbox = new JCheckBox(I18n.tr("Show all street counts"));
         this.zoomToSelectedStreetCheckbox = new JCheckBox(I18n.tr("Auto-zoom to selected street"));
+        this.zoomToNumberedBuildingsOnlyCheckbox = new JCheckBox(I18n.tr("Numbered only"));
+        this.zoomToNumberedBuildingsOnlyCheckbox.setToolTipText(
+                I18n.tr("Auto-zoom only to buildings of the selected street that already have a house number."));
         this.showHouseNumberLayerCheckbox.addActionListener(e -> onOverlayLayerSelectionChanged());
         this.showConnectionLinesCheckbox.addActionListener(e -> onConnectionLinesSelectionChanged());
         this.showSeparateEvenOddConnectionLinesCheckbox.addActionListener(e -> onSeparateEvenOddConnectionLinesSelectionChanged());
         this.showHouseNumberOverviewCheckbox.addActionListener(e -> onHouseNumberOverviewSelectionChanged());
         this.showStreetHouseNumberCountsCheckbox.addActionListener(e -> onStreetHouseNumberCountsSelectionChanged());
         this.zoomToSelectedStreetCheckbox.addActionListener(e -> onZoomToSelectedStreetSelectionChanged());
+        this.zoomToNumberedBuildingsOnlyCheckbox.addActionListener(e -> onZoomToNumberedBuildingsOnlySelectionChanged());
+        this.zoomToNumberedBuildingsOnlyCheckbox.setSelected(rememberedZoomToNumberedBuildingsOnlyEnabled);
+        updateZoomScopeOptionEnablement();
         updateOverlayOptionsEnablement(false, false);
 
         JPanel incrementButtonsPanel = new JPanel(new GridBagLayout());
@@ -466,6 +475,8 @@ final class StreetSelectionDialog {
         showHouseNumberOverviewCheckbox.setSelected(rememberedHouseNumberOverviewEnabled);
         showStreetHouseNumberCountsCheckbox.setSelected(rememberedStreetHouseNumberCountsEnabled);
         zoomToSelectedStreetCheckbox.setSelected(rememberedZoomToSelectedStreetEnabled);
+        zoomToNumberedBuildingsOnlyCheckbox.setSelected(rememberedZoomToNumberedBuildingsOnlyEnabled);
+        updateZoomScopeOptionEnablement();
         splitMakeRectangularCheckbox.setSelected(rememberedSplitMakeRectangular);
         streetModeController.setRectangularizeAfterLineSplit(rememberedSplitMakeRectangular);
         applyCompletenessRadioSelection(streetModeController.getCompletenessMissingField());
@@ -480,6 +491,7 @@ final class StreetSelectionDialog {
         notifyHouseNumberOverviewChanged();
         notifyStreetHouseNumberCountsChanged();
         notifyZoomToSelectedStreetChanged();
+        notifyZoomToNumberedBuildingsOnlyChanged();
         refreshModeStateUi(streetModeController.isActive());
         refreshOverviewButtonLabel();
         refreshDuplicateOverviewButtonLabel();
@@ -783,8 +795,18 @@ final class StreetSelectionDialog {
         if (updatingInputs) {
             return;
         }
+        updateZoomScopeOptionEnablement();
         rememberCurrentValues();
         notifyZoomToSelectedStreetChanged();
+        focusMapViewIfStreetModeActive();
+    }
+
+    private void onZoomToNumberedBuildingsOnlySelectionChanged() {
+        if (updatingInputs) {
+            return;
+        }
+        rememberCurrentValues();
+        notifyZoomToNumberedBuildingsOnlyChanged();
         focusMapViewIfStreetModeActive();
     }
 
@@ -995,6 +1017,18 @@ final class StreetSelectionDialog {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createTitledBorder(I18n.tr("Display")));
 
+        JPanel zoomOptionsPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints zoomGbc = new GridBagConstraints();
+        zoomGbc.gridx = 0;
+        zoomGbc.gridy = 0;
+        zoomGbc.anchor = GridBagConstraints.WEST;
+        zoomGbc.insets = new Insets(0, 0, 0, 8);
+        zoomOptionsPanel.add(zoomToSelectedStreetCheckbox, zoomGbc);
+
+        zoomGbc.gridx = 1;
+        zoomGbc.insets = new Insets(0, 0, 0, 0);
+        zoomOptionsPanel.add(zoomToNumberedBuildingsOnlyCheckbox, zoomGbc);
+
         JPanel houseNumberSubOptionsPanel = new JPanel(new GridBagLayout());
         GridBagConstraints subGbc = new GridBagConstraints();
         subGbc.gridx = 0;
@@ -1015,7 +1049,7 @@ final class StreetSelectionDialog {
 
         gbc.gridy = 0;
         gbc.insets = new Insets(2, 0, 2, 0);
-        panel.add(zoomToSelectedStreetCheckbox, gbc);
+        panel.add(zoomOptionsPanel, gbc);
 
         gbc.gridy = 1;
         gbc.insets = new Insets(2, 0, 2, 0);
@@ -1362,6 +1396,8 @@ final class StreetSelectionDialog {
                 && showStreetHouseNumberCountsCheckbox.isSelected();
         rememberedZoomToSelectedStreetEnabled = zoomToSelectedStreetCheckbox != null
                 && zoomToSelectedStreetCheckbox.isSelected();
+        rememberedZoomToNumberedBuildingsOnlyEnabled = zoomToNumberedBuildingsOnlyCheckbox != null
+                && zoomToNumberedBuildingsOnlyCheckbox.isSelected();
         rememberedSplitMakeRectangular = splitMakeRectangularCheckbox != null
                 && splitMakeRectangularCheckbox.isSelected();
         if (rememberedHouseNumberLayerEnabled) {
@@ -1445,6 +1481,17 @@ final class StreetSelectionDialog {
 
     private void notifyZoomToSelectedStreetChanged() {
         streetModeController.setZoomToSelectedStreetEnabled(zoomToSelectedStreetCheckbox.isSelected());
+    }
+
+    private void notifyZoomToNumberedBuildingsOnlyChanged() {
+        streetModeController.setZoomToNumberedBuildingsOnlyEnabled(zoomToNumberedBuildingsOnlyCheckbox.isSelected());
+    }
+
+    private void updateZoomScopeOptionEnablement() {
+        if (zoomToNumberedBuildingsOnlyCheckbox == null || zoomToSelectedStreetCheckbox == null) {
+            return;
+        }
+        zoomToNumberedBuildingsOnlyCheckbox.setEnabled(zoomToSelectedStreetCheckbox.isSelected());
     }
 
     private int normalizeIncrementStep(int step) {
@@ -1615,6 +1662,7 @@ final class StreetSelectionDialog {
         rememberedHouseNumberOverviewEnabled = false;
         rememberedStreetHouseNumberCountsEnabled = false;
         rememberedZoomToSelectedStreetEnabled = true;
+        rememberedZoomToNumberedBuildingsOnlyEnabled = true;
         rememberedSplitMakeRectangular = false;
         lastSelectedStreet = null;
     }

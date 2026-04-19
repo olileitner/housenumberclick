@@ -36,7 +36,8 @@ import org.openstreetmap.josm.tools.Logging;
  * Orchestrates Street Mode state, dialog synchronization, seed-aware street highlighting/overlays
  * (including self-healing overlay presence checks while active and full teardown cleanup),
  * explicit street-selection zoom behavior with full selected-street framing, spatially disambiguated
- * street readback selection, split/address operations including city/country-aware address
+ * street readback selection, configurable zoom scope for numbered-building-only vs full-street
+ * framing, split/address operations including city/country-aware address
  * propagation, and the three-state postcode overview cycle.
  */
 final class StreetModeController {
@@ -132,6 +133,7 @@ final class StreetModeController {
     private boolean houseNumberOverviewEnabled;
     private boolean streetHouseNumberCountsEnabled;
     private boolean zoomToSelectedStreetEnabled;
+    private boolean zoomToNumberedBuildingsOnlyEnabled = true;
     private String visibleReferenceStreetKey = "";
     private String lastReferenceSyncStreetKey = "";
     private DataSet cachedStreetIndexDataSet;
@@ -418,6 +420,10 @@ final class StreetModeController {
         zoomToSelectedStreetEnabled = enabled;
     }
 
+    void setZoomToNumberedBuildingsOnlyEnabled(boolean enabled) {
+        zoomToNumberedBuildingsOnlyEnabled = enabled;
+    }
+
     void setStreetHouseNumberCountsEnabled(boolean enabled) {
         streetHouseNumberCountsEnabled = enabled;
         syncDataSourceListenerBinding();
@@ -500,12 +506,14 @@ final class StreetModeController {
         List<OsmPrimitive> selectionTargets = new ArrayList<>();
 
         BoundingXYVisitor visitor = new BoundingXYVisitor();
-        for (Way streetWay : localStreetWays) {
-            if (streetWay == null || !streetWay.isUsable()) {
-                continue;
+        if (!zoomToNumberedBuildingsOnlyEnabled) {
+            for (Way streetWay : localStreetWays) {
+                if (streetWay == null || !streetWay.isUsable()) {
+                    continue;
+                }
+                streetWay.accept((OsmPrimitiveVisitor) visitor);
+                selectionTargets.add(streetWay);
             }
-            streetWay.accept((OsmPrimitiveVisitor) visitor);
-            selectionTargets.add(streetWay);
         }
 
         for (HouseNumberOverlayEntry entry : entries) {
@@ -516,7 +524,7 @@ final class StreetModeController {
             primitive.accept((OsmPrimitiveVisitor) visitor);
         }
 
-        if (!visitor.hasExtend()) {
+        if (!visitor.hasExtend() && !zoomToNumberedBuildingsOnlyEnabled) {
             fallbackStreetWays = collectStreetWayFallbackPrimitives(
                     editDataSet,
                     zoomStreetOption,
