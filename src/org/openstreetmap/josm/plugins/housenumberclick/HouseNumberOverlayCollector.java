@@ -26,12 +26,13 @@ import org.openstreetmap.josm.tools.Geometry;
 
 /**
  * Collects and normalizes addressed buildings near the locally resolved selected street segment,
- * canonicalizing relation/outer-way representations of the same real building.
+ * canonicalizing relation/outer-way representations of the same real building within a
+ * tolerant selected-street distance window.
  */
 final class HouseNumberOverlayCollector {
 
     private static final Pattern HOUSE_NUMBER_PATTERN = Pattern.compile("^\\s*(\\d+)\\s*([^\\d].*)?$");
-    private static final double MAX_BUILDING_DISTANCE_TO_SELECTED_STREET_METERS = 120.0;
+    private static final double MAX_BUILDING_DISTANCE_TO_SELECTED_STREET_METERS = 400.0;
 
     List<HouseNumberOverlayEntry> collect(DataSet dataSet, StreetOption selectedStreet,
             StreetNameCollector.StreetIndex streetIndex, Way seedWayHint) {

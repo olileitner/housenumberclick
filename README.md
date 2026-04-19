@@ -111,6 +111,7 @@ This significantly reduces friction when mapping long streets or dense residenti
 
 - `Show house number labels`: overlay of house numbers for the selected street.
 - `Show connection lines`: connects mapped numbers in sorted order; `Separate even / odd` splits parity paths.
+- Overlay labels/lines are street-local and distance-limited: addressed buildings are considered when their computed label point is near the selected street chain (currently up to about 400 m).
 - Duplicate house numbers are highlighted in the selected-street overlay using `street+postcode+housenumber` (local check, city is intentionally ignored).
 - `Show overview panel (selected street)`: odd/even table with gap markers (`•` for missing base numbers); table click zooms to target object(s).
 - `Show all street counts`: list of all known streets and current counts; row click zooms to selected street. Duplicate marker `(dup)` follows the same conditional city rule as `Show duplicates`.
@@ -141,6 +142,7 @@ This significantly reduces friction when mapping long streets or dense residenti
 - **No postcode selected:** choose a postcode from the dropdown or type one manually; apply is blocked while postcode is empty.
 - **Tool button is disabled:** ensure an editable OSM data layer is loaded and active in JOSM.
 - **No building detected:** zoom in and click directly on a closed `building=*` object.
+- **Expected label/line is missing:** verify `addr:street` exactly matches the selected street and the building is within the selected-street overlay distance scope.
 - **Overwrite warning appears:** existing address values differ (street/postcode/city/building); confirm to overwrite or cancel to keep existing tags. Street, postcode, and city can each be suppressed independently for repeated warnings.
 - **Line split does not run:** draw the line so it clearly crosses one building (not only touching one edge/corner).
 - **Line split fails with multiple targets:** avoid crossing two buildings; touching another building edge can still work, but crossing two buildings cannot be resolved uniquely.
