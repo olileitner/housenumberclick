@@ -102,6 +102,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Sidebar dialog labels and hints wiring exist", HouseNumberClickRiskRegressionTests::testStreetCountDialogTitleAndDimensions);
             run("Dialog bounds persistence and off-screen fallback wiring exist", HouseNumberClickRiskRegressionTests::testDialogBoundsPersistenceWiring);
             run("Main dialog supports collapsible advanced sections", HouseNumberClickRiskRegressionTests::testMainDialogCollapsibleAdvancedSectionsWiring);
+            run("Main dialog groups split sections in one horizontal row", HouseNumberClickRiskRegressionTests::testMainDialogSplitSectionsHorizontalRowWiring);
             run("Auto-zoom scope toggle wiring exists", HouseNumberClickRiskRegressionTests::testAutoZoomScopeToggleWiring);
             run("Sidebar ToggleDialog architecture wiring exists", HouseNumberClickRiskRegressionTests::testSidebarToggleDialogArchitectureWiring);
             run("Street counts duplicate marker applies conditional city rule", HouseNumberClickRiskRegressionTests::testStreetHouseNumberCountCollectorConditionalCityRule);
@@ -1542,6 +1543,19 @@ public final class HouseNumberClickRiskRegressionTests {
                 "main dialog should load and save expanded-state through centralized preferences");
         assertTrue(dialogSource.contains("updateAdvancedSectionsVisibility()"),
                 "main dialog should centralize collapsible section visibility updates");
+    }
+
+    private static void testMainDialogSplitSectionsHorizontalRowWiring() throws Exception {
+        String dialogSource = readPluginSource("StreetSelectionDialog.java");
+
+        assertTrue(dialogSource.contains("createSplitSectionsRow()"),
+                "main dialog should define a helper that lays out split sections in one horizontal row");
+        assertTrue(dialogSource.contains("collapsibleSectionsPanel.add(createSplitSectionsRow(), advancedSectionGbc);"),
+                "advanced section assembly should add the split row container once");
+        assertTrue(dialogSource.contains("panel.add(createLineSplitSection(), gbc);"),
+                "split row container should include the Line Split section");
+        assertTrue(dialogSource.contains("panel.add(createRowHousesSection(), gbc);"),
+                "split row container should include the Row Houses section");
     }
 
     private static void testAutoZoomScopeToggleWiring() throws Exception {

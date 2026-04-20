@@ -47,10 +47,10 @@ import org.openstreetmap.josm.tools.I18n;
  * to explicit street-selection actions with configurable zoom scope, postcode overview is cycled through
  * off/buildings/schematic states, Street Counts/Street Numbers overviews are rendered as dedicated sidebar
  * ToggleDialogs, user-facing display/split options persist across JOSM sessions, advanced sections below Address
- * can be collapsed via a lightweight toggle with persisted state, street navigation arrows are available inline
- * in the Address row, dialog interaction pauses visibly when no editable data layer is active, recovers safely
- * after dataset switches while paused, and dialog window bounds are restored with default fallback when saved
- * geometry is no longer on-screen.
+ * can be collapsed via a lightweight toggle with persisted state, split controls are grouped side-by-side in one
+ * row, street navigation arrows are available inline in the Address row, dialog interaction pauses visibly when no
+ * editable data layer is active, recovers safely after dataset switches while paused, and dialog window bounds are
+ * restored with default fallback when saved geometry is no longer on-screen.
  */
 final class StreetSelectionDialog {
 
@@ -397,21 +397,17 @@ final class StreetSelectionDialog {
 
         advancedSectionGbc.gridy = 0;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
-        collapsibleSectionsPanel.add(createLineSplitSection(), advancedSectionGbc);
+        collapsibleSectionsPanel.add(createSplitSectionsRow(), advancedSectionGbc);
 
         advancedSectionGbc.gridy = 1;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
-        collapsibleSectionsPanel.add(createRowHousesSection(), advancedSectionGbc);
+        collapsibleSectionsPanel.add(createDisplaySection(), advancedSectionGbc);
 
         advancedSectionGbc.gridy = 2;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
-        collapsibleSectionsPanel.add(createDisplaySection(), advancedSectionGbc);
-
-        advancedSectionGbc.gridy = 3;
-        advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
         collapsibleSectionsPanel.add(createAnalysisSection(), advancedSectionGbc);
 
-        advancedSectionGbc.gridy = 4;
+        advancedSectionGbc.gridy = 3;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
         collapsibleSectionsPanel.add(createHelpSection(), advancedSectionGbc);
 
@@ -1243,6 +1239,25 @@ final class StreetSelectionDialog {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBorder(BorderFactory.createTitledBorder(I18n.tr("Line Split")));
         panel.add(splitMakeRectangularCheckbox, BorderLayout.WEST);
+        return panel;
+    }
+
+    private JPanel createSplitSectionsRow() {
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.gridy = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+
+        gbc.gridx = 0;
+        gbc.weightx = 0.5;
+        gbc.insets = new Insets(0, 0, 0, 4);
+        panel.add(createLineSplitSection(), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.5;
+        gbc.insets = new Insets(0, 4, 0, 0);
+        panel.add(createRowHousesSection(), gbc);
         return panel;
     }
 
