@@ -28,6 +28,7 @@ HouseNumberClick is a JOSM plugin for fast, street-focused house-number tagging 
 ## Demo
 
 ![HouseNumberClick demo](docs/images/housenumberclick-demo.gif)
+![HouseNumberClick demo 2](docs/images/housenumberclick-demo-2.gif)
 
 ## Core Features
 
