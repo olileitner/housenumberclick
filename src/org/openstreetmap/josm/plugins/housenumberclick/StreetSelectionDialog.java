@@ -47,9 +47,10 @@ import org.openstreetmap.josm.tools.I18n;
  * to explicit street-selection actions with configurable zoom scope, postcode overview is cycled through
  * off/buildings/schematic states, Street Counts/Street Numbers overviews are rendered as dedicated sidebar
  * ToggleDialogs, user-facing display/split options persist across JOSM sessions, advanced sections below Address
- * can be collapsed via a lightweight toggle with persisted state, dialog interaction pauses visibly when no
- * editable data layer is active, recovers safely after dataset switches while paused, and dialog window bounds
- * are restored with default fallback when saved geometry is no longer on-screen.
+ * can be collapsed via a lightweight toggle with persisted state, street navigation arrows are available inline
+ * in the Address row, dialog interaction pauses visibly when no editable data layer is active, recovers safely
+ * after dataset switches while paused, and dialog window bounds are restored with default fallback when saved
+ * geometry is no longer on-screen.
  */
 final class StreetSelectionDialog {
 
@@ -229,8 +230,12 @@ final class StreetSelectionDialog {
         JButton closeButton = new JButton(I18n.tr("Close"));
         closeButton.addActionListener(e -> closeDialog());
 
-        this.previousStreetButton = new JButton(I18n.tr("◀ Previous"));
-        this.nextStreetButton = new JButton(I18n.tr("Next ▶"));
+        this.previousStreetButton = new JButton(I18n.tr("◀"));
+        this.nextStreetButton = new JButton(I18n.tr("▶"));
+        this.previousStreetButton.setToolTipText(I18n.tr("Previous street"));
+        this.nextStreetButton.setToolTipText(I18n.tr("Next street"));
+        this.previousStreetButton.setMargin(new Insets(1, 6, 1, 6));
+        this.nextStreetButton.setMargin(new Insets(1, 6, 1, 6));
         this.previousStreetButton.addActionListener(e -> navigateStreetByOffset(-1));
         this.nextStreetButton.addActionListener(e -> navigateStreetByOffset(1));
 
@@ -391,26 +396,22 @@ final class StreetSelectionDialog {
         advancedSectionGbc.anchor = GridBagConstraints.NORTHWEST;
 
         advancedSectionGbc.gridy = 0;
-        advancedSectionGbc.insets = new Insets(0, 0, 0, 0);
-        collapsibleSectionsPanel.add(createStreetNavigationSection(), advancedSectionGbc);
-
-        advancedSectionGbc.gridy = 1;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
         collapsibleSectionsPanel.add(createLineSplitSection(), advancedSectionGbc);
 
-        advancedSectionGbc.gridy = 2;
+        advancedSectionGbc.gridy = 1;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
         collapsibleSectionsPanel.add(createRowHousesSection(), advancedSectionGbc);
 
-        advancedSectionGbc.gridy = 3;
+        advancedSectionGbc.gridy = 2;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
         collapsibleSectionsPanel.add(createDisplaySection(), advancedSectionGbc);
 
-        advancedSectionGbc.gridy = 4;
+        advancedSectionGbc.gridy = 3;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
         collapsibleSectionsPanel.add(createAnalysisSection(), advancedSectionGbc);
 
-        advancedSectionGbc.gridy = 5;
+        advancedSectionGbc.gridy = 4;
         advancedSectionGbc.insets = new Insets(6, 0, 0, 0);
         collapsibleSectionsPanel.add(createHelpSection(), advancedSectionGbc);
 
@@ -1071,9 +1072,14 @@ final class StreetSelectionDialog {
         gbc.anchor = GridBagConstraints.WEST;
         gbc.insets = new Insets(2, 0, 2, 8);
 
+        JPanel streetLabelPanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.LEFT, 4, 0));
+        streetLabelPanel.add(new JLabel(I18n.tr("Street:")));
+        streetLabelPanel.add(previousStreetButton);
+        streetLabelPanel.add(nextStreetButton);
+
         gbc.gridx = 0;
         gbc.gridy = 0;
-        panel.add(new JLabel(I18n.tr("Street:")), gbc);
+        panel.add(streetLabelPanel, gbc);
 
         gbc.gridx = 1;
         gbc.weightx = 1.0;
@@ -1230,27 +1236,6 @@ final class StreetSelectionDialog {
         postcodeButtonRow.add(createPostcodeOverviewButton);
         postcodeButtonRow.add(createDuplicateOverviewButton);
         panel.add(postcodeButtonRow, BorderLayout.SOUTH);
-        return panel;
-    }
-
-    private JPanel createStreetNavigationSection() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setBorder(BorderFactory.createTitledBorder(I18n.tr("Select street")));
-
-        harmonizeNavigationButtonWidths();
-
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.insets = new Insets(0, 0, 4, 4);
-        panel.add(previousStreetButton, gbc);
-
-        gbc.gridx = 1;
-        gbc.insets = new Insets(0, 0, 4, 0);
-        panel.add(nextStreetButton, gbc);
-
-
         return panel;
     }
 
@@ -1492,17 +1477,6 @@ final class StreetSelectionDialog {
                 break;
         }
         streetModeController.setCompletenessMissingField(normalized);
-    }
-
-    private void harmonizeNavigationButtonWidths() {
-        if (previousStreetButton == null || nextStreetButton == null) {
-            return;
-        }
-        int width = Math.max(previousStreetButton.getPreferredSize().width, nextStreetButton.getPreferredSize().width);
-        int previousHeight = previousStreetButton.getPreferredSize().height;
-        int nextHeight = nextStreetButton.getPreferredSize().height;
-        previousStreetButton.setPreferredSize(new Dimension(width, previousHeight));
-        nextStreetButton.setPreferredSize(new Dimension(width, nextHeight));
     }
 
 

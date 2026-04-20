@@ -1613,6 +1613,16 @@ public final class HouseNumberClickRiskRegressionTests {
         String source = readPluginSource("StreetSelectionDialog.java");
         assertTrue(source.contains("streetSelectionChangedByNavigation"),
                 "dialog should track when street selection changes are triggered by Previous/Next navigation");
+        assertTrue(source.contains("new JButton(I18n.tr(\"◀\"))"),
+                "street navigation should expose a compact previous-arrow button");
+        assertTrue(source.contains("new JButton(I18n.tr(\"▶\"))"),
+                "street navigation should expose a compact next-arrow button");
+        assertTrue(source.contains("streetLabelPanel.add(previousStreetButton)"),
+                "previous-arrow button should be placed inline next to the street label");
+        assertTrue(source.contains("streetLabelPanel.add(nextStreetButton)"),
+                "next-arrow button should be placed inline next to the street label");
+        assertTrue(!source.contains("createStreetNavigationSection()"),
+                "standalone street-navigation section should be removed once arrows are inline in Address");
         assertTrue(source.contains("setSelectedPostcode(\"\")"),
                 "Previous/Next navigation should clear postcode selection to empty");
         assertTrue(source.contains("houseNumberField.setText(\"\")"),
