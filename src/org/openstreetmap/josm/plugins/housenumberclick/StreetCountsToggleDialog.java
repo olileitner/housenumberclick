@@ -14,7 +14,7 @@ final class StreetCountsToggleDialog extends ToggleDialog {
 
     StreetCountsToggleDialog(StreetCountsPanel panel) {
         super(
-                I18n.tr("Street Counts"),
+                I18n.tr("Street Counts (House Numbers)"),
                 "housenumberclick",
                 I18n.tr("Show street counts"),
                 null,

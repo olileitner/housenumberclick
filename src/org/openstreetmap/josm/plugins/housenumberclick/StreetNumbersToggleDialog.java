@@ -14,7 +14,7 @@ final class StreetNumbersToggleDialog extends ToggleDialog {
 
     StreetNumbersToggleDialog(StreetNumbersPanel panel) {
         super(
-                I18n.tr("House Numbers"),
+                I18n.tr("House Numbers (Base Numbers only)"),
                 "housenumberclick",
                 I18n.tr("Show house numbers"),
                 null,

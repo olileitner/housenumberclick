@@ -1481,10 +1481,10 @@ public final class HouseNumberClickRiskRegressionTests {
         String countsPanelSource = readPluginSource("StreetCountsPanel.java");
         String numbersPanelSource = readPluginSource("StreetNumbersPanel.java");
 
-        assertTrue(countsToggleSource.contains("I18n.tr(\"Street Counts\")"),
-                "street counts sidebar dialog should expose the Street Counts title");
-        assertTrue(numbersToggleSource.contains("I18n.tr(\"House Numbers\")"),
-                "house numbers sidebar dialog should expose the House Numbers title");
+        assertTrue(countsToggleSource.contains("I18n.tr(\"Street Counts (House Numbers)\")"),
+                "street counts sidebar dialog should expose the Street Counts (House Numbers) title");
+        assertTrue(numbersToggleSource.contains("I18n.tr(\"House Numbers (Base Numbers only)\")"),
+                "house numbers sidebar dialog should expose the House Numbers (Base Numbers only) title");
         assertTrue(countsToggleSource.contains("\"housenumberclick\""),
                 "street counts sidebar dialog should use the plugin icon key");
         assertTrue(numbersToggleSource.contains("\"housenumberclick\""),
