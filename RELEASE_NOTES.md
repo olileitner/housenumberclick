@@ -1,44 +1,33 @@
-# HouseNumberClick 1.1.7 Release Notes
+# HouseNumberClick 1.1.8 Release Notes
 
 HouseNumberClick is a JOSM plugin for fast address tagging on buildings with street-focused editing workflows.
 
-## Highlights Since 1.1.6
+## Highlights Since 1.1.7
 
-- Added city-aware address workflow end-to-end: `Ctrl+Click` readback now restores `addr:city`, left-click apply can write `addr:city`, and overwrite warnings now include city conflicts with independent suppression.
-- Improved same-name street readback disambiguation by prioritizing nearest local street clusters and stabilizing seed-way resolution to avoid stale cross-area hints.
-- Refined auto-zoom behavior: zoom now frames the full selected street, table-driven zoom honors the AutoZoom option, and automatic zoom is limited to explicit street-selection actions.
-- Added and expanded analysis overlays: duplicate overview layer, focused completeness analysis (`Any` mode), postcode legend improvements, and deterministic/clearer analysis color behavior.
-- Hardened duplicate detection semantics by scope: global duplicate markers now apply conditional city matching, while local selected-street label duplicate highlighting remains city-agnostic (`street+postcode+housenumber`).
-- Improved overlay reliability: relation/outer-way canonicalization prevents self-duplicates, and house-number label overlay now self-heals if it disappears while the option is enabled.
+- Added a full right-sidebar workflow with persistent `Street Counts` and `House Numbers` dialogs, including header-safe ToggleDialog layout integration and synchronized state/hints.
+- Added robust dialog lifecycle handling for data-layer transitions: the main dialog now pauses on edit-layer loss, auto-recovers safely, and refreshes visible content when the active dataset is replaced.
+- Added persistent advanced dialog behavior: collapsible advanced sections with remembered state and restored window bounds with off-screen fallback.
+- Added postcode analysis expansion: three-state postcode overlay cycle (off -> buildings -> schematic areas), deterministic color/legend behavior, and stronger cache invalidation.
+- Added country-aware address flow end-to-end (`addr:country` detection, constrained country selection in dialog, and apply/readback propagation).
+- Added directly connected driveway highlighting in the house-number overlay while keeping strict exclusion of non-direct/service/parking cases.
 
 ## Dialog and UI Changes
 
-- Synced overview dialog close events back into main dialog checkboxes.
-- Moved the duplicate analysis action next to postcode analysis for faster access.
-- Reordered address fields and display options (auto-zoom first), and aligned help wording/order with current shortcuts.
-- Increased the main dialog height and stabilized status panel height to reduce layout jumps.
-- Restored last focused dialog input after resume.
-- Improved row-house parts controls: larger +/- buttons, field sync with `Alt+1..9`, and deferred field sync to avoid document mutation issues.
-- Adjusted dialog defaults and `Next` behavior when no street is preselected.
-- Removed global left/right street navigation shortcuts to reduce key handling conflicts.
-- Removed the "Load reference" button from overview dialog flows.
+- Moved street navigation arrows inline into the Address row and removed global left/right key handling conflicts.
+- Grouped `Line Split` and `Row Houses` controls side-by-side in one row and aligned split-panel heights for consistent layout.
+- Updated advanced-section toggle visuals (`More`/`Less`) and refined compact spacing/alignment in display and split sections.
+- Improved row-house parts controls (field/button sizing, mode-to-dialog sync, and safer deferred updates during document events).
+- Clarified sidebar titles to reflect scope: `Street Counts (House Numbers)` and `House Numbers (Base Numbers only)`.
 
 ## Stability and Bug Fixes
 
-- Improved undo/redo visual refresh paths and Ctrl+Z reliability in active mapping flow.
-- Reduced non-essential plugin logging to keep routine operation quieter.
-- Block apply when house number is missing.
-- Ensure Street Mode is truly active when opening the dialog.
-- Require `Alt+Right-click` for row-house split.
-- Group split operations into a single undo step.
-- Adjust split cursor hotspot and improve cursor reset on app focus loss.
-- Suppress Ctrl magnifier cursor while Shift is pressed.
-- Stabilize overlay connection lines while panning.
-- Refine street completeness edge heuristic.
-- Improve reference-street fetch robustness (including Overpass reader argument order and failure categorization).
-- Refresh overview tables after dataset downloads.
+- Hardened asynchronous reference-street loading lifecycle with generation guards and better stale-callback protection.
+- Improved overview and overlay refresh reliability after edits/downloads/undo-redo and after dataset/layer transitions.
+- Removed legacy overview window classes in favor of the sidebar architecture and centralized cleanup paths.
+- Expanded regression coverage around dialog lifecycle, split layout/wiring, sidebar integration, and dataset replacement behavior.
+- Updated release/i18n process documentation and tag-driven automation guards for reproducible non-interactive releases.
 
 ## Build Artifact
 
-- Release artifact: `dist/HouseNumberClick-1.1.7.jar`
+- Release artifact: `dist/HouseNumberClick-1.1.8.jar`
 
