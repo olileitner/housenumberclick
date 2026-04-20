@@ -135,8 +135,8 @@ final class StreetSelectionDialog {
     private static final Dimension DIALOG_SIZE = new Dimension(DIALOG_WIDTH, DIALOG_DEFAULT_HEIGHT);
     private static final int DIALOG_OFFSET_X = 66;
     private static final int DIALOG_OFFSET_Y = 80;
-    private static final String ADVANCED_SECTIONS_COLLAPSED_TEXT = I18n.tr("▸ More");
-    private static final String ADVANCED_SECTIONS_EXPANDED_TEXT = I18n.tr("▾ Less");
+    private static final String ADVANCED_SECTIONS_COLLAPSED_TEXT = I18n.tr("▾ More");
+    private static final String ADVANCED_SECTIONS_EXPANDED_TEXT = I18n.tr("▴ Less");
     private static final String SHOW_OVERVIEW_BUTTON_TEXT = I18n.tr("Show completeness");
     private static final String HIDE_OVERVIEW_BUTTON_TEXT = I18n.tr("Hide completeness");
     private static final String SHOW_DUPLICATE_BUTTON_TEXT = I18n.tr("Show duplicates");
