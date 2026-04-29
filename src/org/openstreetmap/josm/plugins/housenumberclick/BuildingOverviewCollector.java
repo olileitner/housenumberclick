@@ -16,6 +16,7 @@ import org.openstreetmap.josm.data.osm.Way;
 /**
  * Collects building diagnostics used by completeness and postcode overview layers,
  * canonicalizing relation/outer-way representations and considering linked read-only address carriers.
+ * Tiny buildings are filtered only when they have no effective address data.
  */
 final class BuildingOverviewCollector {
 
@@ -61,6 +62,9 @@ final class BuildingOverviewCollector {
                     List.of()
             );
             EffectiveAddress effectiveAddress = buildEffectiveAddress(candidate, indirectEntries);
+            if (candidate.primitiveArea < MIN_BUILDING_AREA && effectiveAddress.hasNoAddressData) {
+                continue;
+            }
             AddressEntry syntheticBuildingEntry = new AddressEntry(
                     candidate.primitive,
                     candidate.primitive,
@@ -111,16 +115,14 @@ final class BuildingOverviewCollector {
         }
 
         double primitiveArea = computeArea(canonicalPrimitive);
-        if (primitiveArea < MIN_BUILDING_AREA) {
-            return;
-        }
 
         String houseNumber = normalize(canonicalPrimitive.get("addr:housenumber"));
         boolean hasHouseNumber = !houseNumber.isEmpty();
         boolean hasMisplacedHouseNumber = !hasHouseNumber && hasMisplacedHouseNumber(canonicalPrimitive);
         canonicalCandidatesByPrimitiveId.put(canonicalId, new CandidateEntry(
                 canonicalPrimitive,
-                hasMisplacedHouseNumber
+                hasMisplacedHouseNumber,
+                primitiveArea
         ));
     }
 
@@ -493,13 +495,16 @@ final class BuildingOverviewCollector {
     private static final class CandidateEntry {
         private final OsmPrimitive primitive;
         private final boolean hasMisplacedHouseNumber;
+        private final double primitiveArea;
 
         CandidateEntry(
                 OsmPrimitive primitive,
-                boolean hasMisplacedHouseNumber
+                boolean hasMisplacedHouseNumber,
+                double primitiveArea
         ) {
             this.primitive = primitive;
             this.hasMisplacedHouseNumber = hasMisplacedHouseNumber;
+            this.primitiveArea = primitiveArea;
         }
     }
 

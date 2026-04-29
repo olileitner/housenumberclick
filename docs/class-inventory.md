@@ -18,7 +18,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `AddressedBuildingMatcher` | `AddressedBuildingMatcher.java` | No | Shared predicate helper for identifying addressable buildings, optionally filtered by street. |
 | `AddressReadbackService` | `AddressReadbackService.java` | No | Reads street, postcode, city, country, house number, and building type from clicked buildings or fallback street ways. |
 | `AddressReadbackService.AddressReadbackResult` | `AddressReadbackService.java` | No | Readback payload containing street/address values and the source category. |
-| `BuildingOverviewCollector` | `BuildingOverviewCollector.java` | No | Collects building diagnostics used by completeness and postcode overview layers, canonicalizing relation/outer-way representations and considering linked read-only address carriers. |
+| `BuildingOverviewCollector` | `BuildingOverviewCollector.java` | No | Collects building diagnostics used by completeness and postcode overview layers, canonicalizing relation/outer-way representations and considering linked read-only address carriers; tiny buildings are filtered only when no effective address data exists. |
 | `BuildingOverviewCollector.BuildingOverviewEntry` | `BuildingOverviewCollector.java` | No | Public entry used by overview layers to render completeness and diagnostics for one building. |
 | `BuildingOverviewCollector.CandidateEntry` | `BuildingOverviewCollector.java` | No | Internal collection-stage representation before duplicate-address evaluation is finalized. |
 | `BuildingOverviewLayer` | `BuildingOverviewLayer.java` | No | Map layer that visualizes building-level address status to support completeness inspection. |

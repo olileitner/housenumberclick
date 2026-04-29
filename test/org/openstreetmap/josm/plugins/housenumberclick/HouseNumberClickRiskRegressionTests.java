@@ -2037,7 +2037,8 @@ public final class HouseNumberClickRiskRegressionTests {
         BuildingOverviewCollector collector = new BuildingOverviewCollector();
         List<BuildingOverviewCollector.BuildingOverviewEntry> entries = collector.collect(dataSet);
 
-        assertEquals(5, entries.size(), "collector should skip buildings below minimum area");
+        assertEquals(6, entries.size(),
+                "collector should keep tiny buildings when effective address data exists");
 
         boolean containsAddressedLarge = false;
         boolean containsAddressedDuplicate = false;
@@ -2095,7 +2096,8 @@ public final class HouseNumberClickRiskRegressionTests {
         assertTrue(containsUnaddressedLarge, "large unaddressed building should be included and marked unaddressed");
         assertTrue(containsNoAddressData,
                 "building without street, postcode and housenumber should be flagged as no address data");
-        assertFalse(containsAddressedTiny, "tiny building should be excluded by minimum area filter");
+        assertTrue(containsAddressedTiny,
+                "tiny building with address tags should stay visible despite minimum area filter");
     }
 
     private static void testBuildingOverviewCollectorConditionalCityRule() {
