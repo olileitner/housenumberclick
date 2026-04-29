@@ -56,7 +56,6 @@ import org.openstreetmap.josm.tools.I18n;
 final class StreetSelectionDialog {
 
     private static final String DIALOG_BOUNDS_ID = "mainDialog";
-    private static final String DEFAULT_HOUSE_NUMBER = "1";
     private static final String INITIAL_HOUSE_NUMBER = "";
 
     private final StreetModeController streetModeController;
@@ -637,12 +636,8 @@ final class StreetSelectionDialog {
         if (streetChanged) {
             boolean wasUpdatingInputs = updatingInputs;
             updatingInputs = true;
-            if (changedByNavigation) {
-                setSelectedPostcode("");
-                houseNumberField.setText("");
-            } else {
-                houseNumberField.setText(DEFAULT_HOUSE_NUMBER);
-            }
+            setSelectedPostcode("");
+            houseNumberField.setText("");
             updatingInputs = wasUpdatingInputs;
         }
         lastSelectedStreet = selectedStreet;

@@ -4,11 +4,16 @@ import java.awt.Component;
 import java.awt.event.MouseEvent;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
+import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
+import javax.swing.JTextField;
 
 import org.openstreetmap.josm.data.Preferences;
 import org.openstreetmap.josm.data.coor.LatLon;
@@ -89,6 +94,7 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Postcode schematic clustering filters isolated and tiny groups", HouseNumberClickRiskRegressionTests::testPostcodeSchematicClusterFilteringRules);
             run("Postcode schematic clustering keeps 500m boundary neighbors", HouseNumberClickRiskRegressionTests::testPostcodeSchematicBoundaryDistanceInclusion);
             run("Street navigation order matches street-count sorting", HouseNumberClickRiskRegressionTests::testStreetNavigationOrderMatchesStreetCountsSorting);
+            run("Street list selection resets like arrow navigation", HouseNumberClickRiskRegressionTests::testStreetNavigationClearsPostcodeAndHouseNumber);
             run("Street grouping bridges endpoint-to-segment gaps", HouseNumberClickRiskRegressionTests::testStreetGroupingBridgesEndpointToSegmentGaps);
             run("Street grouping merges collinear components after raw split", HouseNumberClickRiskRegressionTests::testStreetGroupingMergesCollinearComponentsAfterRawSplit);
             run("Selected street option keeps full merged local chain", HouseNumberClickRiskRegressionTests::testSelectedStreetOptionKeepsFullMergedLocalChain);
@@ -1642,23 +1648,74 @@ public final class HouseNumberClickRiskRegressionTests {
     }
 
     private static void testStreetNavigationClearsPostcodeAndHouseNumber() throws Exception {
-        String source = readPluginSource("StreetSelectionDialog.java");
-        assertTrue(source.contains("streetSelectionChangedByNavigation"),
-                "dialog should track when street selection changes are triggered by Previous/Next navigation");
-        assertTrue(source.contains("new JButton(I18n.tr(\"◀\"))"),
-                "street navigation should expose a compact previous-arrow button");
-        assertTrue(source.contains("new JButton(I18n.tr(\"▶\"))"),
-                "street navigation should expose a compact next-arrow button");
-        assertTrue(source.contains("streetLabelPanel.add(previousStreetButton)"),
-                "previous-arrow button should be placed inline next to the street label");
-        assertTrue(source.contains("streetLabelPanel.add(nextStreetButton)"),
-                "next-arrow button should be placed inline next to the street label");
-        assertTrue(!source.contains("createStreetNavigationSection()"),
-                "standalone street-navigation section should be removed once arrows are inline in Address");
-        assertTrue(source.contains("setSelectedPostcode(\"\")"),
-                "Previous/Next navigation should clear postcode selection to empty");
-        assertTrue(source.contains("houseNumberField.setText(\"\")"),
-                "Previous/Next navigation should clear house number field");
+        StreetSelectionDialog dialog = allocateWithoutConstructor(StreetSelectionDialog.class);
+        StreetModeController controller = new StreetModeController();
+
+        JComboBox<String> streetCombo = new JComboBox<>();
+        streetCombo.addItem("Alpha Street");
+        streetCombo.addItem("Beta Street");
+        streetCombo.setSelectedIndex(0);
+
+        JComboBox<String> postcodeCombo = new JComboBox<>();
+        postcodeCombo.setEditable(true);
+        postcodeCombo.addItem("");
+        postcodeCombo.addItem("11111");
+        postcodeCombo.setSelectedItem("11111");
+
+        JTextField houseNumberField = new JTextField("7");
+        JTextField cityField = new JTextField("Sampletown");
+
+        JComboBox<String> countryCombo = new JComboBox<>();
+        countryCombo.addItem("");
+        countryCombo.setSelectedItem("");
+
+        JComboBox<String> buildingTypeCombo = new JComboBox<>();
+        buildingTypeCombo.setEditable(true);
+        buildingTypeCombo.addItem("");
+        buildingTypeCombo.getEditor().setItem("house");
+
+        JCheckBox zoomToSelectedStreetCheckbox = new JCheckBox();
+        zoomToSelectedStreetCheckbox.setSelected(false);
+
+        List<StreetOption> currentStreetOptions = List.of(
+                new StreetOption("Alpha Street", "Alpha Street", "alpha#1"),
+                new StreetOption("Beta Street", "Beta Street", "beta#1")
+        );
+
+        setField(dialog, "dialogController", new DialogController());
+        setField(dialog, "streetModeController", controller);
+        setField(dialog, "streetCombo", streetCombo);
+        setField(dialog, "postcodeCombo", postcodeCombo);
+        setField(dialog, "houseNumberField", houseNumberField);
+        setField(dialog, "cityField", cityField);
+        setField(dialog, "countryCombo", countryCombo);
+        setField(dialog, "buildingTypeCombo", buildingTypeCombo);
+        setField(dialog, "zoomToSelectedStreetCheckbox", zoomToSelectedStreetCheckbox);
+        setField(dialog, "currentStreetOptions", currentStreetOptions);
+        setField(dialog, "houseNumberIncrementStep", 1);
+        setField(dialog, "lastSelectedStreet", "Alpha Street");
+
+        // Path 1: direct list selection
+        streetCombo.setSelectedIndex(1);
+        invokeNoArgMethod(dialog, "onStreetSelectionChanged");
+        assertEquals("", extractSelectedPostcode(postcodeCombo),
+                "street list selection should clear postcode like arrow navigation");
+        assertEquals("", houseNumberField.getText(),
+                "street list selection should clear house number like arrow navigation");
+
+        // Reset state
+        streetCombo.setSelectedIndex(0);
+        setField(dialog, "lastSelectedStreet", "Alpha Street");
+        postcodeCombo.setSelectedItem("11111");
+        houseNumberField.setText("7");
+
+        // Path 2: arrow navigation (next)
+        invokeMethodWithIntArgument(dialog, "navigateStreetByOffset", 1);
+        invokeNoArgMethod(dialog, "onStreetSelectionChanged");
+        assertEquals("", extractSelectedPostcode(postcodeCombo),
+                "arrow navigation should clear postcode");
+        assertEquals("", houseNumberField.getText(),
+                "arrow navigation should clear house number");
     }
 
     private static void testStreetSelectionIgnoresTransientPopupHover() throws Exception {
@@ -2269,6 +2326,39 @@ public final class HouseNumberClickRiskRegressionTests {
         method.setAccessible(true);
         Object result = method.invoke(mode, event);
         return Boolean.TRUE.equals(result);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T> T allocateWithoutConstructor(Class<T> type) throws Exception {
+        Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+        Field theUnsafeField = unsafeClass.getDeclaredField("theUnsafe");
+        theUnsafeField.setAccessible(true);
+        Object unsafe = theUnsafeField.get(null);
+        Method allocateInstance = unsafeClass.getMethod("allocateInstance", Class.class);
+        return (T) allocateInstance.invoke(unsafe, type);
+    }
+
+    private static void setField(Object target, String fieldName, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(fieldName);
+        field.setAccessible(true);
+        field.set(target, value);
+    }
+
+    private static void invokeNoArgMethod(Object target, String methodName) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName);
+        method.setAccessible(true);
+        method.invoke(target);
+    }
+
+    private static void invokeMethodWithIntArgument(Object target, String methodName, int argument) throws Exception {
+        Method method = target.getClass().getDeclaredMethod(methodName, int.class);
+        method.setAccessible(true);
+        method.invoke(target, argument);
+    }
+
+    private static String extractSelectedPostcode(JComboBox<String> postcodeCombo) {
+        Object selected = postcodeCombo.getEditor().getItem();
+        return selected instanceof String ? ((String) selected).trim() : "";
     }
 
     private static void run(String name, ThrowingRunnable runnable) throws Exception {
