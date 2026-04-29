@@ -275,6 +275,10 @@ final class BuildingOverviewLayer extends Layer {
         )) {
             return UNADDRESSED_FILL_COLOR;
         }
+        if (missingField != MissingField.ALL) {
+            // Field-focused view: mark as addressed when the selected field is present.
+            return ADDRESSED_FILL_COLOR;
+        }
         if (!hasMissingRequiredAddressFields) {
             return ADDRESSED_FILL_COLOR;
         }

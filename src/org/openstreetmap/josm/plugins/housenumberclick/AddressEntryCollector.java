@@ -24,7 +24,8 @@ import org.openstreetmap.josm.data.projection.ProjectionRegistry;
 import org.openstreetmap.josm.tools.Geometry;
 
 /**
- * Collects read-only address carriers across building and non-building objects and links address nodes to buildings.
+ * Collects read-only address carriers across building and non-building objects and links address nodes to buildings,
+ * including multipolygon outer-footprint containment for defensive indoor/courtyard address association.
  */
 final class AddressEntryCollector {
 
@@ -132,9 +133,6 @@ final class AddressEntryCollector {
 
     private Map<Long, BuildingGeometry> buildBuildingGeometries(Iterable<OsmPrimitive> buildings) {
         Map<Long, BuildingGeometry> geometries = new HashMap<>();
-        if (ProjectionRegistry.getProjection() == null) {
-            return geometries;
-        }
         if (buildings == null) {
             return geometries;
         }
@@ -142,18 +140,59 @@ final class AddressEntryCollector {
             if (building == null || !building.isUsable()) {
                 continue;
             }
-            Area area = Geometry.getAreaEastNorth(building);
-            if (area == null || area.isEmpty()) {
+            List<Way> outerWays = resolveOuterWays(building);
+            if (outerWays.isEmpty()) {
                 continue;
             }
-            Rectangle2D bounds = area.getBounds2D();
+
+            Area area = new Area();
+            Rectangle2D bounds = null;
+            if (ProjectionRegistry.getProjection() != null) {
+                area = Geometry.getAreaEastNorth(building);
+                if (area != null && !area.isEmpty()) {
+                    bounds = area.getBounds2D();
+                }
+            }
+            if (bounds == null || bounds.isEmpty()) {
+                bounds = resolveBoundsFromOuterWays(outerWays);
+            }
             if (bounds == null || bounds.isEmpty()) {
                 continue;
             }
-            List<Way> outerWays = resolveOuterWays(building);
-            geometries.put(building.getUniqueId(), new BuildingGeometry(building, area, bounds, outerWays));
+            geometries.put(building.getUniqueId(), new BuildingGeometry(building, area == null ? new Area() : area, bounds, outerWays));
         }
         return geometries;
+    }
+
+    private Rectangle2D resolveBoundsFromOuterWays(List<Way> outerWays) {
+        if (outerWays == null || outerWays.isEmpty()) {
+            return null;
+        }
+        double minX = Double.POSITIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        boolean hasPoint = false;
+        for (Way outerWay : outerWays) {
+            if (outerWay == null || !outerWay.isUsable()) {
+                continue;
+            }
+            for (Node node : outerWay.getNodes()) {
+                EastNorth point = resolveNodeEastNorth(node);
+                if (point == null) {
+                    continue;
+                }
+                hasPoint = true;
+                minX = Math.min(minX, point.east());
+                minY = Math.min(minY, point.north());
+                maxX = Math.max(maxX, point.east());
+                maxY = Math.max(maxY, point.north());
+            }
+        }
+        if (!hasPoint) {
+            return null;
+        }
+        return new Rectangle2D.Double(minX, minY, Math.max(0.0, maxX - minX), Math.max(0.0, maxY - minY));
     }
 
     private List<Way> resolveOuterWays(OsmPrimitive building) {
@@ -291,11 +330,12 @@ final class AddressEntryCollector {
             return null;
         }
         Relation bestRelation = null;
-        Way bestWay = null;
+        OsmPrimitive bestWayCanonical = null;
         for (OsmPrimitive referrer : node.getReferrers()) {
             if (referrer instanceof Way way && AddressedBuildingMatcher.isBuildingGeometry(way)) {
-                if (bestWay == null || way.getUniqueId() < bestWay.getUniqueId()) {
-                    bestWay = way;
+                OsmPrimitive canonical = resolveCanonicalBuilding(way);
+                if (canonical != null && (bestWayCanonical == null || canonical.getUniqueId() < bestWayCanonical.getUniqueId())) {
+                    bestWayCanonical = canonical;
                 }
             }
             if (!(referrer instanceof Relation relation) || !relation.isUsable()) {
@@ -308,7 +348,7 @@ final class AddressEntryCollector {
                 bestRelation = relation;
             }
         }
-        return bestRelation != null ? bestRelation : bestWay;
+        return bestRelation != null ? bestRelation : bestWayCanonical;
     }
 
     private boolean containsNode(BuildingGeometry geometry, Node node) {
@@ -319,7 +359,55 @@ final class AddressEntryCollector {
         if (!geometry.bounds.contains(point.east(), point.north())) {
             return false;
         }
-        return geometry.area.contains(point.east(), point.north());
+        if (geometry.area.contains(point.east(), point.north())) {
+            return true;
+        }
+        return isInsideOuterFootprint(geometry, point);
+    }
+
+    private boolean isInsideOuterFootprint(BuildingGeometry geometry, EastNorth point) {
+        if (geometry == null || point == null || geometry.outerWays == null || geometry.outerWays.isEmpty()) {
+            return false;
+        }
+        for (Way outerWay : geometry.outerWays) {
+            if (isInsideWayPolygon(outerWay, point)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isInsideWayPolygon(Way way, EastNorth point) {
+        if (way == null || !way.isUsable() || !way.isClosed() || point == null) {
+            return false;
+        }
+        List<Node> nodes = way.getNodes();
+        if (nodes == null || nodes.size() < 4) {
+            return false;
+        }
+
+        double x = point.east();
+        double y = point.north();
+        boolean inside = false;
+        for (int i = 0, j = nodes.size() - 1; i < nodes.size(); j = i++) {
+            EastNorth pi = resolveNodeEastNorth(nodes.get(i));
+            EastNorth pj = resolveNodeEastNorth(nodes.get(j));
+            if (pi == null || pj == null) {
+                continue;
+            }
+
+            double xi = pi.east();
+            double yi = pi.north();
+            double xj = pj.east();
+            double yj = pj.north();
+
+            boolean intersects = ((yi > y) != (yj > y))
+                    && (x < (xj - xi) * (y - yi) / ((yj - yi) + 1e-12) + xi);
+            if (intersects) {
+                inside = !inside;
+            }
+        }
+        return inside;
     }
 
     private boolean isNearBuildingOutline(BuildingGeometry geometry, Node node) {
@@ -327,7 +415,11 @@ final class AddressEntryCollector {
         if (geometry == null || node == null || point == null) {
             return false;
         }
-        double toleranceSquared = ASSOCIATION_OUTLINE_TOLERANCE_METERS * ASSOCIATION_OUTLINE_TOLERANCE_METERS;
+        double tolerance = ASSOCIATION_OUTLINE_TOLERANCE_METERS;
+        if (ProjectionRegistry.getProjection() == null) {
+            tolerance = ASSOCIATION_OUTLINE_TOLERANCE_METERS / 111_132.0;
+        }
+        double toleranceSquared = tolerance * tolerance;
         for (Way outerWay : geometry.outerWays) {
             if (outerWay == null || !outerWay.isUsable()) {
                 continue;
@@ -336,10 +428,12 @@ final class AddressEntryCollector {
             for (int i = 1; i < nodes.size(); i++) {
                 Node first = nodes.get(i - 1);
                 Node second = nodes.get(i);
-                if (first == null || second == null || first.getEastNorth() == null || second.getEastNorth() == null) {
+                EastNorth firstPoint = resolveNodeEastNorth(first);
+                EastNorth secondPoint = resolveNodeEastNorth(second);
+                if (first == null || second == null || firstPoint == null || secondPoint == null) {
                     continue;
                 }
-                double distanceSquared = distanceSquaredToSegment(point, first.getEastNorth(), second.getEastNorth());
+                double distanceSquared = distanceSquaredToSegment(point, firstPoint, secondPoint);
                 if (distanceSquared <= toleranceSquared) {
                     return true;
                 }

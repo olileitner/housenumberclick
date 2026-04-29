@@ -115,11 +115,15 @@ public final class HouseNumberClickRiskRegressionTests {
             run("Sidebar ToggleDialog architecture wiring exists", HouseNumberClickRiskRegressionTests::testSidebarToggleDialogArchitectureWiring);
             run("Street counts duplicate marker applies conditional city rule", HouseNumberClickRiskRegressionTests::testStreetHouseNumberCountCollectorConditionalCityRule);
             run("Building overview collector filters tiny buildings and keeps addressed state", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorFilteringAndClassification);
+            run("Building overview house-number focus marks present house number as addressed",
+                    HouseNumberClickRiskRegressionTests::testBuildingOverviewHouseNumberFocusUsesAddressedColorWhenPresent);
             run("Building overview duplicate detection applies conditional city rule", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorConditionalCityRule);
             run("Building overview duplicate detection ignores relation/outer self-duplicates", HouseNumberClickRiskRegressionTests::testBuildingOverviewCollectorIgnoresRelationOuterSelfDuplicate);
             run("Standalone address nodes are included in street counts", HouseNumberClickRiskRegressionTests::testStreetCountsIncludeStandaloneAddressNode);
             run("Entrance address nodes are included in overlay", HouseNumberClickRiskRegressionTests::testOverlayIncludesEntranceAddressNode);
             run("Address node inside building marks building as indirectly addressed", HouseNumberClickRiskRegressionTests::testBuildingOverviewMarksIndirectBuildingAddress);
+            run("Address node in multipolygon courtyard still marks building as indirectly addressed",
+                    HouseNumberClickRiskRegressionTests::testBuildingOverviewMarksMultipolygonCourtyardAddressAsIndirect);
             run("Co-located building and internal node are not treated as hard duplicates", HouseNumberClickRiskRegressionTests::testCoLocatedBuildingAndNodeAreNotHardDuplicates);
             run("Distinct address carriers with same key remain hard duplicates", HouseNumberClickRiskRegressionTests::testDistinctAddressCarriersRemainHardDuplicates);
             run("Address entry collector uses spatial index for node-building association", HouseNumberClickRiskRegressionTests::testAddressEntryCollectorSpatialIndexWiring);
@@ -2100,6 +2104,37 @@ public final class HouseNumberClickRiskRegressionTests {
                 "tiny building with address tags should stay visible despite minimum area filter");
     }
 
+    private static void testBuildingOverviewHouseNumberFocusUsesAddressedColorWhenPresent() throws Exception {
+        BuildingOverviewLayer layer = new BuildingOverviewLayer(new DataSet(), BuildingOverviewLayer.MissingField.HOUSE_NUMBER);
+        Method resolveFillColor = BuildingOverviewLayer.class.getDeclaredMethod(
+                "resolveFillColor",
+                boolean.class,
+                boolean.class,
+                boolean.class,
+                boolean.class,
+                boolean.class,
+                boolean.class,
+                boolean.class,
+                boolean.class
+        );
+        resolveFillColor.setAccessible(true);
+
+        Object color = resolveFillColor.invoke(
+                layer,
+                false, // hasNoAddressData
+                true,  // hasMissingStreet
+                true,  // hasMissingPostcode
+                false, // hasMissingHouseNumber
+                true,  // hasMissingCity
+                true,  // hasMissingCountry
+                false, // hasOnlyCountryMissing
+                true   // hasMissingRequiredAddressFields
+        );
+
+        assertEquals(new java.awt.Color(86, 180, 233, 190), color,
+                "house-number-focused view should color as addressed when house number is present");
+    }
+
     private static void testBuildingOverviewCollectorConditionalCityRule() {
         BuildingOverviewCollector collector = new BuildingOverviewCollector();
 
@@ -2289,6 +2324,54 @@ public final class HouseNumberClickRiskRegressionTests {
         assertTrue(buildingEntry.hasHouseNumber(), "indirect node address should make building count as addressed");
         assertTrue(buildingEntry.hasIndirectAddress(), "overview should mark building as indirectly addressed via node");
         assertEquals(null, building.get("addr:housenumber"), "indirect addressing must not modify building tags");
+    }
+
+    private static void testBuildingOverviewMarksMultipolygonCourtyardAddressAsIndirect() {
+        DataSet dataSet = new DataSet();
+
+        Way outer = new Way();
+        Node o1 = new Node(new LatLon(0.0, 0.0));
+        Node o2 = new Node(new LatLon(0.0, 0.001));
+        Node o3 = new Node(new LatLon(0.001, 0.001));
+        Node o4 = new Node(new LatLon(0.001, 0.0));
+        outer.setNodes(List.of(o1, o2, o3, o4, o1));
+
+        Way inner = new Way();
+        Node i1 = new Node(new LatLon(0.00035, 0.00035));
+        Node i2 = new Node(new LatLon(0.00035, 0.00065));
+        Node i3 = new Node(new LatLon(0.00065, 0.00065));
+        Node i4 = new Node(new LatLon(0.00065, 0.00035));
+        inner.setNodes(List.of(i1, i2, i3, i4, i1));
+
+        Relation buildingRelation = new Relation();
+        buildingRelation.put("type", "multipolygon");
+        buildingRelation.put("building", "yes");
+        buildingRelation.addMember(new org.openstreetmap.josm.data.osm.RelationMember("outer", outer));
+        buildingRelation.addMember(new org.openstreetmap.josm.data.osm.RelationMember("inner", inner));
+
+        dataSet.addPrimitiveRecursive(outer);
+        dataSet.addPrimitiveRecursive(inner);
+        dataSet.addPrimitive(buildingRelation);
+
+        Node addressNode = new Node(new LatLon(0.0005, 0.0005));
+        addressNode.put("addr:street", "Example Street");
+        addressNode.put("addr:postcode", "12345");
+        addressNode.put("addr:housenumber", "4");
+        dataSet.addPrimitive(addressNode);
+
+        List<BuildingOverviewCollector.BuildingOverviewEntry> entries = new BuildingOverviewCollector().collect(dataSet);
+        BuildingOverviewCollector.BuildingOverviewEntry buildingEntry = null;
+        for (BuildingOverviewCollector.BuildingOverviewEntry entry : entries) {
+            if (entry.getPrimitive() == buildingRelation) {
+                buildingEntry = entry;
+                break;
+            }
+        }
+        assertTrue(buildingEntry != null, "multipolygon building should appear in overview");
+        assertTrue(buildingEntry.hasHouseNumber(),
+                "courtyard address node should still make multipolygon building count as addressed");
+        assertTrue(buildingEntry.hasIndirectAddress(),
+                "multipolygon building should be marked as indirectly addressed via node");
     }
 
     private static void testCoLocatedBuildingAndNodeAreNotHardDuplicates() {

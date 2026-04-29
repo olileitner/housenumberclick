@@ -13,7 +13,7 @@ Core classes as defined in `AGENTS.md` are marked: `HouseNumberClickPlugin`, `Ho
 | `AddressDuplicateAnalyzer.DuplicateAddressGroupStats` | `AddressDuplicateAnalyzer.java` | No | Aggregated duplicate-match statistics for one street+postcode+housenumber group. |
 | `AddressEntry` | `AddressEntry.java` | No | Read-only normalized address carrier entry used by collectors/layers for counts, overlays, and duplicate checks. |
 | `AddressEntry.CarrierType` | `AddressEntry.java` | No | Address carrier type classification (building, entrance/address node, other object). |
-| `AddressEntryCollector` | `AddressEntryCollector.java` | No | Collects read-only address carriers across building and non-building objects and links address nodes to buildings. |
+| `AddressEntryCollector` | `AddressEntryCollector.java` | No | Collects read-only address carriers across building and non-building objects and links address nodes to buildings, including multipolygon outer-footprint containment for defensive indoor/courtyard address association. |
 | `AddressEntryCollector.BuildingSpatialIndex` | `AddressEntryCollector.java` | No | Lightweight EastNorth grid index to avoid full node x building scans for building association. |
 | `AddressedBuildingMatcher` | `AddressedBuildingMatcher.java` | No | Shared predicate helper for identifying addressable buildings, optionally filtered by street. |
 | `AddressReadbackService` | `AddressReadbackService.java` | No | Reads street, postcode, city, country, house number, and building type from clicked buildings or fallback street ways. |
